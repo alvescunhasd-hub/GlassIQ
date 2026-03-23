@@ -2,6 +2,6 @@
   "name": "assistant-vitrage",
   "version": "1.0.0",
   "scripts": {
-    "build": "echo 'No build needed'"
+    "build": "cp public/index.html dist/index.html || true"
   }
 }
