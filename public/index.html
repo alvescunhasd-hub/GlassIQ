@@ -1075,24 +1075,38 @@ function correctionDim(largeur, hauteur, dim_L_test, dim_H_test) {
   return               { correction: -3, ratio, label: "> 2× → −3 dB" };
 }
 
-function findMatches(systemeId, rw_requis, type_chassis, largeur, hauteur, db) {
+function isFeuillete(composition) {
+  // Détecte si un vitrage contient du feuilleté (44.x, 55.x, 66.x, 86.x...)
+  return /\d{2,3}\.\d/.test(composition);
+}
+
+function findMatches(systemeId, rw_requis, type_chassis, largeur, hauteur, db, filtre_verre) {
   const sys = db.systemes.find(s => s.id === systemeId);
   if (!sys) return { sys: null, matches: [] };
 
   const surf_projet = (largeur && hauteur && largeur > 0 && hauteur > 0)
     ? (largeur / 1000) * (hauteur / 1000) : null;
 
-  // Pour chaque composition, trouver le MEILLEUR rapport :
-  // 1. Priorité au rapport dont la surface testée >= surface projet (correction 0 dB)
-  // 2. Sinon le rapport avec la plus grande surface testée (correction minimale)
   const bestPerCompo = {};
 
   for (const test of sys.tests) {
     const chassisOk = !type_chassis || test.type_chassis.toLowerCase().includes(type_chassis.toLowerCase());
-    const dc = correctionDim(largeur, hauteur, test.dim_L, test.dim_H);
     const surf_test = (test.dim_L / 1000) * (test.dim_H / 1000);
 
+    // Calcul correction uniquement si surf_projet > surf_test
+    let dc;
+    if (surf_projet && surf_projet > surf_test) {
+      dc = correctionDim(largeur, hauteur, test.dim_L, test.dim_H);
+    } else {
+      // Surface projet <= surface testée → aucune correction
+      dc = { correction: 0, ratio: surf_projet ? surf_projet / surf_test : null, label: "≤ surface testée — direct" };
+    }
+
     for (const v of test.vitrages) {
+      // Filtre feuilleté / monolithique
+      if (filtre_verre === "feuillete" && !isFeuillete(v.composition)) continue;
+      if (filtre_verre === "mono" && isFeuillete(v.composition)) continue;
+
       const key = v.composition;
       const rw_corrige = v.rw + dc.correction;
       const candidate = { ...v, rw_corrige, dimCorr: dc, surf_test, test, systeme: sys, chassisOk };
@@ -1101,21 +1115,17 @@ function findMatches(systemeId, rw_requis, type_chassis, largeur, hauteur, db) {
         bestPerCompo[key] = candidate;
       } else {
         const prev = bestPerCompo[key];
-        // Si dimensions renseignées : préférer rapport avec surf_test >= surf_projet
         if (surf_projet) {
-          const newCoversProject = surf_test >= surf_projet;
-          const prevCoversProject = prev.surf_test >= surf_projet;
-          if (newCoversProject && !prevCoversProject) {
-            bestPerCompo[key] = candidate; // nouveau couvre le projet, pas l'ancien
-          } else if (newCoversProject && prevCoversProject) {
-            // Les deux couvrent : prendre le plus petit (moins de correction inutile)
+          const newCovers = surf_test >= surf_projet;
+          const prevCovers = prev.surf_test >= surf_projet;
+          if (newCovers && !prevCovers) {
+            bestPerCompo[key] = candidate;
+          } else if (newCovers && prevCovers) {
             if (surf_test < prev.surf_test) bestPerCompo[key] = candidate;
-          } else if (!newCoversProject && !prevCoversProject) {
-            // Aucun ne couvre : prendre le plus grand (correction minimale)
+          } else if (!newCovers && !prevCovers) {
             if (surf_test > prev.surf_test) bestPerCompo[key] = candidate;
           }
         } else {
-          // Pas de dimensions projet : prendre le plus grand rapport
           if (surf_test > prev.surf_test) bestPerCompo[key] = candidate;
         }
       }
@@ -1156,7 +1166,7 @@ function PageRecherche({ db }) {
   const [marqueActive, setMarqueActive] = useState(marques[0] || "");
   const gammesMarque = db.systemes.filter(s => s.marque === marqueActive);
   const [systemeId, setSystemeId] = useState(() => db.systemes[0]?.id || "");
-  const [typologies, setTypologies] = useState([{ id: 1, label: "Type A", chassis: "", rw: 36, largeur: "", hauteur: "" }]);
+  const [typologies, setTypologies] = useState([{ id: 1, label: "Type A", chassis: "", rw: 36, largeur: "", hauteur: "", filtre_verre: "tous" }]);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [projetNom, setProjetNom] = useState("");
@@ -1172,7 +1182,7 @@ function PageRecherche({ db }) {
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
     const res = typologies.map(typo => {
-      const { sys, matches } = findMatches(systemeId, typo.rw, typo.chassis, +typo.largeur, +typo.hauteur, db);
+      const { sys, matches } = findMatches(systemeId, typo.rw, typo.chassis, +typo.largeur, +typo.hauteur, db, typo.filtre_verre || "tous");
       const best = matches.find(m => m.chassisOk) || matches[0];
       const conformes = matches.filter(m => m.chassisOk);
       return { typo, sys, best, conformes, allMatches: matches };
@@ -1287,7 +1297,7 @@ function PageRecherche({ db }) {
                   }}>×</button>
                 )}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>Largeur menuiserie (mm)</div>
                   <input
@@ -1304,6 +1314,18 @@ function PageRecherche({ db }) {
                     style={{ ...inputStyle, margin: 0 }}
                   />
                 </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>Type de vitrage</div>
+                  <select
+                    value={typo.filtre_verre || "tous"}
+                    onChange={e => updateTypo(typo.id, "filtre_verre", e.target.value)}
+                    style={{ ...inputStyle, margin: 0 }}
+                  >
+                    <option value="tous">Tous (mono + feuilleté)</option>
+                    <option value="feuillete">Feuilleté uniquement (44.2, 66.2...)</option>
+                    <option value="mono">Monolithique uniquement</option>
+                  </select>
+                </div>
                 <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 2 }}>
                   {typo.largeur && typo.hauteur ? (
                     <div style={{ fontSize: 12, color: "#6b7280" }}>
@@ -1311,7 +1333,7 @@ function PageRecherche({ db }) {
                     </div>
                   ) : (
                     <div style={{ fontSize: 11, color: "#9ca3af", fontStyle: "italic" }}>
-                      Dimensions optionnelles — correction auto si renseignées
+                      Dimensions optionnelles
                     </div>
                   )}
                 </div>
