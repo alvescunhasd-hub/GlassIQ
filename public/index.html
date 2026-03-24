@@ -1080,7 +1080,7 @@ function isFeuillete(composition) {
   return /\d{2,3}\.\d/.test(composition);
 }
 
-function findMatches(systemeId, rw_requis, type_chassis, largeur, hauteur, db, filtre_verre) {
+function findMatches(systemeId, ratr_requis, type_chassis, largeur, hauteur, db, filtre_verre) {
   const sys = db.systemes.find(s => s.id === systemeId);
   if (!sys) return { sys: null, matches: [] };
 
@@ -1093,23 +1093,22 @@ function findMatches(systemeId, rw_requis, type_chassis, largeur, hauteur, db, f
     const chassisOk = !type_chassis || test.type_chassis.toLowerCase().includes(type_chassis.toLowerCase());
     const surf_test = (test.dim_L / 1000) * (test.dim_H / 1000);
 
-    // Calcul correction uniquement si surf_projet > surf_test
+    // Correction dimensionnelle uniquement si surf_projet > surf_test
     let dc;
     if (surf_projet && surf_projet > surf_test) {
       dc = correctionDim(largeur, hauteur, test.dim_L, test.dim_H);
     } else {
-      // Surface projet <= surface testée → aucune correction
       dc = { correction: 0, ratio: surf_projet ? surf_projet / surf_test : null, label: "≤ surface testée — direct" };
     }
 
     for (const v of test.vitrages) {
-      // Filtre feuilleté / monolithique
       if (filtre_verre === "feuillete" && !isFeuillete(v.composition)) continue;
       if (filtre_verre === "mono" && isFeuillete(v.composition)) continue;
 
       const key = v.composition;
-      const rw_corrige = v.rw + dc.correction;
-      const candidate = { ...v, rw_corrige, dimCorr: dc, surf_test, test, systeme: sys, chassisOk };
+      // Correction appliquée sur RA,tr (Rw+Ctr)
+      const ratr_corrige = v.rwctr + dc.correction;
+      const candidate = { ...v, ratr_corrige, dimCorr: dc, surf_test, test, systeme: sys, chassisOk };
 
       if (!bestPerCompo[key]) {
         bestPerCompo[key] = candidate;
@@ -1132,9 +1131,10 @@ function findMatches(systemeId, rw_requis, type_chassis, largeur, hauteur, db, f
     }
   }
 
+  // Filtrer sur RA,tr corrigé >= RA,tr requis
   const matches = Object.values(bestPerCompo)
-    .filter(m => m.rw_corrige >= rw_requis)
-    .sort((a, b) => a.rw_corrige - b.rw_corrige);
+    .filter(m => m.ratr_corrige >= ratr_requis)
+    .sort((a, b) => a.ratr_corrige - b.ratr_corrige);
 
   return { sys, matches };
 }
@@ -1281,7 +1281,7 @@ function PageRecherche({ db }) {
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>
-                    Rw requis ≥ <strong style={{ color: "#1a1a2e" }}>{typo.rw} dB</strong>
+                    RA,tr requis ≥ <strong style={{ color: "#1a1a2e" }}>{typo.rw} dB</strong>
                   </div>
                   <input
                     type="range" min={28} max={52} value={typo.rw}
@@ -1403,7 +1403,7 @@ function ResultCard({ typo, sys, best, conformes }) {
           <div>
             <div style={{ fontWeight: 700, fontSize: 15, color: "#1a1a2e" }}>{typo.label}</div>
             <div style={{ fontSize: 12, color: "#6b7280" }}>
-              Rw requis ≥ {typo.rw} dB
+              RA,tr requis ≥ {typo.rw} dB
               {typo.chassis && ` · ${typo.chassis}`}
             </div>
           </div>
@@ -1412,9 +1412,10 @@ function ResultCard({ typo, sys, best, conformes }) {
           {best ? (
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 13, color: "#6b7280" }}>Recommandé</div>
-              <div style={{ fontWeight: 800, fontSize: 16, color: "#065f46", fontFamily: "monospace" }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#065f46", fontFamily: "monospace" }}>
                 {best.composition.replace("8mm + ", "")}
               </div>
+              <div style={{ fontSize: 11, color: "#059669" }}>RA,tr {best.ratr_corrige ?? best.rwctr} dB</div>
             </div>
           ) : (
             <Badge color="red">Aucun vitrage conforme</Badge>
@@ -1434,16 +1435,17 @@ function ResultCard({ typo, sys, best, conformes }) {
             <div style={{ fontSize: 11, fontWeight: 700, color: "#059669", letterSpacing: "0.08em", marginBottom: 8 }}>
               VITRAGE RECOMMANDÉ
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
               <Stat label="Composition" value={best.composition.replace("8mm + ", "")} mono />
               <Stat label="Rw mesuré" value={`${best.rw} dB`} />
+              <Stat label="RA,tr mesuré" value={`${best.rwctr} dB`} />
               {best.dimCorr && best.dimCorr.correction !== 0 ? (
                 <Stat label="Correction dim." value={`${best.dimCorr.correction} dB`} warn />
               ) : (
                 <Stat label="Correction dim." value="0 dB" />
               )}
-              <Stat label="Rw corrigé" value={`${best.rw_corrige ?? best.rw} dB`} highlight />
-              <Stat label="Rw+Ctr" value={`${best.rwctr} dB`} />
+              <Stat label="RA,tr corrigé" value={`${best.ratr_corrige ?? best.rwctr} dB`} highlight />
+              <Stat label="RA,tr requis" value={`${typo.rw} dB`} />
             </div>
             {best.dimCorr && best.dimCorr.correction !== 0 && (
               <div style={{
@@ -1455,9 +1457,10 @@ function ResultCard({ typo, sys, best, conformes }) {
               </div>
             )}
             <div style={{ marginTop: 12, fontSize: 12, color: "#374151", lineHeight: 1.6 }}>
-              <strong>Justification :</strong> Ce vitrage présente un Rw mesuré de {best.rw} dB
-              {best.dimCorr && best.dimCorr.correction !== 0 && `, corrigé à ${best.rw_corrige} dB après application de la règle d'extrapolation dimensionnelle (${best.dimCorr.correction} dB)`},
-              soit <strong style={{ color: "#059669" }}>+{(best.rw_corrige ?? best.rw) - typo.rw} dB</strong> par rapport à l'exigence de {typo.rw} dB.
+              <strong>Justification :</strong> Ce vitrage présente un RA,tr mesuré de {best.rwctr} dB
+              {best.dimCorr && best.dimCorr.correction !== 0 && `, corrigé à ${best.ratr_corrige} dB après correction dimensionnelle (${best.dimCorr.correction} dB, ratio surface ×${best.dimCorr.ratio?.toFixed(2)})`}.
+              RA,tr corrigé <strong style={{ color: "#059669" }}>{best.ratr_corrige ?? best.rwctr} dB</strong> ≥ exigence {typo.rw} dB
+              (marge : +{(best.ratr_corrige ?? best.rwctr) - typo.rw} dB). Rw mesuré : {best.rw} dB.
               Testé par {best.test.labo} ({best.test.date}), rapport n° {best.test.rapport},
               sur châssis {sys.nom} — {best.test.type_chassis} ({best.test.dim_L} × {best.test.dim_H} mm).
             </div>
