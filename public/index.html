@@ -2427,6 +2427,307 @@ function PageControleSolaire() {
   );
 }
 
+
+// ── PAGE VENT & DTU 39 ────────────────────────────────────────────────────────
+// Vitesses de base par zone France (Eurocode EN 1991-1-4 / NV65)
+const ZONES_VENT_FRANCE = {
+  "1": { label: "Zone 1", vb0: 22, description: "Intérieur protégé (ex: Alsace, vallées alpines)" },
+  "2": { label: "Zone 2", vb0: 24, description: "Majorité du territoire français" },
+  "3": { label: "Zone 3", vb0: 28, description: "Littoral atlantique, massifs montagneux" },
+  "4": { label: "Zone 4", vb0: 32, description: "Guadeloupe, Martinique, zones exposées" },
+};
+
+// Catégories de terrain Eurocode
+const CATEGORIES_TERRAIN = {
+  "0": { label: "Catégorie 0", z0: 0.003, zmin: 1, description: "Mer, zone côtière exposée" },
+  "I": { label: "Catégorie I", z0: 0.01, zmin: 1, description: "Lacs, zone rurale plate sans obstacles" },
+  "II": { label: "Catégorie II", z0: 0.05, zmin: 2, description: "Zone rurale avec haies/arbres (référence)" },
+  "III": { label: "Catégorie III", z0: 0.3, zmin: 5, description: "Zone suburbaine, forêts, industrie" },
+  "IV": { label: "Catégorie IV", z0: 1.0, zmin: 10, description: "Zone urbaine dense, bâtiments hauts" },
+};
+
+// Table alpha DTU 39 (4 arêtes appuyées) - interpolation linéaire
+const ALPHA_4 = [
+  [0.0, 2.1143], [0.1, 2.1143], [0.2, 2.1000], [0.3, 2.1000],
+  [0.4, 1.8714], [0.5, 1.6429], [0.6, 1.4143], [0.7, 1.1857],
+  [0.8, 0.9714], [0.9, 0.8000], [1.0, 0.6571],
+];
+const ALPHA_3 = [
+  [0.0, 0.6857], [0.3, 0.6857], [0.333, 0.7314], [0.35, 0.8000],
+  [0.4, 0.9143], [0.5, 1.1429], [0.667, 1.5143], [0.7, 1.5629],
+  [0.8, 1.7100], [0.9, 1.8571], [1.0, 2.0000], [1.1, 2.0571],
+  [1.2, 2.1143], [1.3, 2.1714], [1.4, 2.2286], [1.5, 2.2857],
+  [1.75, 2.3143], [2.0, 2.3571], [3.0, 2.3714], [4.0, 2.3857],
+];
+const ALPHA_2 = [[0.0, 2.1143]];
+
+function interpolateAlpha(table, x) {
+  for (let i = 0; i < table.length - 1; i++) {
+    if (x >= table[i][0] && x <= table[i+1][0]) {
+      const t = (x - table[i][0]) / (table[i+1][0] - table[i][0]);
+      return table[i][1] + t * (table[i+1][1] - table[i][1]);
+    }
+  }
+  if (x <= table[0][0]) return table[0][1];
+  return table[table.length-1][1];
+}
+
+function calcPressionVent(zone, terrain, hauteur) {
+  const z = parseFloat(hauteur);
+  const zoneData = ZONES_VENT_FRANCE[zone];
+  const terrainData = CATEGORIES_TERRAIN[terrain];
+  if (!zoneData || !terrainData || !z || z <= 0) return null;
+
+  const vb0 = zoneData.vb0;
+  const vb = vb0; // cdir=1, cseason=1
+  const z0 = terrainData.z0;
+  const zmin = terrainData.zmin;
+  const z0II = 0.05;
+  const kr = 0.19 * Math.pow(z0 / z0II, 0.07);
+  const zeff = Math.max(z, zmin);
+  const cr = kr * Math.log(zeff / z0);
+  const vm = cr * vb;
+  const KI = 1.0;
+  const Iv = KI / (Math.log(zeff / z0));
+  const rho = 1.225; // France
+  const qp = (1 + 7 * Iv) * 0.5 * rho * vm * vm;
+  return Math.round(qp);
+}
+
+function calcEpaisseurDTU39(pression, largeur, hauteur, aretesL, aretesH, typeVitrage, hauteurSol, epaisseurs) {
+  // largeur = petit côté (l), hauteur = grand côté (L)
+  const L_mm = Math.max(largeur, hauteur);
+  const l_mm = Math.min(largeur, hauteur);
+  const L = L_mm / 1000; // en m
+  const l = l_mm / 1000;
+  const P = pression; // Pa
+  const aretesTotales = aretesL + aretesH;
+
+  // Ratio l/L
+  const ratio = l / L;
+
+  // Alpha selon arêtes
+  let alpha;
+  if (aretesTotales >= 4) alpha = interpolateAlpha(ALPHA_4, ratio);
+  else if (aretesTotales === 3) alpha = interpolateAlpha(ALPHA_3, ratio);
+  else alpha = ALPHA_2[0][1]; // 2 arêtes
+
+  // c hauteur au sol (DTU 39 §7.3)
+  const c = parseFloat(hauteurSol) <= 6 ? 0.9 : 1.0;
+
+  // Facteurs selon type de vitrage (DTU 39 §7.4)
+  let eps1, eps2;
+  if (typeVitrage === "isolant_mono") { eps1 = 1.6; eps2 = 1.0; }
+  else if (typeVitrage === "isolant_lamine") { eps1 = 1.6; eps2 = 1.3; }
+  else if (typeVitrage === "isolant_2lam") { eps1 = 1.6; eps2 = 1.3; }
+  else if (typeVitrage === "simple_lamine") { eps1 = 1.0; eps2 = 1.3; }
+  else { eps1 = 1.0; eps2 = 1.0; } // simple monolithique
+
+  // eR = résistance (DTU 39 §7.2.1 — 4 arêtes, L/l <= 2.5)
+  const Ll = L / l;
+  let eR;
+  if (aretesTotales >= 4) {
+    if (Ll <= 2.5) {
+      eR = Math.pow((alpha * P * c * l * l * 1000) / (0.3 * 90000), 1/3) * eps1 * eps2;
+    } else {
+      eR = Math.pow((alpha * P * c * l * l * 1000) / (0.3 * 90000), 1/3) * eps1 * eps2;
+    }
+  } else {
+    eR = Math.pow((alpha * P * c * l * l * 1000) / (0.3 * 90000), 1/3) * eps1 * eps2;
+  }
+
+  // eF = flèche
+  const flecheMax = Math.min(l_mm / 60, 30); // mm
+  const eF_num = alpha * P * Math.pow(l, 4) * 1e12;
+  const eF_den = 0.0105 * 70000 * flecheMax * 1e3;
+  const eF = Math.pow(eF_num / eF_den, 1/3) * eps1 * eps2;
+
+  const eRequired = Math.max(eR, eF);
+
+  return {
+    eR: parseFloat(eR.toFixed(2)),
+    eF: parseFloat(eF.toFixed(2)),
+    eRequired: parseFloat(eRequired.toFixed(2)),
+    alpha: parseFloat(alpha.toFixed(4)),
+    c,
+    ratio: parseFloat(ratio.toFixed(3)),
+    flecheMax: parseFloat(flecheMax.toFixed(1)),
+  };
+}
+
+// Compositions standard et épaisseur utile de chaque feuille
+const COMPOSITIONS_STD = [
+  { label: "4 mm mono", e: 4, type: "simple_mono" },
+  { label: "5 mm mono", e: 5, type: "simple_mono" },
+  { label: "6 mm mono", e: 6, type: "simple_mono" },
+  { label: "8 mm mono", e: 8, type: "simple_mono" },
+  { label: "10 mm mono", e: 10, type: "simple_mono" },
+  { label: "12 mm mono", e: 12, type: "simple_mono" },
+  { label: "33.2 (6mm)", e: 6, type: "simple_lamine" },
+  { label: "44.2 (8mm)", e: 8, type: "simple_lamine" },
+  { label: "55.2 (10mm)", e: 10, type: "simple_lamine" },
+  { label: "66.2 (12mm)", e: 12, type: "simple_lamine" },
+];
+
+function PageVent() {
+  const [zone, setZone] = useState("2");
+  const [terrain, setTerrain] = useState("II");
+  const [hauteur, setHauteur] = useState("9");
+  const [largeur, setLargeur] = useState("");
+  const [hauteurVitrage, setHauteurVitrage] = useState("");
+  const [aretesL, setAretesL] = useState(2);
+  const [aretesH, setAretesH] = useState(2);
+  const [typeVitrage, setTypeVitrage] = useState("isolant_2lam");
+  const [hauteurSol, setHauteurSol] = useState("3");
+  const [result, setResult] = useState(null);
+
+  const calculer = () => {
+    const pression = calcPressionVent(zone, terrain, hauteur);
+    if (!pression || !largeur || !hauteurVitrage) return;
+    const dtu = calcEpaisseurDTU39(pression, +largeur, +hauteurVitrage, +aretesL, +aretesH, typeVitrage, +hauteurSol, null);
+    setResult({ pression, dtu });
+  };
+
+  const pression_preview = calcPressionVent(zone, terrain, hauteur);
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24, padding: "16px 20px", background: "#f0fdf4", borderRadius: 12, border: "1px solid #6ee7b7" }}>
+        <div style={{ fontSize: 13, color: "#065f46", fontWeight: 600, marginBottom: 4 }}>💨 Calcul de pression de vent & vérification DTU 39</div>
+        <div style={{ fontSize: 12, color: "#065f46" }}>Calcul selon Eurocode EN 1991-1-4 (France) — Vérification épaisseur selon DTU 39</div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+        {/* Colonne gauche — Paramètres vent */}
+        <div style={{ background: "#f9fafb", borderRadius: 12, padding: "18px 20px", border: "1px solid #e5e7eb" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>Paramètres vent</div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Zone de vent (France)</label>
+            <select value={zone} onChange={e => setZone(e.target.value)} style={inputStyle}>
+              {Object.entries(ZONES_VENT_FRANCE).map(([k, v]) => (
+                <option key={k} value={k}>{v.label} — {v.description} (vb0={v.vb0} m/s)</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Catégorie de terrain</label>
+            <select value={terrain} onChange={e => setTerrain(e.target.value)} style={inputStyle}>
+              {Object.entries(CATEGORIES_TERRAIN).map(([k, v]) => (
+                <option key={k} value={k}>{v.label} — {v.description}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Hauteur du bâtiment (m)</label>
+            <input type="number" value={hauteur} onChange={e => setHauteur(e.target.value)} placeholder="ex: 9" style={inputStyle}/>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Hauteur vitrage / sol (m)</label>
+            <input type="number" step="0.1" value={hauteurSol} onChange={e => setHauteurSol(e.target.value)} placeholder="ex: 3" style={inputStyle}/>
+            <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>≤ 6m → c=0.9 / &gt; 6m → c=1.0 (DTU 39 §7.3)</div>
+          </div>
+          {pression_preview && (
+            <div style={{ padding: "10px 14px", background: "#1a1a2e", borderRadius: 10, color: "#fff", textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 2 }}>Pression de vent calculée</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{pression_preview} Pa</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>qp(z) Eurocode</div>
+            </div>
+          )}
+        </div>
+
+        {/* Colonne droite — Paramètres vitrage */}
+        <div style={{ background: "#f9fafb", borderRadius: 12, padding: "18px 20px", border: "1px solid #e5e7eb" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>Paramètres vitrage</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={labelStyle}>Largeur (mm)</label>
+              <input type="number" value={largeur} onChange={e => setLargeur(e.target.value)} placeholder="ex: 1200" style={inputStyle}/>
+            </div>
+            <div>
+              <label style={labelStyle}>Hauteur (mm)</label>
+              <input type="number" value={hauteurVitrage} onChange={e => setHauteurVitrage(e.target.value)} placeholder="ex: 2100" style={inputStyle}/>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={labelStyle}>Arêtes appuyées largeur</label>
+              <select value={aretesL} onChange={e => setAretesL(+e.target.value)} style={inputStyle}>
+                <option value={1}>1 arête</option>
+                <option value={2}>2 arêtes</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Arêtes appuyées hauteur</label>
+              <select value={aretesH} onChange={e => setAretesH(+e.target.value)} style={inputStyle}>
+                <option value={0}>0 arête (libre)</option>
+                <option value={1}>1 arête</option>
+                <option value={2}>2 arêtes</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Type de vitrage</label>
+            <select value={typeVitrage} onChange={e => setTypeVitrage(e.target.value)} style={inputStyle}>
+              <option value="simple_mono">Simple monolithique</option>
+              <option value="simple_lamine">Simple feuilleté</option>
+              <option value="isolant_mono">Double vitrage — 2 monolithiques</option>
+              <option value="isolant_lamine">Double vitrage — 1 mono + 1 feuilleté</option>
+              <option value="isolant_2lam">Double vitrage — 2 feuilletés</option>
+            </select>
+          </div>
+          {largeur && hauteurVitrage && (
+            <div style={{ padding: "8px 12px", background: "#f1f0ff", borderRadius: 8, fontSize: 12, color: "#4f46e5" }}>
+              Surface : <strong>{((+largeur/1000)*(+hauteurVitrage/1000)).toFixed(3)} m²</strong>
+              {" · "}Rapport L/l : <strong>{(Math.max(+largeur,+hauteurVitrage)/Math.min(+largeur,+hauteurVitrage)).toFixed(2)}</strong>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <button onClick={calculer} disabled={!largeur || !hauteurVitrage} style={btnPrimaryStyle}>
+        💨 Calculer l'épaisseur requise
+      </button>
+
+      {result && (
+        <div style={{ marginTop: 28 }}>
+          {/* Résultat pression */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20, padding: "16px 20px", background: "#f0f9ff", borderRadius: 12, border: "1px solid #bae6fd" }}>
+            <Stat label="Pression vent qp(z)" value={`${result.pression} Pa`} highlight />
+            <Stat label="Alpha DTU 39" value={result.dtu.alpha} />
+            <Stat label="c hauteur sol" value={result.dtu.c} />
+            <Stat label="Ratio l/L" value={result.dtu.ratio} />
+          </div>
+
+          {/* Résultat épaisseur */}
+          <div style={{ padding: "20px", background: "#fff", borderRadius: 14, border: "2px solid #1a1a2e", marginBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a2e", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16 }}>
+              Épaisseur minimale requise selon DTU 39
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
+              <Stat label="eR (résistance)" value={`${result.dtu.eR} mm`} />
+              <Stat label="eF (flèche max ${result.dtu.flecheMax}mm)" value={`${result.dtu.eF} mm`} />
+              <Stat label="e requise (max eR, eF)" value={`${result.dtu.eRequired} mm`} highlight />
+            </div>
+
+            {/* Tableau simplifié */}
+            <div style={{ marginTop: 16, padding: "12px 16px", background: "#fef9c3", borderRadius: 10, border: "1px solid #fde047", fontSize: 12, color: "#713f12" }}>
+              <strong>Tableau de référence rapide DTU 39</strong> (sans calcul de vent) :
+              <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, fontSize: 11 }}>
+                {[["≤ 0.50 m²", "33.2"], ["0.50–2.00 m²", "44.2"], ["2.00–4.50 m²", "55.2"], ["4.50–6.00 m²", "66.2"], ["> 6.00 m²", "Essai requis"]].map(([surf, comp]) => (
+                  <div key={surf} style={{ textAlign: "center", padding: "6px", background: "#fff", borderRadius: 6 }}>
+                    <div style={{ fontWeight: 700 }}>{comp}</div>
+                    <div style={{ color: "#9ca3af" }}>{surf}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── APP PRINCIPALE ────────────────────────────────────────────────────────────
 function App() {
   const [db, setDB] = useState(() => getDB());
@@ -2440,6 +2741,7 @@ function App() {
 
   const pages = [
     { id: "recherche", label: "Recherche vitrage", icon: "🔍" },
+    { id: "vent", label: "Calcul vent & DTU 39", icon: "💨" },
     { id: "controle", label: "Contrôle solaire", icon: "☀" },
     { id: "base", label: "Ma base", icon: "📚" },
     { id: "ajouter", label: "Ajouter un système", icon: "＋" },
@@ -2485,6 +2787,7 @@ function App() {
       {/* Contenu */}
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px" }}>
         {page === "recherche" && <PageRecherche db={db} />}
+        {page === "vent" && <PageVent />}
         {page === "controle" && <PageControleSolaire />}
         {page === "base" && <PageBase db={db} onUpdate={handleUpdate} />}
         {page === "ajouter" && <PageAjouter db={db} onUpdate={handleUpdate} />}
