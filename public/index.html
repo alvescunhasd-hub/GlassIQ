@@ -2688,42 +2688,72 @@ function PageVent() {
           <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, textAlign: "center" }}>
             Zones de vent — France
           </div>
-          <svg viewBox="0 0 200 240" style={{ width: "100%", height: "auto" }}>
-            {/* Fond */}
-            <rect x="0" y="0" width="200" height="240" fill="#e0f2fe" rx="8"/>
-            {/* Silhouette France simplifiée */}
-            {/* Zone 1 - Centre/Est (bleu clair) */}
-            <path d="M95,40 L130,35 L155,55 L160,80 L155,110 L145,130 L130,145 L110,150 L95,140 L85,120 L80,95 L85,65 Z" fill="#bfdbfe" stroke="#fff" strokeWidth="1"/>
-            {/* Zone 2 - Majorité territoire (vert) */}
-            <path d="M55,50 L95,40 L85,65 L80,95 L85,120 L95,140 L85,160 L70,170 L50,165 L35,145 L30,115 L35,80 L45,60 Z" fill="#bbf7d0" stroke="#fff" strokeWidth="1"/>
-            {/* Zone 2 suite Nord */}
-            <path d="M95,40 L130,35 L125,20 L105,15 L85,20 L70,30 L55,50 L95,40 Z" fill="#bbf7d0" stroke="#fff" strokeWidth="1"/>
-            {/* Zone 3 - Littoral/Montagne (orange) */}
-            <path d="M30,80 L35,80 L35,115 L30,115 L20,100 L15,80 L20,65 Z" fill="#fed7aa" stroke="#fff" strokeWidth="1"/>
-            <path d="M35,145 L50,165 L45,180 L30,175 L20,160 L25,145 Z" fill="#fed7aa" stroke="#fff" strokeWidth="1"/>
-            <path d="M85,160 L95,140 L110,150 L115,170 L105,185 L90,180 Z" fill="#fed7aa" stroke="#fff" strokeWidth="1"/>
-            {/* Zone 4 - Très exposé (rouge) */}
-            <path d="M15,80 L20,65 L25,55 L20,45 L10,50 L8,70 Z" fill="#fca5a5" stroke="#fff" strokeWidth="1"/>
-            {/* Contour France */}
-            <path d="M85,20 L105,15 L125,20 L130,35 L155,55 L160,80 L155,110 L145,130 L130,145 L115,170 L105,185 L90,180 L85,160 L70,170 L50,165 L45,180 L30,175 L20,160 L25,145 L35,145 L30,115 L15,80 L8,70 L10,50 L20,45 L25,55 L20,65 L20,65 L35,80 L45,60 L55,50 L70,30 L85,20 Z"
-              fill="none" stroke="#64748b" strokeWidth="1.5"/>
+          <svg viewBox="0 0 200 260" style={{ width: "100%", height: "auto" }}>
+            <rect x="0" y="0" width="200" height="260" fill="#dbeafe" rx="8"/>
+            {/* Mer / fond eau */}
+            <rect x="0" y="0" width="200" height="260" fill="#e0f2fe" rx="8"/>
+
+            {/* Zone 4 — littoral atlantique nord + Bretagne (rouge) */}
+            <path d="M42,52 L48,48 L52,42 L50,36 L44,34 L38,38 L34,46 L36,54 Z" fill="#fca5a5" stroke="none"/>
+            <path d="M34,72 L38,66 L36,58 L30,56 L26,62 L28,70 Z" fill="#fca5a5" stroke="none"/>
+            <path d="M30,90 L34,84 L32,76 L26,74 L22,80 L24,88 Z" fill="#fca5a5" stroke="none"/>
+            <path d="M36,108 L38,100 L34,94 L28,94 L26,102 L30,108 Z" fill="#fca5a5" stroke="none"/>
+
+            {/* Zone 3 — Atlantique, Pyrénées, Méditerranée, Alpes (orange) */}
+            <path d="M48,48 L58,44 L66,48 L68,56 L60,62 L52,60 L48,54 Z" fill="#fed7aa" stroke="none"/>
+            <path d="M38,66 L46,62 L52,60 L56,68 L50,76 L40,74 L36,68 Z" fill="#fed7aa" stroke="none"/>
+            <path d="M34,84 L42,80 L50,78 L52,86 L46,94 L36,92 L30,88 Z" fill="#fed7aa" stroke="none"/>
+            <path d="M38,100 L48,98 L54,104 L50,114 L40,114 L34,108 Z" fill="#fed7aa" stroke="none"/>
+            <path d="M50,116 L60,116 L66,124 L62,132 L52,132 L46,124 Z" fill="#fed7aa" stroke="none"/>
+            <path d="M64,136 L76,134 L82,142 L78,150 L66,150 L60,142 Z" fill="#fed7aa" stroke="none"/>
+            {/* Alpes */}
+            <path d="M140,110 L150,106 L158,112 L156,124 L146,126 L138,120 Z" fill="#fed7aa" stroke="none"/>
+            <path d="M144,126 L154,124 L160,132 L156,142 L146,142 L140,134 Z" fill="#fed7aa" stroke="none"/>
+            {/* Pyrénées */}
+            <path d="M80,152 L96,150 L108,154 L108,162 L92,164 L78,160 Z" fill="#fed7aa" stroke="none"/>
+
+            {/* Zone 2 — Majorité du territoire (vert) */}
+            <path d="M66,48 L90,40 L114,42 L128,52 L134,68 L128,82 L114,88 L98,88 L82,84 L68,76 L60,62 L66,48 Z" fill="#bbf7d0" stroke="none"/>
+            <path d="M58,44 L66,48 L60,62 L52,60 L56,68 L50,76 L52,86 L48,98 L54,104 L62,100 L72,98 L82,100 L90,106 L98,108 L108,106 L118,102 L128,96 L138,90 L146,82 L148,70 L140,58 L128,52 L114,42 L90,40 L74,42 L62,44 Z" fill="#bbf7d0" stroke="none"/>
+            <path d="M62,100 L72,98 L82,100 L90,106 L92,116 L86,124 L76,126 L66,122 L60,114 L60,106 Z" fill="#bbf7d0" stroke="none"/>
+            <path d="M90,106 L108,106 L118,110 L124,122 L118,132 L108,134 L96,132 L86,126 L86,116 Z" fill="#bbf7d0" stroke="none"/>
+            <path d="M118,102 L130,98 L140,98 L148,106 L148,118 L140,124 L128,122 L120,116 L118,106 Z" fill="#bbf7d0" stroke="none"/>
+            <path d="M118,132 L132,130 L142,134 L144,144 L136,150 L122,150 L112,144 L110,136 Z" fill="#bbf7d0" stroke="none"/>
+
+            {/* Zone 1 — Alsace, intérieur protégé (bleu) */}
+            <path d="M148,56 L158,52 L166,58 L166,72 L158,76 L148,72 L144,64 Z" fill="#bfdbfe" stroke="none"/>
+            <path d="M158,76 L166,72 L170,82 L166,92 L158,94 L150,88 L148,78 Z" fill="#bfdbfe" stroke="none"/>
+            <path d="M158,94 L166,92 L170,102 L166,112 L158,112 L150,106 L148,96 Z" fill="#bfdbfe" stroke="none"/>
+
+            {/* Contour France reconnaissable */}
+            <path d="
+              M90,22 L100,18 L112,20 L122,26 L130,34 L138,36 L148,40 L158,44 L166,52 L168,62 L166,74 L170,84 L170,96 L168,108 L162,118 L158,128 L156,140 L150,150 L144,158 L136,162 L126,164 L116,162 L108,156 L100,162 L92,168 L84,164 L76,156 L68,152 L58,150 L50,144 L44,134 L38,124 L32,114 L28,102 L26,90 L24,78 L26,66 L30,56 L34,48 L40,42 L48,36 L56,32 L66,26 L76,22 L90,22 Z"
+              fill="none" stroke="#475569" strokeWidth="2"/>
+
+            {/* Corse */}
+            <ellipse cx="168" cy="152" rx="8" ry="14" fill="#bbf7d0" stroke="#475569" strokeWidth="1.5"/>
+            <text x="168" y="156" fontSize="6" fill="#374151" textAnchor="middle">Corse</text>
+
             {/* Labels zones */}
-            <text x="110" y="92" fontSize="9" fontWeight="bold" fill="#1e40af" textAnchor="middle">Z1</text>
-            <text x="65" y="100" fontSize="9" fontWeight="bold" fill="#15803d" textAnchor="middle">Z2</text>
-            <text x="25" y="100" fontSize="8" fontWeight="bold" fill="#c2410c" textAnchor="middle">Z3</text>
-            <text x="12" y="65" fontSize="7" fontWeight="bold" fill="#b91c1c" textAnchor="middle">Z4</text>
+            <text x="155" y="76" fontSize="9" fontWeight="bold" fill="#1e40af" textAnchor="middle">Z1</text>
+            <text x="100" y="80" fontSize="10" fontWeight="bold" fill="#15803d" textAnchor="middle">Z2</text>
+            <text x="42" y="88" fontSize="8" fontWeight="bold" fill="#c2410c" textAnchor="middle">Z3</text>
+            <text x="30" y="68" fontSize="8" fontWeight="bold" fill="#b91c1c" textAnchor="middle">Z4</text>
+
             {/* Légende */}
-            <rect x="10" y="195" width="10" height="8" fill="#fca5a5" rx="1"/>
-            <text x="23" y="202" fontSize="7" fill="#374151">Z4 — 32 m/s</text>
-            <rect x="10" y="207" width="10" height="8" fill="#fed7aa" rx="1"/>
-            <text x="23" y="214" fontSize="7" fill="#374151">Z3 — 28 m/s</text>
-            <rect x="100" y="195" width="10" height="8" fill="#bbf7d0" rx="1"/>
-            <text x="113" y="202" fontSize="7" fill="#374151">Z2 — 24 m/s</text>
-            <rect x="100" y="207" width="10" height="8" fill="#bfdbfe" rx="1"/>
-            <text x="113" y="214" fontSize="7" fill="#374151">Z1 — 22 m/s</text>
-            {/* Zone sélectionnée highlight */}
-            <text x="100" y="232" fontSize="8" fontWeight="bold" fill="#1a1a2e" textAnchor="middle">
-              {zone === "1" ? "▶ Zone 1 sélectionnée" : zone === "2" ? "▶ Zone 2 sélectionnée" : zone === "3" ? "▶ Zone 3 sélectionnée" : "▶ Zone 4 sélectionnée"}
+            <rect x="8" y="192" width="9" height="8" fill="#fca5a5" rx="1" stroke="#94a3b8" strokeWidth="0.5"/>
+            <text x="20" y="199" fontSize="7.5" fill="#374151">Z4 — 32 m/s (très exposé)</text>
+            <rect x="8" y="204" width="9" height="8" fill="#fed7aa" rx="1" stroke="#94a3b8" strokeWidth="0.5"/>
+            <text x="20" y="211" fontSize="7.5" fill="#374151">Z3 — 28 m/s (littoral/montagne)</text>
+            <rect x="8" y="216" width="9" height="8" fill="#bbf7d0" rx="1" stroke="#94a3b8" strokeWidth="0.5"/>
+            <text x="20" y="223" fontSize="7.5" fill="#374151">Z2 — 24 m/s (général)</text>
+            <rect x="8" y="228" width="9" height="8" fill="#bfdbfe" rx="1" stroke="#94a3b8" strokeWidth="0.5"/>
+            <text x="20" y="235" fontSize="7.5" fill="#374151">Z1 — 22 m/s (intérieur)</text>
+
+            {/* Zone sélectionnée */}
+            <rect x="8" y="244" width="184" height="12" fill="#1a1a2e" rx="4"/>
+            <text x="100" y="253" fontSize="8" fontWeight="bold" fill="#fff" textAnchor="middle">
+              {zone === "1" ? "▶ Zone 1 sélectionnée — 22 m/s" : zone === "2" ? "▶ Zone 2 sélectionnée — 24 m/s" : zone === "3" ? "▶ Zone 3 sélectionnée — 28 m/s" : "▶ Zone 4 sélectionnée — 32 m/s"}
             </text>
           </svg>
           <div style={{ marginTop: 8, fontSize: 10, color: "#9ca3af", textAlign: "center", lineHeight: 1.4 }}>
