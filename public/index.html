@@ -1866,7 +1866,7 @@ const Badge = ({ color, children }) => {
 };
 
 // ── PAGE RECHERCHE ────────────────────────────────────────────────────────────
-function PageRecherche({ db }) {
+function PageRecherche({ db, projet, setProjet }) {
   const marques = [...new Set(db.systemes.map(s => s.marque))];
   const [marqueActive, setMarqueActive] = useState(marques[0] || "");
   const gammesMarque = db.systemes.filter(s => s.marque === marqueActive);
@@ -1894,6 +1894,24 @@ function PageRecherche({ db }) {
     });
     setResults(res);
     setLoading(false);
+    // Sauvegarder automatiquement dans le projet global
+    if (setProjet) {
+      const typos_prescription = res.map(r => ({
+        id: r.typo.id,
+        label: r.typo.label,
+        dims: r.typo.largeur && r.typo.hauteur ? `${r.typo.largeur}×${r.typo.hauteur} mm` : "",
+        rw_requis: r.typo.rw + " dB",
+        gamme: r.sys ? `${r.sys.marque} ${r.sys.nom}` : "",
+        vitrage: r.best ? r.best.composition.replace("8mm + ", "") : "",
+        rw: r.best ? r.best.rw + " dB" : "",
+        rwctr: r.best ? (r.best.ratr_corrige ?? r.best.rwctr) + " dB" : "",
+        rapport: r.best ? r.best.test.rapport : "",
+        correction: r.best && r.best.dimCorr ? r.best.dimCorr.correction + " dB" : "0 dB",
+        controle: "", tl: "", fs: "", ug: "",
+        epaisseur_dtu: "", aev: "",
+      }));
+      setProjet(p => ({ ...p, nom: projetNom, typologies: typos_prescription }));
+    }
   };
 
   const sys = db.systemes.find(s => s.id === systemeId);
@@ -2528,7 +2546,7 @@ const btnSecondaryStyle = {
 
 
 // ── PAGE CAPAS ────────────────────────────────────────────────────────────────
-function PageControleSolaire() {
+function PageControleSolaire({ projet, setProjet }) {
   const [controles] = useState(() => getControles());
   const [tl_min, setTlMin] = useState("");
   const [fs_max, setFsMax] = useState("");
@@ -2592,7 +2610,7 @@ function PageControleSolaire() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {results.map((c, i) => (
               <div key={c.id} style={{
-                display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 2fr",
+                display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr",
                 gap: 12, alignItems: "center",
                 padding: "14px 18px", borderRadius: 12,
                 background: i === 0 ? "#f0fdf4" : "#f9fafb",
@@ -2606,6 +2624,22 @@ function PageControleSolaire() {
                 <Stat label="Facteur solaire" value={c.fs} highlight={i === 0} />
                 <Stat label="Ug" value={`${c.ug} W/m².K`} />
                 <div style={{ fontSize: 12, color: "#6b7280", fontStyle: "italic" }}>{c.note}</div>
+                <button onClick={() => {
+                  if (setProjet) {
+                    setProjet(p => ({
+                      ...p,
+                      controle_ref: c.ref,
+                      controle_tl: c.tl + "%",
+                      controle_fs: c.fs,
+                      controle_ug: c.ug + " W/m².K",
+                    }));
+                  }
+                }} style={{
+                  padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", background: "#1a1a2e", color: "#fff", border: "none"
+                }}>
+                  ➕ Utiliser
+                </button>
               </div>
             ))}
           </div>
@@ -2786,7 +2820,7 @@ const COMPOSITIONS_STD = [
   { label: "66.2 (12mm)", e: 12, type: "simple_lamine" },
 ];
 
-function PageVent() {
+function PageVent({ projet, setProjet }) {
   const [zone, setZone] = useState("2");
   const [terrain, setTerrain] = useState("II");
   const [hauteur, setHauteur] = useState("9");
@@ -2803,6 +2837,17 @@ function PageVent() {
     if (!pression || !largeur || !hauteurVitrage) return;
     const dtu = calcEpaisseurDTU39(pression, +largeur, +hauteurVitrage, +aretesL, +aretesH, typeVitrage, +hauteurSol, null);
     setResult({ pression, dtu });
+    // Sauvegarder automatiquement dans le projet global
+    if (setProjet) {
+      setProjet(p => ({
+        ...p,
+        zone: ZONES_VENT_FRANCE[zone]?.label || zone,
+        terrain: CATEGORIES_TERRAIN[terrain]?.label || terrain,
+        hauteur: hauteur + " m",
+        pression: pression + " Pa",
+        epaisseur_dtu: dtu.eRequired + " mm",
+      }));
+    }
   };
 
   const pression_preview = calcPressionVent(zone, terrain, hauteur);
@@ -3025,16 +3070,18 @@ function PageVent() {
 
 
 // ── PAGE PRESCRIPTION ─────────────────────────────────────────────────────────
-function PagePrescription({ db }) {
-  const [projet, setProjet] = useState({ nom: "", client: "", date: new Date().toISOString().split("T")[0], redacteur: "" });
-  const [ventData, setVentData] = useState({ zone: "", terrain: "", hauteur: "", pression: "" });
-  const [typologies, setTypologies] = useState([{
-    id: 1, label: "Type A",
-    dims: "", rw_requis: "",
-    gamme: "", vitrage: "", rw: "", rwctr: "", rapport: "", correction: "0",
-    controle: "", tl: "", fs: "", ug: "",
-    epaisseur_dtu: "", aev: ""
-  }]);
+function PagePrescription({ db, projet, setProjet, setPage }) {
+  const [infoProjet, setInfoProjet] = useState({ nom: projet?.nom || "", client: projet?.client || "", date: projet?.date || new Date().toISOString().split("T")[0], redacteur: projet?.redacteur || "" });
+  const [typologies, setTypologies] = useState(() => {
+    if (projet?.typologies?.length > 0) return projet.typologies;
+    return [{
+      id: 1, label: "Type A",
+      dims: "", rw_requis: "",
+      gamme: "", vitrage: "", rw: "", rwctr: "", rapport: "", correction: "0",
+      controle: projet?.controle_ref || "", tl: projet?.controle_tl || "", fs: projet?.controle_fs || "", ug: projet?.controle_ug || "",
+      epaisseur_dtu: projet?.epaisseur_dtu || "", aev: ""
+    }];
+  });
 
   const addTypo = () => setTypologies(t => [...t, {
     id: Date.now(), label: `Type ${String.fromCharCode(65 + t.length)}`,
@@ -3062,13 +3109,19 @@ function PagePrescription({ db }) {
       `}</style>
 
       {/* Boutons actions */}
-      <div className="no-print" style={{ display: "flex", gap: 12, marginBottom: 24, alignItems: "center" }}>
+      <div className="no-print" style={{ display: "flex", gap: 12, marginBottom: 24, alignItems: "center", flexWrap: "wrap" }}>
         <button onClick={imprimer} style={{ ...btnPrimaryStyle, background: "#059669" }}>
-          📄 Exporter PDF (Imprimer → Enregistrer en PDF)
+          📄 Exporter PDF
         </button>
         <button onClick={addTypo} style={btnSecondaryStyle}>+ Ajouter une typologie</button>
-        <div style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>
-          Dans le navigateur : Fichier → Imprimer → Destination : Enregistrer en PDF
+        {setPage && <button onClick={() => setPage("recherche")} style={{ ...btnSecondaryStyle, background: "#f0fdf4", borderColor: "#6ee7b7", color: "#065f46" }}>
+          🔍 Aller à la recherche vitrage
+        </button>}
+        {setPage && <button onClick={() => setPage("vent")} style={{ ...btnSecondaryStyle, background: "#f0f9ff", borderColor: "#bae6fd", color: "#0369a1" }}>
+          💨 Aller au calcul vent
+        </button>}
+        <div style={{ fontSize: 11, color: "#9ca3af" }}>
+          Export : Fichier → Imprimer → Enregistrer en PDF
         </div>
       </div>
 
@@ -3095,24 +3148,24 @@ function PagePrescription({ db }) {
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12 }}>
             <div>
               <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 3 }}>NOM DU PROJET</div>
-              <input value={projet.nom} onChange={e => setProjet({...projet, nom: e.target.value})}
+              <input value={infoProjet.nom} onChange={e => setInfoProjet({...infoProjet, nom: e.target.value})}
                 placeholder="Ex: Résidence Les Acacias — Marseille"
                 style={{ ...inputStyle, fontSize: 13, fontWeight: 600 }} className="no-print-input"/>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", display: "none" }} className="print-value">{projet.nom}</div>
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 3 }}>CLIENT</div>
-              <input value={projet.client} onChange={e => setProjet({...projet, client: e.target.value})}
+              <input value={infoProjet.client} onChange={e => setInfoProjet({...infoProjet, client: e.target.value})}
                 placeholder="Nom client" style={{ ...inputStyle, fontSize: 13 }} className="no-print-input"/>
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 3 }}>DATE</div>
-              <input type="date" value={projet.date} onChange={e => setProjet({...projet, date: e.target.value})}
+              <input type="date" value={infoProjet.date} onChange={e => setInfoProjet({...infoProjet, date: e.target.value})}
                 style={{ ...inputStyle, fontSize: 13 }} className="no-print-input"/>
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 3 }}>RÉDACTEUR</div>
-              <input value={projet.redacteur} onChange={e => setProjet({...projet, redacteur: e.target.value})}
+              <input value={infoProjet.redacteur} onChange={e => setInfoProjet({...infoProjet, redacteur: e.target.value})}
                 placeholder="Votre nom" style={{ ...inputStyle, fontSize: 13 }} className="no-print-input"/>
             </div>
           </div>
@@ -3130,7 +3183,7 @@ function PagePrescription({ db }) {
             ].map(([label, key, ph]) => (
               <div key={key}>
                 <div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>{label}</div>
-                <input value={ventData[key]} onChange={e => setVentData({...ventData, [key]: e.target.value})}
+                <input value={projet?.[key] || ''} onChange={e => setProjet && setProjet(p => ({...p, [key]: e.target.value}))}
                   placeholder={ph} style={{ ...inputStyle, fontSize: 13, background: "#fff" }}/>
               </div>
             ))}
@@ -3194,7 +3247,7 @@ function PagePrescription({ db }) {
                   <div style={{ padding: "12px 14px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: "#92400e", letterSpacing: "0.06em", marginBottom: 10 }}>☀ CONTRÔLE SOLAIRE</div>
                     {[
-                      ["Référence capa", "controle", "ex: Xtreme 70/33"],
+                      ["Référence capa", "controle", projet?.controle_ref || "ex: Xtreme 70/33"],
                       ["TL (%)", "tl", "ex: 70%"],
                       ["Facteur solaire", "fs", "ex: 0.33"],
                       ["Ug (W/m².K)", "ug", "ex: 1.0"],
@@ -3244,7 +3297,7 @@ function PagePrescription({ db }) {
         {/* Pied de page */}
         <div style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9ca3af" }}>
           <div>GlassIQ — Prescription vitrage intelligente</div>
-          <div>Document généré le {new Date().toLocaleDateString("fr-FR")} {projet.redacteur && `— ${projet.redacteur}`}</div>
+          <div>Document généré le {new Date().toLocaleDateString("fr-FR")} {infoProjet.redacteur && `— ${infoProjet.redacteur}`}</div>
         </div>
       </div>
     </div>
@@ -3256,6 +3309,16 @@ function App() {
   const [db, setDB] = useState(() => getDB());
   const [controles, setControles] = useState(() => getControles());
   const [page, setPage] = useState("vent");
+  const [projetGlobal, setProjetGlobal] = useState({
+    // Infos projet
+    nom: "", client: "", date: new Date().toISOString().split("T")[0], redacteur: "",
+    // Données vent
+    zone: "", terrain: "", hauteur: "", pression: "", epaisseur_dtu: "",
+    // Typologies acoustiques (liste)
+    typologies: [],
+    // Contrôle solaire retenu
+    controle_ref: "", controle_tl: "", controle_fs: "", controle_ug: "",
+  });
 
   const handleUpdate = (newDB) => {
     setDB(newDB);
