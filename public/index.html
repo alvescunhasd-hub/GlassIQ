@@ -3174,20 +3174,20 @@ function PagePrescription({ db, projet, setProjet, setPage }) {
         {/* Données vent */}
         <div style={{ marginBottom: 24, padding: "16px 20px", background: "#f0f9ff", borderRadius: 10, border: "1px solid #bae6fd" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#0369a1", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>💨 Données vent — Eurocode</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-            {[
-              ["ZONE DE VENT", "zone", "ex: Zone 2"],
-              ["CATÉGORIE TERRAIN", "terrain", "ex: Catégorie II"],
-              ["HAUTEUR BÂTIMENT", "hauteur", "ex: 9 m"],
-              ["PRESSION qp(z)", "pression", "ex: 850 Pa"],
-            ].map(([label, key, ph]) => (
-              <div key={key}>
-                <div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>{label}</div>
-                <input value={projet?.[key] || ''} onChange={e => setProjet && setProjet(p => ({...p, [key]: e.target.value}))}
-                  placeholder={ph} style={{ ...inputStyle, fontSize: 13, background: "#fff" }}/>
-              </div>
-            ))}
-          </div>
+          {projet?.pression ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
+              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>ZONE DE VENT</div><div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>{projet.zone || "—"}</div></div>
+              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>CATÉGORIE TERRAIN</div><div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>{projet.terrain || "—"}</div></div>
+              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>HAUTEUR BÂTIMENT</div><div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>{projet.hauteur || "—"}</div></div>
+              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>PRESSION qp(z)</div><div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>{projet.pression || "—"}</div></div>
+              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>ÉPAISSEUR DTU 39</div><div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>{projet.epaisseur_dtu || "—"}</div></div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "#0369a1", fontStyle: "italic", display: "flex", alignItems: "center", gap: 10 }}>
+              <span>⚠ Aucun calcul vent effectué.</span>
+              {setPage && <button onClick={() => setPage("vent")} style={{ ...btnSecondaryStyle, fontSize: 11, padding: "4px 12px", background: "#f0f9ff", borderColor: "#bae6fd", color: "#0369a1" }}>💨 Aller au calcul vent</button>}
+            </div>
+          )}
         </div>
 
         {/* Typologies */}
@@ -3247,7 +3247,7 @@ function PagePrescription({ db, projet, setProjet, setPage }) {
                   <div style={{ padding: "12px 14px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: "#92400e", letterSpacing: "0.06em", marginBottom: 10 }}>☀ CONTRÔLE SOLAIRE</div>
                     {[
-                      ["Référence capa", "controle", projet?.controle_ref || "ex: Xtreme 70/33"],
+                      ["Référence capa", "controle", "ex: Xtreme 70/33"],
                       ["TL (%)", "tl", "ex: 70%"],
                       ["Facteur solaire", "fs", "ex: 0.33"],
                       ["Ug (W/m².K)", "ug", "ex: 1.0"],
