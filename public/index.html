@@ -2086,7 +2086,20 @@ function PageRecherche({ db, projet, setProjet }) {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {results.map(({ typo, sys, best, conformes }) => (
-              <ResultCard key={typo.id} typo={typo} sys={sys} best={best} conformes={conformes} />
+              <ResultCard key={typo.id} typo={typo} sys={sys} best={best} conformes={conformes}
+                onAddToPrescription={setProjet ? (data) => {
+                  setProjet(p => {
+                    const existing = p.typologies || [];
+                    const idx = existing.findIndex(t => t.label === data.label);
+                    const newTypo = { ...data, id: Date.now() };
+                    const newTypos = idx >= 0
+                      ? existing.map((t, i) => i === idx ? newTypo : t)
+                      : [...existing, newTypo];
+                    return { ...p, typologies: newTypos };
+                  });
+                  alert(`✓ ${data.label} ajouté à la prescription !`);
+                } : null}
+              />
             ))}
           </div>
         </div>
@@ -2095,7 +2108,7 @@ function PageRecherche({ db, projet, setProjet }) {
   );
 }
 
-function ResultCard({ typo, sys, best, conformes }) {
+function ResultCard({ typo, sys, best, conformes, onAddToPrescription }) {
   const [expanded, setExpanded] = useState(true);
   const conforme = !!best;
 
@@ -2187,6 +2200,25 @@ function ResultCard({ typo, sys, best, conformes }) {
               sur châssis {sys.nom} — {best.test.type_chassis} ({best.test.dim_L} × {best.test.dim_H} mm).
             </div>
           </div>
+
+          {/* Bouton ajouter à la prescription */}
+          {onAddToPrescription && best && (
+            <button onClick={() => onAddToPrescription({
+              label: typo.label,
+              dims: typo.largeur && typo.hauteur ? `${typo.largeur}×${typo.hauteur} mm` : "",
+              rw_requis: typo.rw + " dB",
+              gamme: sys ? `${sys.marque} ${sys.nom}` : "",
+              vitrage: best.composition.replace("8mm + ", ""),
+              rw: best.rw + " dB",
+              rwctr: (best.ratr_corrige ?? best.rwctr) + " dB",
+              rapport: best.test.rapport,
+              correction: (best.dimCorr?.correction || 0) + " dB",
+              controle: "", tl: "", fs: "", ug: "",
+              epaisseur_dtu: "", aev: "",
+            })} style={{ ...btnPrimaryStyle, background: "#7c3aed", fontSize: 12, padding: "8px 18px", marginTop: 10 }}>
+              📋 Ajouter à la prescription
+            </button>
+          )}
 
           {/* Alternatives */}
           {conformes.length > 1 && (
@@ -3061,6 +3093,23 @@ function PageVent({ projet, setProjet }) {
               </div>
             </div>
           </div>
+
+          {/* Bouton ajouter à la prescription */}
+          {setProjet && (
+            <button onClick={() => {
+              setProjet(p => ({
+                ...p,
+                zone: ZONES_VENT_FRANCE[zone]?.label || zone,
+                terrain: CATEGORIES_TERRAIN[terrain]?.label || terrain,
+                hauteur: hauteur + " m",
+                pression: result.pression + " Pa",
+                epaisseur_dtu: result.dtu.eRequired + " mm requis",
+              }));
+              alert("✓ Données vent ajoutées à la prescription !");
+            }} style={{ ...btnPrimaryStyle, background: "#7c3aed", marginTop: 16 }}>
+              📋 Ajouter à la prescription
+            </button>
+          )}
         </div>
       )}
     </div>
