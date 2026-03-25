@@ -14,7 +14,6 @@
     @media print {
       nav, .no-print { display: none !important; }
       body { background: white !important; }
-      .print-page { box-shadow: none !important; }
     }
   </style>
 </head>
@@ -3071,267 +3070,232 @@ function PageVent({ projet, setProjet }) {
 
 // ── PAGE PRESCRIPTION ─────────────────────────────────────────────────────────
 function PagePrescription({ db, projet, setProjet, setPage }) {
-  const [infoProjet, setInfoProjet] = useState({ 
-    nom: projet ? (projet.nom || "") : "", 
-    client: projet ? (projet.client || "") : "", 
-    date: projet ? (projet.date || new Date().toISOString().split("T")[0]) : new Date().toISOString().split("T")[0], 
-    redacteur: projet ? (projet.redacteur || "") : "" 
-  });
-  
-  const initTypologies = () => {
-    try {
-      if (projet && projet.typologies && projet.typologies.length > 0) {
-        return projet.typologies.map(t => ({
-          id: t.id || Date.now(),
-          label: t.label || "Type A",
-          dims: t.dims || "",
-          rw_requis: t.rw_requis || "",
-          gamme: t.gamme || "",
-          vitrage: t.vitrage || "",
-          rw: t.rw || "",
-          rwctr: t.rwctr || "",
-          rapport: t.rapport || "",
-          correction: t.correction || "0 dB",
-          controle: t.controle || "",
-          tl: t.tl || "",
-          fs: t.fs || "",
-          ug: t.ug || "",
-          epaisseur_dtu: t.epaisseur_dtu || "",
-          aev: t.aev || "",
-        }));
-      }
-    } catch(e) { console.error("Erreur init typologies", e); }
-    return [{
-      id: 1, label: "Type A",
-      dims: "", rw_requis: "",
-      gamme: "", vitrage: "", rw: "", rwctr: "", rapport: "", correction: "0 dB",
-      controle: "", tl: "", fs: "", ug: "",
-      epaisseur_dtu: "", aev: ""
-    }];
-  };
-  
-  const [typologies, setTypologies] = useState(initTypologies);
+  const [nom, setNom] = useState(projet && projet.nom ? projet.nom : "");
+  const [client, setClient] = useState(projet && projet.client ? projet.client : "");
+  const [date, setDate] = useState(projet && projet.date ? projet.date : new Date().toISOString().split("T")[0]);
+  const [redacteur, setRedacteur] = useState(projet && projet.redacteur ? projet.redacteur : "");
+  const [typos, setTypos] = useState([{
+    id: 1, label: "Type A", dims: "", rw_requis: "",
+    gamme: "", vitrage: "", rw: "", rwctr: "", rapport: "", correction: "",
+    controle: "", tl: "", fs: "", ug: "", epaisseur_dtu: "", aev: ""
+  }]);
 
-  const addTypo = () => setTypologies(t => [...t, {
+  // Synchroniser avec projet global quand il change
+  useEffect(() => {
+    if (!projet) return;
+    if (projet.nom) setNom(projet.nom);
+    if (projet.typologies && projet.typologies.length > 0) {
+      setTypos(projet.typologies.map(t => ({
+        id: t.id || Math.random(),
+        label: t.label || "Type A",
+        dims: t.dims || "",
+        rw_requis: t.rw_requis || "",
+        gamme: t.gamme || "",
+        vitrage: t.vitrage || "",
+        rw: t.rw || "",
+        rwctr: t.rwctr || "",
+        rapport: t.rapport || "",
+        correction: t.correction || "",
+        controle: projet.controle_ref || t.controle || "",
+        tl: projet.controle_tl || t.tl || "",
+        fs: projet.controle_fs ? String(projet.controle_fs) : (t.fs || ""),
+        ug: projet.controle_ug || t.ug || "",
+        epaisseur_dtu: projet.epaisseur_dtu || t.epaisseur_dtu || "",
+        aev: t.aev || "",
+      })));
+    }
+  }, [projet]);
+
+  const addTypo = () => setTypos(t => [...t, {
     id: Date.now(), label: `Type ${String.fromCharCode(65 + t.length)}`,
-    dims: "", rw_requis: "",
-    gamme: "", vitrage: "", rw: "", rwctr: "", rapport: "", correction: "0",
-    controle: "", tl: "", fs: "", ug: "",
+    dims: "", rw_requis: "", gamme: "", vitrage: "", rw: "", rwctr: "",
+    rapport: "", correction: "", controle: "", tl: "", fs: "", ug: "",
     epaisseur_dtu: "", aev: ""
   }]);
-  const removeTypo = id => setTypologies(t => t.filter(x => x.id !== id));
-  const upd = (id, k, v) => setTypologies(t => t.map(x => x.id === id ? { ...x, [k]: v } : x));
+  const removeTypo = id => setTypos(t => t.filter(x => x.id !== id));
+  const upd = (id, k, v) => setTypos(t => t.map(x => x.id === id ? { ...x, [k]: v } : x));
 
-  const imprimer = () => {
-    window.print();
-  };
+  const imprimer = () => window.print();
+
+  const champs_acoustique = [
+    ["Gamme alu", "gamme", "ex: Schüco AWS 75.II"],
+    ["Composition vitrage", "vitrage", "ex: 44.2s/16/10"],
+    ["Rw mesuré", "rw", "ex: 43 dB"],
+    ["RA,tr corrigé", "rwctr", "ex: 38 dB"],
+    ["Rapport PV", "rapport", "ex: BEB2.E.6077-1"],
+    ["Correction dim.", "correction", "ex: 0 dB"],
+  ];
+  const champs_solaire = [
+    ["Référence capa", "controle", "ex: Xtreme 70/33"],
+    ["TL (%)", "tl", "ex: 70%"],
+    ["Facteur solaire", "fs", "ex: 0.33"],
+    ["Ug (W/m².K)", "ug", "ex: 1.0"],
+  ];
+  const champs_dtu = [
+    ["Épaisseur min. DTU 39", "epaisseur_dtu", "ex: 8.5 mm"],
+    ["Classement AEV", "aev", "ex: A4 / E9A / V C3"],
+  ];
 
   return (
     <div>
-      {/* Styles d'impression */}
-      <style>{`
-        @media print {
-          nav, button, .no-print { display: none !important; }
-          body { background: white !important; }
-          .print-page { box-shadow: none !important; border: none !important; }
-        }
-      `}</style>
+      <style>{`@media print { nav, .no-print { display: none !important; } body { background: white !important; } }`}</style>
 
-      {/* Boutons actions */}
-      <div className="no-print" style={{ display: "flex", gap: 12, marginBottom: 24, alignItems: "center", flexWrap: "wrap" }}>
-        <button onClick={imprimer} style={{ ...btnPrimaryStyle, background: "#059669" }}>
-          📄 Exporter PDF
-        </button>
+      <div className="no-print" style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        <button onClick={imprimer} style={{ ...btnPrimaryStyle, background: "#059669" }}>📄 Exporter PDF</button>
         <button onClick={addTypo} style={btnSecondaryStyle}>+ Ajouter une typologie</button>
-        {setPage && <button onClick={() => setPage("recherche")} style={{ ...btnSecondaryStyle, background: "#f0fdf4", borderColor: "#6ee7b7", color: "#065f46" }}>
-          🔍 Aller à la recherche vitrage
-        </button>}
-        {setPage && <button onClick={() => setPage("vent")} style={{ ...btnSecondaryStyle, background: "#f0f9ff", borderColor: "#bae6fd", color: "#0369a1" }}>
-          💨 Aller au calcul vent
-        </button>}
-        <div style={{ fontSize: 11, color: "#9ca3af" }}>
-          Export : Fichier → Imprimer → Enregistrer en PDF
-        </div>
+        {setPage && <button onClick={() => setPage("vent")} style={{ ...btnSecondaryStyle, background: "#f0f9ff", borderColor: "#bae6fd", color: "#0369a1" }}>💨 Calcul vent</button>}
+        {setPage && <button onClick={() => setPage("recherche")} style={{ ...btnSecondaryStyle, background: "#f0fdf4", borderColor: "#6ee7b7", color: "#065f46" }}>🔍 Recherche vitrage</button>}
+        {setPage && <button onClick={() => setPage("controle")} style={{ ...btnSecondaryStyle, background: "#fffbeb", borderColor: "#fde68a", color: "#92400e" }}>☀ Contrôle solaire</button>}
+        <span style={{ fontSize: 11, color: "#9ca3af" }}>Imprimer → Enregistrer en PDF</span>
       </div>
 
-      {/* Document de prescription */}
-      <div className="print-page" style={{
-        background: "#fff", borderRadius: 14, padding: "32px 40px",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.08)", maxWidth: 900, margin: "0 auto"
-      }}>
+      <div style={{ background: "#fff", borderRadius: 14, padding: "32px 40px", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", maxWidth: 950, margin: "0 auto" }}>
+
         {/* En-tête */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28, paddingBottom: 20, borderBottom: "3px solid #1a1a2e" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, paddingBottom: 16, borderBottom: "3px solid #1a1a2e" }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#1a1a2e", letterSpacing: "-0.02em" }}>🪟 GlassIQ</div>
-            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>Prescription vitrage intelligente</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#1a1a2e" }}>🪟 GlassIQ</div>
+            <div style={{ fontSize: 11, color: "#6b7280" }}>Prescription vitrage intelligente</div>
           </div>
           <div style={{ textAlign: "right", fontSize: 12, color: "#374151" }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>PRESCRIPTION VITRAGE</div>
-            <div style={{ marginTop: 4, color: "#6b7280" }}>Généré le {new Date().toLocaleDateString("fr-FR")}</div>
+            <div style={{ color: "#6b7280", marginTop: 2 }}>{new Date().toLocaleDateString("fr-FR")}</div>
           </div>
         </div>
 
-        {/* Informations projet */}
-        <div style={{ marginBottom: 24, padding: "16px 20px", background: "#f8f9fb", borderRadius: 10, border: "1px solid #e5e7eb" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>Informations projet</div>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12 }}>
+        {/* Infos projet */}
+        <div style={{ marginBottom: 20, padding: "14px 18px", background: "#f8f9fb", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Informations projet</div>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 10 }}>
             <div>
               <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 3 }}>NOM DU PROJET</div>
-              <input value={infoProjet.nom} onChange={e => setInfoProjet({...infoProjet, nom: e.target.value})}
-                placeholder="Ex: Résidence Les Acacias — Marseille"
-                style={{ ...inputStyle, fontSize: 13, fontWeight: 600 }} className="no-print-input"/>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", display: "none" }} className="print-value">{projet.nom}</div>
+              <input value={nom} onChange={e => setNom(e.target.value)} placeholder="Ex: Résidence Les Acacias" style={{ ...inputStyle, fontSize: 13, fontWeight: 600 }}/>
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 3 }}>CLIENT</div>
-              <input value={infoProjet.client} onChange={e => setInfoProjet({...infoProjet, client: e.target.value})}
-                placeholder="Nom client" style={{ ...inputStyle, fontSize: 13 }} className="no-print-input"/>
+              <input value={client} onChange={e => setClient(e.target.value)} placeholder="Nom client" style={{ ...inputStyle, fontSize: 13 }}/>
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 3 }}>DATE</div>
-              <input type="date" value={infoProjet.date} onChange={e => setInfoProjet({...infoProjet, date: e.target.value})}
-                style={{ ...inputStyle, fontSize: 13 }} className="no-print-input"/>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, fontSize: 13 }}/>
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 3 }}>RÉDACTEUR</div>
-              <input value={infoProjet.redacteur} onChange={e => setInfoProjet({...infoProjet, redacteur: e.target.value})}
-                placeholder="Votre nom" style={{ ...inputStyle, fontSize: 13 }} className="no-print-input"/>
+              <input value={redacteur} onChange={e => setRedacteur(e.target.value)} placeholder="Votre nom" style={{ ...inputStyle, fontSize: 13 }}/>
             </div>
           </div>
         </div>
 
         {/* Données vent */}
-        <div style={{ marginBottom: 24, padding: "16px 20px", background: "#f0f9ff", borderRadius: 10, border: "1px solid #bae6fd" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#0369a1", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>💨 Données vent — Eurocode</div>
-          {projet?.pression ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
-              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>ZONE DE VENT</div><div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>{projet.zone || "—"}</div></div>
-              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>CATÉGORIE TERRAIN</div><div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>{projet.terrain || "—"}</div></div>
-              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>HAUTEUR BÂTIMENT</div><div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e" }}>{projet.hauteur || "—"}</div></div>
-              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>PRESSION qp(z)</div><div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>{projet.pression || "—"}</div></div>
-              <div><div style={{ fontSize: 10, color: "#0369a1", marginBottom: 3 }}>ÉPAISSEUR DTU 39</div><div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>{projet.epaisseur_dtu || "—"}</div></div>
+        <div style={{ marginBottom: 20, padding: "14px 18px", background: "#f0f9ff", borderRadius: 10, border: "1px solid #bae6fd" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>💨 Données vent — Eurocode</div>
+          {projet && projet.pression ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+              {[
+                ["Zone de vent", projet.zone],
+                ["Catégorie terrain", projet.terrain],
+                ["Hauteur bâtiment", projet.hauteur],
+                ["Pression qp(z)", projet.pression],
+                ["Épaisseur DTU 39", projet.epaisseur_dtu],
+              ].map(([l, v]) => (
+                <div key={l}>
+                  <div style={{ fontSize: 10, color: "#0369a1", marginBottom: 2 }}>{l.toUpperCase()}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e40af" }}>{v || "—"}</div>
+                </div>
+              ))}
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: "#0369a1", fontStyle: "italic", display: "flex", alignItems: "center", gap: 10 }}>
-              <span>⚠ Aucun calcul vent effectué.</span>
-              {setPage && <button onClick={() => setPage("vent")} style={{ ...btnSecondaryStyle, fontSize: 11, padding: "4px 12px", background: "#f0f9ff", borderColor: "#bae6fd", color: "#0369a1" }}>💨 Aller au calcul vent</button>}
+            <div style={{ fontSize: 12, color: "#0369a1", fontStyle: "italic" }}>
+              ⚠ Aucun calcul vent effectué — {setPage && <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setPage("vent")}>aller au calcul vent</span>}
             </div>
           )}
         </div>
 
         {/* Typologies */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16 }}>
-            Prescriptions par typologie
-          </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>Prescriptions par typologie</div>
 
-          {typologies.map((ty, idx) => (
-            <div key={ty.id} style={{
-              marginBottom: 20, borderRadius: 12, overflow: "hidden",
-              border: "1.5px solid #e5e7eb", pageBreakInside: "avoid"
-            }}>
-              {/* Header typo */}
-              <div style={{ background: "#1a1a2e", color: "#fff", padding: "10px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <input value={ty.label} onChange={e => upd(ty.id, "label", e.target.value)}
-                    style={{ background: "transparent", border: "none", color: "#fff", fontSize: 14, fontWeight: 700, width: 80, outline: "none" }}/>
-                  <input value={ty.dims} onChange={e => upd(ty.id, "dims", e.target.value)}
-                    placeholder="Dimensions ex: 1200×2100 mm"
-                    style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, borderRadius: 6, padding: "3px 10px", width: 180, outline: "none" }}/>
-                  <input value={ty.rw_requis} onChange={e => upd(ty.id, "rw_requis", e.target.value)}
-                    placeholder="RA,tr requis ex: 38 dB"
-                    style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, borderRadius: 6, padding: "3px 10px", width: 160, outline: "none" }}/>
-                </div>
-                {typologies.length > 1 && (
-                  <button onClick={() => removeTypo(ty.id)} className="no-print"
-                    style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 18 }}>×</button>
-                )}
+        {typos.map((ty, idx) => (
+          <div key={ty.id} style={{ marginBottom: 18, borderRadius: 12, overflow: "hidden", border: "1.5px solid #e5e7eb" }}>
+            {/* Header */}
+            <div style={{ background: "#1a1a2e", color: "#fff", padding: "10px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <input value={ty.label} onChange={e => upd(ty.id, "label", e.target.value)}
+                  style={{ background: "transparent", border: "none", color: "#fff", fontSize: 14, fontWeight: 700, width: 80, outline: "none" }}/>
+                <input value={ty.dims} onChange={e => upd(ty.id, "dims", e.target.value)}
+                  placeholder="Dimensions ex: 1200×2100 mm"
+                  style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, borderRadius: 6, padding: "3px 10px", width: 180, outline: "none" }}/>
+                <input value={ty.rw_requis} onChange={e => upd(ty.id, "rw_requis", e.target.value)}
+                  placeholder="RA,tr requis ex: 38 dB"
+                  style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, borderRadius: 6, padding: "3px 10px", width: 160, outline: "none" }}/>
+              </div>
+              {typos.length > 1 && (
+                <button onClick={() => removeTypo(ty.id)} className="no-print"
+                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 18 }}>×</button>
+              )}
+            </div>
+
+            {/* Corps */}
+            <div style={{ padding: "14px 16px", background: "#fff", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+              {/* Acoustique */}
+              <div style={{ padding: "12px 14px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#065f46", letterSpacing: "0.06em", marginBottom: 10 }}>🔍 VITRAGE ACOUSTIQUE</div>
+                {champs_acoustique.map(([label, key, ph]) => (
+                  <div key={key} style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 2 }}>{label}</div>
+                    <input value={ty[key]} onChange={e => upd(ty.id, key, e.target.value)} placeholder={ph}
+                      style={{ ...inputStyle, fontSize: 11, padding: "4px 8px", background: "#fff" }}/>
+                  </div>
+                ))}
               </div>
 
-              {/* Corps typo — 3 sections */}
-              <div style={{ padding: "16px 18px", background: "#fff" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-
-                  {/* Section 1 — Gamme & Acoustique */}
-                  <div style={{ padding: "12px 14px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#065f46", letterSpacing: "0.06em", marginBottom: 10 }}>🔍 VITRAGE ACOUSTIQUE</div>
-                    {[
-                      ["Gamme alu", "gamme", "ex: Schüco AWS 75.II"],
-                      ["Composition vitrage", "vitrage", "ex: 44.2s/16/10"],
-                      ["Rw mesuré", "rw", "ex: 43 dB"],
-                      ["RA,tr corrigé", "rwctr", "ex: 38 dB"],
-                      ["Rapport PV", "rapport", "ex: BEB2.E.6077-1"],
-                      ["Correction dim.", "correction", "ex: 0 dB"],
-                    ].map(([label, key, ph]) => (
-                      <div key={key} style={{ marginBottom: 7 }}>
-                        <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 2 }}>{label}</div>
-                        <input value={ty[key]} onChange={e => upd(ty.id, key, e.target.value)}
-                          placeholder={ph}
-                          style={{ ...inputStyle, fontSize: 11, padding: "4px 8px", background: "#fff" }}/>
-                      </div>
-                    ))}
+              {/* Contrôle solaire */}
+              <div style={{ padding: "12px 14px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#92400e", letterSpacing: "0.06em", marginBottom: 10 }}>☀ CONTRÔLE SOLAIRE</div>
+                {champs_solaire.map(([label, key, ph]) => (
+                  <div key={key} style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 2 }}>{label}</div>
+                    <input value={ty[key]} onChange={e => upd(ty.id, key, e.target.value)} placeholder={ph}
+                      style={{ ...inputStyle, fontSize: 11, padding: "4px 8px", background: "#fff" }}/>
                   </div>
+                ))}
+              </div>
 
-                  {/* Section 2 — Contrôle solaire */}
-                  <div style={{ padding: "12px 14px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#92400e", letterSpacing: "0.06em", marginBottom: 10 }}>☀ CONTRÔLE SOLAIRE</div>
-                    {[
-                      ["Référence capa", "controle", "ex: Xtreme 70/33"],
-                      ["TL (%)", "tl", "ex: 70%"],
-                      ["Facteur solaire", "fs", "ex: 0.33"],
-                      ["Ug (W/m².K)", "ug", "ex: 1.0"],
-                    ].map(([label, key, ph]) => (
-                      <div key={key} style={{ marginBottom: 7 }}>
-                        <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 2 }}>{label}</div>
-                        <input value={ty[key]} onChange={e => upd(ty.id, key, e.target.value)}
-                          placeholder={ph}
-                          style={{ ...inputStyle, fontSize: 11, padding: "4px 8px", background: "#fff" }}/>
-                      </div>
-                    ))}
+              {/* DTU & AEV */}
+              <div style={{ padding: "12px 14px", background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#3730a3", letterSpacing: "0.06em", marginBottom: 10 }}>💨 DTU 39 & AEV</div>
+                {champs_dtu.map(([label, key, ph]) => (
+                  <div key={key} style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 2 }}>{label}</div>
+                    <input value={ty[key]} onChange={e => upd(ty.id, key, e.target.value)} placeholder={ph}
+                      style={{ ...inputStyle, fontSize: 11, padding: "4px 8px", background: "#fff" }}/>
                   </div>
-
-                  {/* Section 3 — DTU 39 & AEV */}
-                  <div style={{ padding: "12px 14px", background: "#f0f4ff", borderRadius: 8, border: "1px solid #c7d2fe" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#3730a3", letterSpacing: "0.06em", marginBottom: 10 }}>💨 DTU 39 & AEV</div>
-                    {[
-                      ["Épaisseur min. DTU 39", "epaisseur_dtu", "ex: 8.5 mm requis"],
-                      ["Classement AEV", "aev", "ex: A4 / E9A / V C3"],
-                    ].map(([label, key, ph]) => (
-                      <div key={key} style={{ marginBottom: 7 }}>
-                        <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 2 }}>{label}</div>
-                        <input value={ty[key]} onChange={e => upd(ty.id, key, e.target.value)}
-                          placeholder={ph}
-                          style={{ ...inputStyle, fontSize: 11, padding: "4px 8px", background: "#fff" }}/>
-                      </div>
-                    ))}
-                    {/* Résumé conformité */}
-                    <div style={{ marginTop: 12, padding: "8px 10px", background: ty.vitrage && ty.rwctr ? "#d1fae5" : "#f3f4f6", borderRadius: 6 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: ty.vitrage && ty.rwctr ? "#065f46" : "#9ca3af" }}>
-                        {ty.vitrage && ty.rwctr ? "✓ Prescription complète" : "⚠ Renseigner les données"}
-                      </div>
-                      {ty.vitrage && ty.rwctr && (
-                        <div style={{ fontSize: 9, color: "#374151", marginTop: 4, lineHeight: 1.5 }}>
-                          {ty.vitrage} — RA,tr {ty.rwctr} dB ≥ requis {ty.rw_requis}<br/>
-                          {ty.controle && `Capa : ${ty.controle} — TL ${ty.tl}% / FS ${ty.fs}`}
-                        </div>
-                      )}
+                ))}
+                <div style={{ marginTop: 10, padding: "8px 10px", background: ty.vitrage && ty.rwctr ? "#d1fae5" : "#f3f4f6", borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: ty.vitrage && ty.rwctr ? "#065f46" : "#9ca3af" }}>
+                    {ty.vitrage && ty.rwctr ? "✓ Prescription complète" : "⚠ À compléter"}
+                  </div>
+                  {ty.vitrage && ty.rwctr && (
+                    <div style={{ fontSize: 9, color: "#374151", marginTop: 4, lineHeight: 1.5 }}>
+                      {ty.vitrage} — RA,tr {ty.rwctr}<br/>
+                      {ty.controle ? `Capa : ${ty.controle}` : ""}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
 
         {/* Pied de page */}
-        <div style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9ca3af" }}>
+        <div style={{ marginTop: 24, paddingTop: 14, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9ca3af" }}>
           <div>GlassIQ — Prescription vitrage intelligente</div>
-          <div>Document généré le {new Date().toLocaleDateString("fr-FR")} {infoProjet.redacteur && `— ${infoProjet.redacteur}`}</div>
+          <div>Généré le {new Date().toLocaleDateString("fr-FR")}{redacteur ? ` — ${redacteur}` : ""}</div>
         </div>
       </div>
     </div>
   );
 }
+
 
 // ── APP PRINCIPALE ────────────────────────────────────────────────────────────
 function App() {
