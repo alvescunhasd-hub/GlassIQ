@@ -1,4 +1,29 @@
-import { useState, useEffect, useRef } from "react";
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GlassIQ</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9fb; }
+    select, input, textarea, button { font-family: inherit; }
+    @media print {
+      nav, .no-print { display: none !important; }
+      body { background: white !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef } = React;
+
+
 
 // ── BASE DE DONNÉES INITIALE ─────────────────────────────────────────────────
 const INITIAL_DB = {
@@ -3653,7 +3678,7 @@ function PageComparateur({ db, projet, setProjet, setPage }) {
 }
 
 // ── APP PRINCIPALE ────────────────────────────────────────────────────────────
-export default function App() {
+function App() {
   const [db, setDB] = useState(() => getDB());
   const [controles, setControles] = useState(() => getControles());
   const [page, setPage] = useState("vent");
@@ -3748,3 +3773,10 @@ export default function App() {
   );
 }
 
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>
