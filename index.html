@@ -1,28 +1,4 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GlassIQ</title>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9fb; }
-    select, input, textarea, button { font-family: inherit; }
-    @media print {
-      nav, .no-print { display: none !important; }
-      body { background: white !important; }
-    }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel" data-presets="react">
-    const { useState, useEffect, useRef } = React;
-
-
+import { useState, useEffect, useRef } from "react";
 
 // ── BASE DE DONNÉES INITIALE ─────────────────────────────────────────────────
 const INITIAL_DB = {
@@ -64,6 +40,12 @@ const INITIAL_DB = {
             { composition: "8mm + 4/18/44.2S", rw: 40, rwc: 39, rwctr: 35 },
           ],
         },
+      ],
+      aev: [
+        { chassis: "Fenêtre OF sur allège", dims: "1300x2600", A: "4", E: "9A", V: "B2", rapport: "ALU 22.10", date: "2010" },
+        { chassis: "Porte-fenêtre 2 vantaux + fixe", dims: "3000x2400", A: "4", E: "9A", V: "C2", rapport: "BEB1.C.5000-4", date: "2012" },
+        { chassis: "Fenêtre OB 1 vantail", dims: "1400x1800", A: "4", E: "9A", V: "C3", rapport: "BEB1.I.4047-1", date: "2018" },
+        { chassis: "Porte-fenêtre 2 vantaux", dims: "2000x2400", A: "4", E: "9A", V: "C3", rapport: "BEB1.I.5010-8", date: "2018" },
       ],
       thermique: [
         { ug: 0.8, config: "Fenêtre 1 vantail 1.25x1.48", uw: 1.3 },
@@ -212,6 +194,13 @@ const INITIAL_DB = {
           ],
         },
       ],
+      aev: [
+        { chassis: "Fenêtre 1 vantail OB", dims: "1350x1600", A: "4", E: "E9A", V: "C2", rapport: "BEB1.D.5004-5", date: "2013" },
+        { chassis: "Porte-fenêtre 2 vantaux", dims: "1600x2250", A: "4", E: "9A", V: "C3", rapport: "BEB1.D.5030-1", date: "2013" },
+        { chassis: "Porte-fenêtre 1 vantail seuil PMR", dims: "960x2180", A: "4", E: "7A", V: "C2", rapport: "BEB1.E.5005-4", date: "2014" },
+        { chassis: "Porte-fenêtre 1 vantail", dims: "950x2350", A: "4", E: "9A", V: "C3", rapport: "BEB1.I.5010-18", date: "2018" },
+        { chassis: "Porte-fenêtre 1 vantail à la française", dims: "1060x2500", A: "4", E: "9A", V: "C3", rapport: "AEV 21.16", date: "2021" },
+      ],
       thermique: [],
     }
     ,
@@ -220,8 +209,8 @@ const INITIAL_DB = {
       nom: "AWS 60",
       marque: "Schüco",
       famille: "Fenêtre",
-      dta: "",
-      validite: "",
+      dta: "6/16-2343_V2",
+      validite: "30/09/2025",
       epaisseur_min: 24,
       epaisseur_max: 48,
       poids_max: 130,
@@ -361,8 +350,8 @@ const INITIAL_DB = {
       nom: "AWS 60 BG",
       marque: "Schüco",
       famille: "Fenêtre",
-      dta: "",
-      validite: "",
+      dta: "6/16-2343_V2",
+      validite: "30/09/2025",
       epaisseur_min: 24,
       epaisseur_max: 44,
       poids_max: 130,
@@ -466,7 +455,7 @@ const INITIAL_DB = {
       nom: "FWS 50",
       marque: "Schüco",
       famille: "Façade",
-      dta: "",
+      dta: "Passeport IFT",
       validite: "",
       epaisseur_min: 24,
       epaisseur_max: 50,
@@ -558,7 +547,7 @@ const INITIAL_DB = {
       nom: "FWS 60",
       marque: "Schüco",
       famille: "Façade",
-      dta: "",
+      dta: "Passeport IFT",
       validite: "",
       epaisseur_min: 24,
       epaisseur_max: 60,
@@ -980,8 +969,8 @@ const INITIAL_DB = {
       nom: "AWS 60 DL",
       marque: "Schüco",
       famille: "Porte",
-      dta: "",
-      validite: "",
+      dta: "6/16-2343_V2",
+      validite: "30/09/2025",
       epaisseur_min: 24,
       epaisseur_max: 44,
       poids_max: 150,
@@ -1041,7 +1030,9 @@ const INITIAL_DB = {
           ],
         },
       ],
-      aev: [],
+      aev: [
+        { chassis: "Façade rideau VEC", dims: "3000x3500", A: "A4", E: "RE600", V: "2000 Pa", rapport: "Schüco IFT", date: "2015" },
+      ],
       thermique: [],
     }
     ,
@@ -1679,6 +1670,65 @@ const INITIAL_DB = {
         },
       ],
       aev: [], thermique: [],
+    }
+    ,
+    {
+      id: "wic_wictec50",
+      nom: "WICTEC 50",
+      marque: "Wicona",
+      famille: "Façade",
+      dta: "21-001298-PR01",
+      validite: "05/05/2021",
+      epaisseur_min: 24,
+      epaisseur_max: 63,
+      poids_max: 560,
+      tests: [
+        {
+          rapport: "161 30789/Z1 + Z3 + Z4",
+          type_chassis: "Façade rideau fixe WICTEC 50",
+          dim_L: 7410,
+          dim_H: 6360,
+          labo: "IFT Rosenheim",
+          date: "2005",
+          vitrages: [
+            { composition: "10/16/6",                    rw: 38, rwc: 36, rwctr: 34 },
+            { composition: "8 LSG SC/18/10",             rw: 43, rwc: 41, rwctr: 39 },
+            { composition: "12 LSG SC/20/8 LSG SC",      rw: 47, rwc: 46, rwctr: 43 },
+          ],
+        },
+        {
+          rapport: "161 43821/1",
+          type_chassis: "Façade rideau fixe WICTEC 50",
+          dim_L: 7410,
+          dim_H: 6360,
+          labo: "IFT Rosenheim",
+          date: "2010",
+          vitrages: [
+            { composition: "6/20/6",                     rw: 36, rwc: 34, rwctr: 31 },
+          ],
+        },
+        {
+          rapport: "10-001722-PR02",
+          type_chassis: "Façade rideau fixe WICTEC 50",
+          dim_L: 7410,
+          dim_H: 6360,
+          labo: "IFT Rosenheim",
+          date: "2011",
+          vitrages: [
+            { composition: "10/20/10.8 LSG SI",          rw: 44, rwc: 43, rwctr: 41 },
+          ],
+        },
+      ],
+      aev: [
+        { chassis: "Façade rideau WICTEC 50 standard", dims: "7410x6360", A: "AE", E: "RE1200", V: "+2000/-3200 Pa", rapport: "108 30206", date: "2005" },
+        { chassis: "Façade rideau WICTEC 50SG", dims: "4428x3880", A: "AE", E: "RE750", V: "+/-2000 Pa", rapport: "108 37554/1", date: "2009" },
+      ],
+      thermique: [
+        { ug: 1.4, config: "WICTEC 50 standard (sans vis)", uw: 1.4 },
+        { ug: 1.8, config: "WICTEC 50P", uw: 1.9 },
+        { ug: 2.2, config: "WICTEC 50 avec plaque pression", uw: 2.2 },
+        { ug: 0.39, config: "WICTEC 50SG haute performance", uw: 0.39 },
+      ],
     }
   ],
 };
@@ -3603,7 +3653,7 @@ function PageComparateur({ db, projet, setProjet, setPage }) {
 }
 
 // ── APP PRINCIPALE ────────────────────────────────────────────────────────────
-function App() {
+export default function App() {
   const [db, setDB] = useState(() => getDB());
   const [controles, setControles] = useState(() => getControles());
   const [page, setPage] = useState("vent");
@@ -3698,10 +3748,3 @@ function App() {
   );
 }
 
-
-    const container = document.getElementById('root');
-    const root = ReactDOM.createRoot(container);
-    root.render(React.createElement(App));
-  </script>
-</body>
-</html>
