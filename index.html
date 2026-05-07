@@ -3176,7 +3176,7 @@ const COMPOSITIONS_STD = [
   { label: "66.2 (12mm)", e: 12, type: "simple_lamine" },
 ];
 
-function PageVent({ projet, setProjet }) {
+function PageVent({ projet, setProjet, setPage }) {
   const [zone, setZone] = useState("2");
   const [terrain, setTerrain] = useState("II");
   const [hauteur, setHauteur] = useState("9");
@@ -3428,22 +3428,33 @@ function PageVent({ projet, setProjet }) {
             <CompositionsRecommandees e1c={result.dtu.e1 * result.dtu.c} eRequired={result.dtu.eRequired} typeVitrage={typeVitrage} />
           </div>
 
-          {/* Bouton ajouter à la prescription */}
-          {setProjet && (
-            <button onClick={() => {
-              setProjet(p => ({
-                ...p,
-                zone: ZONES_VENT_FRANCE[zone]?.label || zone,
-                terrain: CATEGORIES_TERRAIN[terrain]?.label || terrain,
-                hauteur: hauteur + " m",
-                pression: result.pression + " Pa",
-                epaisseur_dtu: result.dtu.eRequired + " mm requis",
-              }));
-              alert("✓ Données vent ajoutées à la prescription !");
-            }} style={{ ...btnPrimaryStyle, background: "#7c3aed", marginTop: 16 }}>
-              📋 Ajouter à la prescription
-            </button>
-          )}
+          {/* Boutons action */}
+          <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+            {setProjet && (
+              <button onClick={() => {
+                setProjet(p => ({
+                  ...p,
+                  zone: ZONES_VENT_FRANCE[zone]?.label || ("Région " + zone),
+                  terrain: CATEGORIES_TERRAIN[terrain]?.label || terrain,
+                  hauteur: hauteur + " m",
+                  pression: result.pression + " Pa (DTU 39 P4)",
+                  epaisseur_dtu: result.dtu.eRequired + " mm requis",
+                  pression_pa: result.pression,
+                }));
+                alert("✓ Données vent ajoutées à la prescription !");
+              }} style={{ ...btnPrimaryStyle, background: "#7c3aed" }}>
+                📋 Ajouter à la prescription
+              </button>
+            )}
+            {setPage && (
+              <button onClick={() => {
+                if (setProjet) setProjet(p => ({ ...p, pression_pa: result.pression }));
+                setPage("comparateur");
+              }} style={{ ...btnPrimaryStyle, background: "#0369a1" }}>
+                🏗️ Vérifier les façades compatibles
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -3683,6 +3694,8 @@ function PagePrescription({ db, projet, setProjet, setPage }) {
 
 // ── PAGE COMPARATEUR ──────────────────────────────────────────────────────────
 function PageComparateur({ db, projet, setProjet, setPage }) {
+  // Récupérer la pression calculée depuis le projet global
+  const pression_projet = projet?.pression_pa || null;
   const [ratr, setRatr] = useState(38);
   const [largeur, setLargeur] = useState("");
   const [hauteur, setHauteur] = useState("");
@@ -3738,17 +3751,41 @@ function PageComparateur({ db, projet, setProjet, setPage }) {
       const matches = Object.values(bestPerCompo).sort((a, b) => a.ratr_corrige - b.ratr_corrige);
       if (matches.length > 0) {
         const best = matches[0];
-        // Vérif AEV si demandé
+        // Vérif AEV classe air si demandé
         let aev_ok = true;
         if (aev_air && sys.aev && sys.aev.length > 0) {
           aev_ok = sys.aev.some(a => a.A && a.A.toString().includes(aev_air));
         }
-        solutions.push({ sys, best, allMatches: matches, aev_ok });
+
+        // Vérif AEV vent vs pression projet
+        let aev_vent_ok = null; // null = pas de données
+        if (pression_projet && sys.aev && sys.aev.length > 0) {
+          // Extraire la pression max des AEV
+          const pressions_vent = sys.aev
+            .map(a => {
+              const v = a.V || "";
+              // Extraire le nombre de Pa depuis "2000 Pa", "+2000/-3200 Pa", "C3", etc.
+              const match = v.match(/(\d+)\s*Pa/);
+              return match ? parseInt(match[1]) : null;
+            })
+            .filter(p => p !== null);
+          
+          if (pressions_vent.length > 0) {
+            const pression_max_aev = Math.max(...pressions_vent);
+            aev_vent_ok = pression_max_aev >= pression_projet;
+          }
+        }
+
+        solutions.push({ sys, best, allMatches: matches, aev_ok, aev_vent_ok });
       }
     }
 
-    // Trier : d'abord conformes AEV, puis par RA,tr corrigé croissant
+    // Trier : d'abord conformes AEV vent, puis AEV air, puis par RA,tr
     solutions.sort((a, b) => {
+      // AEV vent OK en premier
+      if (a.aev_vent_ok === true && b.aev_vent_ok !== true) return -1;
+      if (a.aev_vent_ok !== true && b.aev_vent_ok === true) return 1;
+      // Puis AEV air
       if (a.aev_ok && !b.aev_ok) return -1;
       if (!a.aev_ok && b.aev_ok) return 1;
       return a.best.ratr_corrige - b.best.ratr_corrige;
@@ -3773,6 +3810,13 @@ function PageComparateur({ db, projet, setProjet, setPage }) {
       <div style={{ marginBottom: 20, padding: "14px 20px", background: "#f0f4ff", borderRadius: 12, border: "1px solid #c7d2fe" }}>
         <div style={{ fontSize: 13, color: "#3730a3", fontWeight: 600, marginBottom: 4 }}>⚖ Comparateur multi-marques</div>
         <div style={{ fontSize: 12, color: "#3730a3" }}>Trouvez toutes les gammes conformes à vos exigences — toutes marques confondues</div>
+        {pression_projet && (
+          <div style={{ marginTop: 10, padding: "8px 14px", background: "#1a1a2e", borderRadius: 8, display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>💨 Pression calculée :</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: "#60a5fa" }}>{pression_projet} Pa</span>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>— filtre AEV automatique activé</span>
+          </div>
+        )}
       </div>
 
       {/* Critères */}
@@ -3919,10 +3963,25 @@ function PageComparateur({ db, projet, setProjet, setPage }) {
                       </td>
                       <td style={{ padding: "8px 12px", fontSize: 11, color: "#6b7280" }}>{best.test.rapport}</td>
                       <td style={{ padding: "8px 12px" }}>
-                        {sys.aev && sys.aev.length > 0
-                          ? <span style={{ color: "#059669", fontWeight: 600 }}>✓ {sys.aev[0].A}/{sys.aev[0].E}</span>
-                          : <span style={{ color: "#9ca3af" }}>—</span>
-                        }
+                        {sys.aev && sys.aev.length > 0 ? (
+                          <div>
+                            <div style={{ color: "#059669", fontWeight: 600, fontSize: 11 }}>
+                              A{sys.aev[0].A} / {sys.aev[0].E}
+                            </div>
+                            <div style={{ fontSize: 11 }}>
+                              {(() => {
+                                const v = sys.aev[0].V || "";
+                                const match = v.match(/(\d+)\s*Pa/);
+                                const pa = match ? parseInt(match[1]) : null;
+                                if (!pa) return <span style={{ color: "#6b7280" }}>{v}</span>;
+                                if (!pression_projet) return <span style={{ color: "#6b7280" }}>{pa} Pa</span>;
+                                return pa >= pression_projet
+                                  ? <span style={{ color: "#059669", fontWeight: 700 }}>✓ {pa} Pa</span>
+                                  : <span style={{ color: "#dc2626", fontWeight: 700 }}>✗ {pa} Pa</span>;
+                              })()}
+                            </div>
+                          </div>
+                        ) : <span style={{ color: "#9ca3af" }}>—</span>}
                       </td>
                     </tr>
                   ))}
@@ -4007,7 +4066,7 @@ function App() {
       {/* Contenu */}
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px" }}>
         <div style={{display: page === "vent" ? "block" : "none"}}>
-          <PageVent projet={projetGlobal} setProjet={setProjetGlobal} />
+          <PageVent projet={projetGlobal} setProjet={setProjetGlobal} setPage={setPage} />
         </div>
         <div style={{display: page === "recherche" ? "block" : "none"}}>
           <PageRecherche db={db} projet={projetGlobal} setProjet={setProjetGlobal} />
