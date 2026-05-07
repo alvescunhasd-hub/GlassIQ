@@ -2788,21 +2788,80 @@ function PageControleSolaire({ projet, setProjet }) {
 
 
 // ── PAGE VENT & DTU 39 ────────────────────────────────────────────────────────
-// Vitesses de base par zone France (Eurocode EN 1991-1-4 / NV65)
-const ZONES_VENT_FRANCE = {
-  "1": { label: "Zone 1", vb0: 22, description: "Intérieur protégé (ex: Alsace, vallées alpines)" },
-  "2": { label: "Zone 2", vb0: 24, description: "Majorité du territoire français" },
-  "3": { label: "Zone 3", vb0: 28, description: "Littoral atlantique, massifs montagneux" },
-  "4": { label: "Zone 4", vb0: 32, description: "Guadeloupe, Martinique, zones exposées" },
+// Tables de pression DTU 39 P4 — Tableau 2 — France Métropolitaine (Pa)
+// Structure: PRESSIONS_DTU39[region][categorie][tranche_hauteur]
+// Tranches hauteur: "H9" (≤9m), "H18" (9<H≤18m), "H28" (18<H≤28m), "H50" (28<H≤50m), "H100" (50<H≤100m)
+const PRESSIONS_DTU39 = {
+  "1": {
+    label: "Région 1",
+    description: "Intérieur protégé (ex: Alsace, vallées alpines)",
+    categories: {
+      "IV":   { label: "Catégorie IV — Mer, côte exposée",          H9: 850,  H18: 950,  H28: 1150, H50: 1400, H100: 1800 },
+      "IIIb": { label: "Catégorie IIIb — Suburbain dense",          H9: 900,  H18: 1200, H28: 1400, H50: 1700, H100: 2050 },
+      "IIIa": { label: "Catégorie IIIa — Périurbain / forêt",       H9: 1200, H18: 1500, H28: 1700, H50: 2000, H100: 2350 },
+      "II":   { label: "Catégorie II — Zone rurale (référence)",    H9: 1500, H18: 1800, H28: 2050, H50: 2300, H100: 2650 },
+      "0":    { label: "Catégorie 0 — Plaine dégagée / lac",        H9: 1900, H18: 2150, H28: 2350, H50: 2600, H100: 2900 },
+    }
+  },
+  "2": {
+    label: "Région 2",
+    description: "Majorité du territoire français",
+    categories: {
+      "IV":   { label: "Catégorie IV — Mer, côte exposée",          H9: 1050, H18: 1100, H28: 1350, H50: 1700, H100: 2100 },
+      "IIIb": { label: "Catégorie IIIb — Suburbain dense",          H9: 1050, H18: 1400, H28: 1650, H50: 2000, H100: 2450 },
+      "IIIa": { label: "Catégorie IIIa — Périurbain / forêt",       H9: 1400, H18: 1750, H28: 2000, H50: 2350, H100: 2800 },
+      "II":   { label: "Catégorie II — Zone rurale (référence)",    H9: 1800, H18: 2150, H28: 2400, H50: 2750, H100: 3150 },
+      "0":    { label: "Catégorie 0 — Plaine dégagée / lac",        H9: 2250, H18: 2600, H28: 2800, H50: 3100, H100: 3500 },
+    }
+  },
+  "3": {
+    label: "Région 3",
+    description: "Littoral atlantique, Normandie, massifs montagneux",
+    categories: {
+      "IV":   { label: "Catégorie IV — Mer, côte exposée",          H9: 1200, H18: 1300, H28: 1600, H50: 2000, H100: 2500 },
+      "IIIb": { label: "Catégorie IIIb — Suburbain dense",          H9: 1250, H18: 1650, H28: 1950, H50: 2350, H100: 2900 },
+      "IIIa": { label: "Catégorie IIIa — Périurbain / forêt",       H9: 1650, H18: 2050, H28: 2350, H50: 2800, H100: 3300 },
+      "II":   { label: "Catégorie II — Zone rurale (référence)",    H9: 2100, H18: 2550, H28: 2850, H50: 3200, H100: 3700 },
+      "0":    { label: "Catégorie 0 — Plaine dégagée / lac",        H9: 2650, H18: 3050, H28: 3300, H50: 3650, H100: 4100 },
+    }
+  },
+  "4": {
+    label: "Région 4",
+    description: "DOM-TOM, zones très exposées",
+    categories: {
+      "IV":   { label: "Catégorie IV — Mer, côte exposée",          H9: 1400, H18: 1500, H28: 1850, H50: 2300, H100: 2900 },
+      "IIIb": { label: "Catégorie IIIb — Suburbain dense",          H9: 1450, H18: 1950, H28: 2250, H50: 2750, H100: 3350 },
+      "IIIa": { label: "Catégorie IIIa — Périurbain / forêt",       H9: 1900, H18: 2400, H28: 2750, H50: 3200, H100: 3850 },
+      "II":   { label: "Catégorie II — Zone rurale (référence)",    H9: 2450, H18: 2950, H28: 3300, H50: 3750, H100: 4300 },
+      "0":    { label: "Catégorie 0 — Plaine dégagée / lac",        H9: 3050, H18: 3500, H28: 3800, H50: 4200, H100: 4750 },
+    }
+  },
 };
 
-// Catégories de terrain Eurocode
+// Calcule la tranche de hauteur DTU 39
+function getTranche(h) {
+  const z = parseFloat(h);
+  if (z <= 9) return "H9";
+  if (z <= 18) return "H18";
+  if (z <= 28) return "H28";
+  if (z <= 50) return "H50";
+  return "H100";
+}
+
+// Garde l'Eurocode pour info mais utilise DTU 39 pour la pression
+const ZONES_VENT_FRANCE = {
+  "1": { label: "Région 1", description: "Intérieur protégé (ex: Alsace, vallées alpines)" },
+  "2": { label: "Région 2", description: "Majorité du territoire français" },
+  "3": { label: "Région 3", description: "Littoral atlantique, Normandie, massifs montagneux" },
+  "4": { label: "Région 4", description: "DOM-TOM, zones très exposées" },
+};
+
 const CATEGORIES_TERRAIN = {
-  "0": { label: "Catégorie 0", z0: 0.003, zmin: 1, description: "Mer, zone côtière exposée" },
-  "I": { label: "Catégorie I", z0: 0.01, zmin: 1, description: "Lacs, zone rurale plate sans obstacles" },
-  "II": { label: "Catégorie II", z0: 0.05, zmin: 2, description: "Zone rurale avec haies/arbres (référence)" },
-  "III": { label: "Catégorie III", z0: 0.3, zmin: 5, description: "Zone suburbaine, forêts, industrie" },
-  "IV": { label: "Catégorie IV", z0: 1.0, zmin: 10, description: "Zone urbaine dense, bâtiments hauts" },
+  "0":    { label: "Catégorie 0",    description: "Plaine dégagée, lac, mer intérieure" },
+  "II":   { label: "Catégorie II",   description: "Zone rurale avec haies/arbres (référence)" },
+  "IIIa": { label: "Catégorie IIIa", description: "Périurbain, forêt, industrie" },
+  "IIIb": { label: "Catégorie IIIb", description: "Zone suburbaine dense" },
+  "IV":   { label: "Catégorie IV",   description: "Mer, côte très exposée" },
 };
 
 // Table alpha DTU 39 (4 arêtes appuyées) - interpolation linéaire
@@ -2833,24 +2892,13 @@ function interpolateAlpha(table, x) {
 
 function calcPressionVent(zone, terrain, hauteur) {
   const z = parseFloat(hauteur);
-  const zoneData = ZONES_VENT_FRANCE[zone];
-  const terrainData = CATEGORIES_TERRAIN[terrain];
-  if (!zoneData || !terrainData || !z || z <= 0) return null;
-
-  const vb0 = zoneData.vb0;
-  const vb = vb0; // cdir=1, cseason=1
-  const z0 = terrainData.z0;
-  const zmin = terrainData.zmin;
-  const z0II = 0.05;
-  const kr = 0.19 * Math.pow(z0 / z0II, 0.07);
-  const zeff = Math.max(z, zmin);
-  const cr = kr * Math.log(zeff / z0);
-  const vm = cr * vb;
-  const KI = 1.0;
-  const Iv = KI / (Math.log(zeff / z0));
-  const rho = 1.225; // France
-  const qp = (1 + 7 * Iv) * 0.5 * rho * vm * vm;
-  return Math.round(qp);
+  if (!zone || !terrain || !z || z <= 0) return null;
+  const regionData = PRESSIONS_DTU39[zone];
+  if (!regionData) return null;
+  const catData = regionData.categories[terrain];
+  if (!catData) return null;
+  const tranche = getTranche(z);
+  return catData[tranche] || null;
 }
 
 function calcEpaisseurDTU39(pression, largeur, hauteur, aretesL, aretesH, typeVitrage, hauteurSol, epaisseurs) {
@@ -2959,12 +3007,17 @@ function PageVent({ projet, setProjet }) {
   };
 
   const pression_preview = calcPressionVent(zone, terrain, hauteur);
+  const tranche_label = hauteur ? (() => {
+    const t = getTranche(hauteur);
+    const labels = { H9: "H ≤ 9m", H18: "9 < H ≤ 18m", H28: "18 < H ≤ 28m", H50: "28 < H ≤ 50m", H100: "50 < H ≤ 100m" };
+    return labels[t] || "";
+  })() : "";
 
   return (
     <div>
       <div style={{ marginBottom: 24, padding: "16px 20px", background: "#f0fdf4", borderRadius: 12, border: "1px solid #6ee7b7" }}>
         <div style={{ fontSize: 13, color: "#065f46", fontWeight: 600, marginBottom: 4 }}>💨 Calcul de pression de vent & vérification DTU 39</div>
-        <div style={{ fontSize: 12, color: "#065f46" }}>Calcul selon Eurocode EN 1991-1-4 (France) — Vérification épaisseur selon DTU 39</div>
+        <div style={{ fontSize: 12, color: "#065f46" }}>Pression selon <strong>NF DTU 39 P4 — Tableau 2</strong> (France Métropolitaine) — Vérification épaisseur selon DTU 39</div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 220px", gap: 24, marginBottom: 24 }}>
@@ -2975,7 +3028,7 @@ function PageVent({ projet, setProjet }) {
             <label style={labelStyle}>Zone de vent (France)</label>
             <select value={zone} onChange={e => setZone(e.target.value)} style={inputStyle}>
               {Object.entries(ZONES_VENT_FRANCE).map(([k, v]) => (
-                <option key={k} value={k}>{v.label} — {v.description} (vb0={v.vb0} m/s)</option>
+                <option key={k} value={k}>{v.label} — {v.description}</option>
               ))}
             </select>
           </div>
@@ -3140,7 +3193,7 @@ function PageVent({ projet, setProjet }) {
         <div style={{ marginTop: 28 }}>
           {/* Résultat pression */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20, padding: "16px 20px", background: "#f0f9ff", borderRadius: 12, border: "1px solid #bae6fd" }}>
-            <Stat label="Pression vent qp(z)" value={`${result.pression} Pa`} highlight />
+            <Stat label={`Pression DTU 39 ${tranche_label}`} value={`${result.pression} Pa`} highlight />
             <Stat label="Alpha DTU 39" value={result.dtu.alpha} />
             <Stat label="c hauteur sol" value={result.dtu.c} />
             <Stat label="Ratio l/L" value={result.dtu.ratio} />
