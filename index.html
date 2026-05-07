@@ -2787,6 +2787,136 @@ function PageControleSolaire({ projet, setProjet }) {
 }
 
 
+
+// ── COMPOSANT COMPOSITIONS RECOMMANDÉES ──────────────────────────────────────
+function CompositionsRecommandees({ eRequired, typeVitrage }) {
+  // Compositions courantes en double vitrage (épaisseur totale des feuilles en mm)
+  // Format: { label, e1: feuille ext (mm), e2: feuille int (mm), feuillete, eR_calc }
+  // eR = (e1 + e2) / (eps1 × 0.9 × eps2) selon §8.3 DTU 39 P4
+  // Pour DV feuilleté sécu (ε1=1.6, ε2=1.3): eR = (e1+e2) / (1.6×0.9×1.3) = / 1.872
+  // Pour DV mono (ε1=1.6, ε3=1.0): eR = (e1+e2) / (1.6×0.9×1.0) = / 1.44
+  // Pour DV 1 feuilleté (ε1=1.6, ε2=1.3, ε3=1.0): eR = (e1 + e2/1.3×0.9) / (1.6×0.9×1.0)
+
+  const compositions = [
+    // Double vitrage 2 monolithiques recuits
+    { label: "4/xx/4",        e_tot: 8,  eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    { label: "6/xx/6",        e_tot: 12, eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    { label: "8/xx/6",        e_tot: 14, eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    { label: "8/xx/8",        e_tot: 16, eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    { label: "10/xx/6",       e_tot: 16, eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    { label: "10/xx/8",       e_tot: 18, eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    { label: "10/xx/10",      e_tot: 20, eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    { label: "12/xx/8",       e_tot: 20, eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    { label: "12/xx/10",      e_tot: 22, eps1: 1.6, eps2: 1.0, eps3: 1.0, famille: "Double mono" },
+    // Double vitrage 1 face feuilletée sécu recuitexx
+    { label: "33.2/xx/4",     e_tot: 11, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    { label: "44.2/xx/6",     e_tot: 14, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    { label: "44.2/xx/8",     e_tot: 16, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    { label: "44.2/xx/10",    e_tot: 18, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    { label: "55.2/xx/6",     e_tot: 16, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    { label: "55.2/xx/8",     e_tot: 18, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    { label: "55.2/xx/10",    e_tot: 20, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    { label: "66.2/xx/8",     e_tot: 20, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    { label: "66.2/xx/10",    e_tot: 22, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_ext: true, famille: "DV 1 feuilleté" },
+    // Double vitrage 2 faces feuilletées sécu recuites
+    { label: "33.2/xx/33.2",  e_tot: 14, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "44.2/xx/33.2",  e_tot: 15, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "44.2/xx/44.2",  e_tot: 16, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "55.2/xx/44.2",  e_tot: 18, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "55.2/xx/55.2",  e_tot: 20, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "66.2/xx/44.2",  e_tot: 22, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "66.2/xx/55.2",  e_tot: 23, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "66.2/xx/66.2",  e_tot: 24, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "88.2/xx/55.2",  e_tot: 26, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+    { label: "88.2/xx/66.2",  e_tot: 28, eps1: 1.6, eps2: 1.3, eps3: 1.0, feuillete_2: true, famille: "DV 2 feuilletés" },
+  ];
+
+  // Calculer eR pour chaque composition selon §8.3 DTU 39 P4
+  const calcER = (c) => {
+    if (c.feuillete_2) {
+      // 2 feuilletés : eR = (e_tot/ε2) / (ε1 × 0.9 × MAX(ε3))
+      return (c.e_tot / c.eps2) / (c.eps1 * 0.9 * c.eps3);
+    } else if (c.feuillete_ext) {
+      // 1 feuilleté ext : simplifié
+      return (c.e_tot / (c.eps2 * 0.9)) / (c.eps1 * 0.9 * c.eps3);
+    } else {
+      // 2 monolithiques : eR = e_tot / (ε1 × 0.9 × MAX(ε3))
+      return c.e_tot / (c.eps1 * 0.9 * c.eps3);
+    }
+  };
+
+  // Filtrer selon le type de vitrage sélectionné
+  const filtrerParType = (c) => {
+    if (typeVitrage === "isolant_mono") return !c.feuillete_ext && !c.feuillete_2;
+    if (typeVitrage === "isolant_lamine") return c.feuillete_ext && !c.feuillete_2;
+    if (typeVitrage === "isolant_2lam") return c.feuillete_2;
+    return true;
+  };
+
+  const compsFiltrees = compositions.filter(filtrerParType).map(c => ({
+    ...c, eR: parseFloat(calcER(c).toFixed(2))
+  })).sort((a, b) => a.eR - b.eR);
+
+  const conformes = compsFiltrees.filter(c => c.eR >= eRequired);
+  const nonConformes = compsFiltrees.filter(c => c.eR < eRequired).slice(-2); // 2 dernières non conformes
+
+  const minConforme = conformes[0];
+
+  return (
+    <div style={{ marginTop: 20, padding: "16px 20px", background: "#fff", borderRadius: 12, border: "2px solid #e5e7eb" }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+        🪟 Compositions de vitrage compatibles
+      </div>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 16 }}>
+        Épaisseur équivalente requise : <strong style={{ color: "#1a1a2e" }}>{eRequired} mm</strong>
+        {minConforme && <span> — Composition minimale conforme : <strong style={{ color: "#059669" }}>{minConforme.label}</strong></span>}
+      </div>
+
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: "#f3f4f6" }}>
+            <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, borderRadius: "6px 0 0 6px" }}>Composition</th>
+            <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>Famille</th>
+            <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>Ép. totale feuilles</th>
+            <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>eR calculée</th>
+            <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, borderRadius: "0 6px 6px 0" }}>Conformité</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...nonConformes, ...conformes.slice(0, 6)].map((c, i) => {
+            const ok = c.eR >= eRequired;
+            const best = ok && i === nonConformes.length;
+            return (
+              <tr key={c.label} style={{
+                background: best ? "#f0fdf4" : ok ? "#fff" : "#fef2f2",
+                borderBottom: "1px solid #f3f4f6",
+              }}>
+                <td style={{ padding: "8px 12px", fontFamily: "monospace", fontWeight: best ? 700 : 500, fontSize: 13, color: "#1a1a2e" }}>
+                  {best && <span style={{ marginRight: 6 }}>⭐</span>}{c.label}
+                </td>
+                <td style={{ padding: "8px 12px", textAlign: "center", color: "#6b7280", fontSize: 11 }}>{c.famille}</td>
+                <td style={{ padding: "8px 12px", textAlign: "center", color: "#374151" }}>{c.e_tot} mm</td>
+                <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, color: ok ? "#059669" : "#dc2626" }}>
+                  {c.eR} mm
+                </td>
+                <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                  {ok
+                    ? <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>✓ Conforme</span>
+                    : <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 4, fontSize: 11 }}>✗ Insuffisant</span>
+                  }
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div style={{ marginTop: 10, fontSize: 11, color: "#9ca3af" }}>
+        eR calculée selon NF DTU 39 P4 §8 — La composition ⭐ est la plus économique conforme à vos exigences
+      </div>
+    </div>
+  );
+}
+
 // ── PAGE VENT & DTU 39 ────────────────────────────────────────────────────────
 // Tables de pression DTU 39 P4 — Tableau 2 — France Métropolitaine (Pa)
 // Structure: PRESSIONS_DTU39[region][categorie][tranche_hauteur]
@@ -3285,6 +3415,9 @@ function PageVent({ projet, setProjet }) {
                 ))}
               </div>
             </div>
+
+            {/* Tableau compositions recommandées */}
+            <CompositionsRecommandees eRequired={result.dtu.eRequired} typeVitrage={typeVitrage} />
           </div>
 
           {/* Bouton ajouter à la prescription */}
