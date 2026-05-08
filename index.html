@@ -4058,8 +4058,21 @@ function App() {
             </button>
           ))}
         </nav>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-          {db.systemes.length} système{db.systemes.length > 1 ? "s" : ""} en base
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+            {db.systemes.length} système{db.systemes.length > 1 ? "s" : ""} en base
+          </div>
+          <a href="./priceiq/" style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "6px 12px", textDecoration: "none",
+            background: "rgba(240,192,64,0.15)",
+            border: "1px solid rgba(240,192,64,0.3)",
+            borderRadius: 6,
+            color: "#f0c040", fontSize: 12, fontWeight: 600,
+            whiteSpace: "nowrap",
+          }}>
+            💰 PriceIQ
+          </a>
         </div>
       </div>
 
