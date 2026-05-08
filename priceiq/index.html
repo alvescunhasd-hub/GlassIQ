@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PriceIQ — Estimation Prix Menuiseries Alu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --bg2: #141418;
+      --bg3: #1c1c22;
+      --border: #2a2a35;
+      --border2: #3a3a48;
+      --text: #e8e8f0;
+      --text2: #9090a8;
+      --text3: #5a5a72;
+      --accent: #f0c040;
+      --accent2: #e0a820;
+      --green: #40c878;
+      --red: #f05050;
+      --blue: #5090f0;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    input, select, textarea, button { font-family: 'DM Sans', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef } = React;
+
+    // ── BASE DE PRIX SCHÜCO (issues des devis 2025-2026) ──────────────────────
+    // Sources: PAR14 Les Ulis 04/2026, CHU Angers 03/2026, Plessis Robinson 12/2025
+    const BASE_PRIX = {
+      "AWS 75.II": {
+        gamme: "AWS 75.II",
+        marque: "Schüco",
+        famille: "Fenêtre",
+        couleur_ref: "RAL Standard",
+        date_ref: "Mars 2026",
+        projet_ref: "CHU Angers",
+        prix_m2: { fixe: 185, battant_1vtl: 245, battant_2vtx: 290 },
+        prix_unitaire: [
+          { dims: "860×2200", type: "Fenêtre 1vtl OB", prix: 418, surface: 1.89 },
+          { dims: "900×2500", type: "Fenêtre 1vtl OF", prix: 401, surface: 2.25 },
+          { dims: "1128×1600", type: "Fenêtre 1vtl OB", prix: 406, surface: 1.80 },
+          { dims: "1200×2500", type: "Fenêtre 2vtx", prix: 426, surface: 3.00 },
+          { dims: "1290×2200", type: "Fenêtre fixe", prix: 469, surface: 2.84 },
+          { dims: "1290×2200", type: "Fenêtre 1vtl OB", prix: 499, surface: 2.84 },
+          { dims: "1290×2200", type: "Fenêtre 1vtl OF (pompier)", prix: 483, surface: 2.84 },
+        ],
+        profils: [
+          { ref: "174310", label: "Dormant 34/59", prix_ml: 17.34 },
+          { ref: "174380", label: "Ouvrant 48/33", prix_ml: 18.52 },
+          { ref: "184080", label: "Parclose 37/22", prix_ml: 4.87 },
+          { ref: "174360", label: "Montant/traverse 34/84", prix_ml: 8.55 },
+        ],
+        note: "Prix matière hors vitrage, hors main d'œuvre. Finition RAL standard incluse.",
+      },
+      "AWS 75 BD": {
+        gamme: "AWS 75 BD",
+        marque: "Schüco",
+        famille: "Fenêtre / Porte-fenêtre",
+        couleur_ref: "RAL Majeur 7012-S30",
+        date_ref: "Avril 2026",
+        projet_ref: "PAR14 Les Ulis",
+        prix_m2: { fixe: 175, battant_1vtl: 250, battant_2vtx: 310 },
+        prix_unitaire: [
+          { dims: "1308×2920", type: "Fixe 1 partie", prix: 251, surface: 3.82 },
+          { dims: "1308×2920", type: "Fenêtre 1vtl (pompier)", prix: 603, surface: 3.82 },
+          { dims: "1308×2920", type: "Fenêtre 1vtl + clé", prix: 579, surface: 3.82 },
+        ],
+        profils: [
+          { ref: "442050", label: "Dormant 26/66.5", prix_ml: 13.36 },
+          { ref: "494530", label: "Ouvrant 60/29", prix_ml: 16.54 },
+          { ref: "442170", label: "Montant/traverse 26/107", prix_ml: 9.75 },
+        ],
+        note: "Prix matière hors vitrage, hors main d'œuvre. Finition RAL Majeur +10%.",
+      },
+      "FWS 60": {
+        gamme: "FWS 60",
+        marque: "Schüco",
+        famille: "Façade rideau",
+        couleur_ref: "RAL Majeur 7012-S30",
+        date_ref: "Avril 2026",
+        projet_ref: "PAR14 Les Ulis",
+        prix_m2: { fixe: 220, battant_1vtl: 280, battant_2vtx: null },
+        prix_unitaire: [
+          { dims: "6570×4160", type: "Mur rideau fixe", prix: 2910, surface: 27.33 },
+          { dims: "6570×4160", type: "Mur rideau fixe (avec SAS)", prix: 2892, surface: 27.33 },
+        ],
+        profils: [
+          { ref: "112720", label: "Capot 15/50", prix_ml: 6.07 },
+          { ref: "160630", label: "Capot 12/60", prix_ml: 4.42 },
+        ],
+        note: "Prix façade rideau standard, hors vitrage. Conception classique.",
+      },
+      "ADS 80 FR30": {
+        gamme: "ADS 80 FR30",
+        marque: "Schüco",
+        famille: "Porte coupe-feu",
+        couleur_ref: "RAL Standard",
+        date_ref: "Décembre 2025",
+        projet_ref: "Plessis Robinson",
+        prix_m2: { fixe: null, battant_1vtl: 580, battant_2vtx: 720 },
+        prix_unitaire: [
+          { dims: "1711×2110", type: "Porte 2vtx EW30", prix: 1840, surface: 3.61 },
+          { dims: "1800×2100", type: "Porte 2vtx EW30", prix: 1852, surface: 3.78 },
+          { dims: "1740×2050", type: "Porte 2vtx EI60", prix: 2862, surface: 3.57 },
+          { dims: "1400×2100", type: "Porte 2vtx EW30", prix: 1782, surface: 2.94 },
+          { dims: "1460×2040", type: "Porte 2vtx EW30", prix: 1773, surface: 2.98 },
+          { dims: "1610×2090", type: "Porte 2vtx EW30", prix: 1860, surface: 3.37 },
+        ],
+        profils: [
+          { ref: "150340", label: "Dormant 34/59 ADS80", prix_ml: 4.00 },
+          { ref: "150350", label: "Ouvrant 48/98 ADS80", prix_ml: 4.10 },
+          { ref: "150360", label: "Dor/Ouv 73/73 ADS80", prix_ml: 2.29 },
+          { ref: "150800", label: "Parclose 42 ADS80", prix_ml: 0.71 },
+        ],
+        note: "Prix matière hors vitrage coupe-feu, hors main d'œuvre.",
+      },
+      "AOC TI": {
+        gamme: "AOC TI",
+        marque: "Schüco",
+        famille: "Façade rideau RC",
+        couleur_ref: "RAL Standard",
+        date_ref: "Février 2026",
+        projet_ref: "CAD Nanterre / MR RC3",
+        prix_m2: { fixe: 380, battant_1vtl: null, battant_2vtx: null },
+        prix_unitaire: [
+          { dims: "10830×7570", type: "Façade RC3 (avec porte intégrée)", prix: 5886, surface: 82.0 },
+          { dims: "9170×7570", type: "Façade RC3", prix: 4770, surface: 69.4 },
+        ],
+        profils: [
+          { ref: "366670", label: "Dormant intégration façade 23/50", prix_ml: 18.00 },
+          { ref: "382690", label: "Ouvrant de porte ext 48/98", prix_ml: 31.44 },
+        ],
+        note: "Façade avec résistance RC3. Prix incluant structure acier.",
+      },
+      "ADS 75 RC3": {
+        gamme: "ADS 75 RC3",
+        marque: "Schüco",
+        famille: "Porte RC3",
+        couleur_ref: "RAL Standard",
+        date_ref: "Février 2026",
+        projet_ref: "MR01-RC3 Nanterre",
+        prix_m2: { fixe: null, battant_1vtl: null, battant_2vtx: 620 },
+        prix_unitaire: [
+          { dims: "1828×2489", type: "Porte 2vtx RC3 HD", prix: 2034, surface: 4.55 },
+        ],
+        profils: [],
+        note: "Porte RC3 avec ferrures haute sécurité. Cylindre hors lot.",
+      },
+    };
+
+    // ── STYLES ────────────────────────────────────────────────────────────────
+    const s = {
+      input: {
+        width: "100%", background: "var(--bg3)", border: "1px solid var(--border)",
+        borderRadius: 8, color: "var(--text)", padding: "9px 12px", fontSize: 13,
+        outline: "none", transition: "border 0.2s",
+      },
+      label: { fontSize: 11, color: "var(--text3)", letterSpacing: "0.06em",
+        textTransform: "uppercase", marginBottom: 5, display: "block" },
+      card: { background: "var(--bg2)", border: "1px solid var(--border)",
+        borderRadius: 12, padding: "18px 20px" },
+      btn: {
+        background: "var(--accent)", color: "#0d0d0f", border: "none",
+        borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700,
+        cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+      },
+      btnOutline: {
+        background: "transparent", color: "var(--text2)", border: "1px solid var(--border2)",
+        borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 500,
+        cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+      },
+      mono: { fontFamily: "'DM Mono', monospace" },
+    };
+
+    // ── COMPOSANT LIGNE DEVIS ─────────────────────────────────────────────────
+    function LigneDevis({ ligne, index, onUpdate, onRemove, gammes }) {
+      const gamme = BASE_PRIX[ligne.gamme];
+      const [modeCalc, setModeCalc] = useState("m2"); // m2 ou unitaire
+
+      const surface = ((+ligne.largeur || 0) / 1000) * ((+ligne.hauteur || 0) / 1000);
+      const prix_m2 = gamme?.prix_m2[ligne.type_ouvrant] || null;
+      const prix_calc = prix_m2 ? surface * prix_m2 * (ligne.qte || 1) : null;
+
+      // Trouver le prix unitaire le plus proche
+      const closestUnit = gamme?.prix_unitaire?.reduce((best, pu) => {
+        const [pw, ph] = pu.dims.split("×").map(Number);
+        const diff = Math.abs(pw - (+ligne.largeur || 0)) + Math.abs(ph - (+ligne.hauteur || 0));
+        const bestDiff = best ? Math.abs(best.pw - (+ligne.largeur||0)) + Math.abs(best.ph-(+ligne.hauteur||0)) : Infinity;
+        return diff < bestDiff ? { ...pu, pw, ph } : best;
+      }, null);
+
+      const total = prix_calc || 0;
+
+      return (
+        <div style={{ ...s.card, marginBottom: 12, position: "relative" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+            <div style={{ width: 28, height: 28, background: "var(--accent)", borderRadius: 6,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#0d0d0f", flexShrink: 0 }}>
+              {index + 1}
+            </div>
+            <input value={ligne.repere} onChange={e => onUpdate("repere", e.target.value)}
+              placeholder="Repère (ex: Type A)" style={{ ...s.input, width: 140 }} />
+            <select value={ligne.gamme} onChange={e => onUpdate("gamme", e.target.value)}
+              style={{ ...s.input, flex: 1 }}>
+              <option value="">— Choisir une gamme —</option>
+              {Object.keys(BASE_PRIX).map(k => (
+                <option key={k} value={k}>{k} — {BASE_PRIX[k].marque}</option>
+              ))}
+            </select>
+            <select value={ligne.type_ouvrant} onChange={e => onUpdate("type_ouvrant", e.target.value)}
+              style={{ ...s.input, width: 180 }}>
+              <option value="fixe">Fixe</option>
+              <option value="battant_1vtl">1 vantail</option>
+              <option value="battant_2vtx">2 vantaux</option>
+            </select>
+            <button onClick={onRemove} style={{ ...s.btnOutline, padding: "8px 12px", color: "var(--red)",
+              borderColor: "rgba(240,80,80,0.3)", flexShrink: 0 }}>✕</button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 2fr", gap: 10 }}>
+            <div>
+              <label style={s.label}>Largeur (mm)</label>
+              <input type="number" value={ligne.largeur} onChange={e => onUpdate("largeur", e.target.value)}
+                placeholder="ex: 1230" style={s.input} />
+            </div>
+            <div>
+              <label style={s.label}>Hauteur (mm)</label>
+              <input type="number" value={ligne.hauteur} onChange={e => onUpdate("hauteur", e.target.value)}
+                placeholder="ex: 1480" style={s.input} />
+            </div>
+            <div>
+              <label style={s.label}>Quantité</label>
+              <input type="number" value={ligne.qte} onChange={e => onUpdate("qte", e.target.value)}
+                placeholder="1" style={s.input} />
+            </div>
+            <div>
+              <label style={s.label}>Surface unitaire</label>
+              <div style={{ ...s.input, color: surface > 0 ? "var(--accent)" : "var(--text3)",
+                fontFamily: "'DM Mono', monospace" }}>
+                {surface > 0 ? surface.toFixed(2) + " m²" : "—"}
+              </div>
+            </div>
+            <div>
+              <label style={s.label}>Finition</label>
+              <select value={ligne.finition} onChange={e => onUpdate("finition", e.target.value)}
+                style={s.input}>
+                <option value="std">RAL Standard</option>
+                <option value="ral_maj">RAL Majeur (+10%)</option>
+                <option value="anodise">Anodisé (+15%)</option>
+                <option value="laque_spec">Laque spéciale (+25%)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Résultat prix */}
+          {gamme && ligne.largeur && ligne.hauteur && (
+            <div style={{ marginTop: 12, padding: "12px 14px", background: "var(--bg)",
+              borderRadius: 8, border: "1px solid var(--border2)", display: "flex",
+              justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                {prix_m2 ? (
+                  <div style={{ fontSize: 12, color: "var(--text2)" }}>
+                    <span style={{ ...s.mono, color: "var(--accent)" }}>{prix_m2} €/m²</span>
+                    {" "}× {surface.toFixed(2)} m² × {ligne.qte || 1} unité(s)
+                    {ligne.finition !== "std" && (
+                      <span style={{ color: "var(--text3)" }}>
+                        {" "}× {ligne.finition === "ral_maj" ? "1.10" : ligne.finition === "anodise" ? "1.15" : "1.25"}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "var(--text3)" }}>Prix/m² non disponible pour ce type</div>
+                )}
+                {closestUnit && (
+                  <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>
+                    Réf. proche : {closestUnit.dims} ({closestUnit.type}) → {closestUnit.prix} €/u
+                    {Math.abs(closestUnit.pw - (+ligne.largeur||0)) + Math.abs(closestUnit.ph-(+ligne.hauteur||0)) < 200
+                      ? " ✓" : " (extrapolé)"}
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>
+                  Source: {gamme.projet_ref} — {gamme.date_ref} · Hors vitrage, hors pose
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                {prix_calc ? (
+                  <>
+                    <div style={{ fontSize: 22, fontWeight: 800, ...s.mono, color: "var(--accent)" }}>
+                      {Math.round(prix_calc * (
+                        ligne.finition === "ral_maj" ? 1.10 :
+                        ligne.finition === "anodise" ? 1.15 :
+                        ligne.finition === "laque_spec" ? 1.25 : 1.0
+                      )).toLocaleString("fr-FR")} €
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text3)" }}>matière estimée HT</div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 13, color: "var(--text3)" }}>—</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── PAGE ESTIMATION ───────────────────────────────────────────────────────
+    function PageEstimation() {
+      const [projetNom, setProjetNom] = useState("");
+      const [lignes, setLignes] = useState([
+        { id: 1, repere: "Type A", gamme: "AWS 75.II", type_ouvrant: "battant_1vtl",
+          largeur: "1230", hauteur: "1480", qte: "10", finition: "std" },
+      ]);
+      const [coeff_pose, setCoeffPose] = useState("1.8");
+      const [coeff_marge, setCoeffMarge] = useState("1.0");
+
+      const addLigne = () => setLignes(l => [...l, {
+        id: Date.now(), repere: `Type ${String.fromCharCode(65 + l.length)}`,
+        gamme: "AWS 75.II", type_ouvrant: "battant_1vtl",
+        largeur: "", hauteur: "", qte: "1", finition: "std"
+      }]);
+
+      const upd = (id, k, v) => setLignes(l => l.map(x => x.id === id ? { ...x, [k]: v } : x));
+      const rem = id => setLignes(l => l.filter(x => x.id !== id));
+
+      // Calcul totaux
+      const totaux = lignes.map(ligne => {
+        const gamme = BASE_PRIX[ligne.gamme];
+        if (!gamme || !ligne.largeur || !ligne.hauteur) return { prix_mat: 0, surface: 0, qte: +ligne.qte || 0 };
+        const surface = ((+ligne.largeur) / 1000) * ((+ligne.hauteur) / 1000);
+        const prix_m2 = gamme.prix_m2[ligne.type_ouvrant] || 0;
+        const coeff_fin = ligne.finition === "ral_maj" ? 1.10 : ligne.finition === "anodise" ? 1.15 : ligne.finition === "laque_spec" ? 1.25 : 1.0;
+        const prix_mat = surface * prix_m2 * coeff_fin * (+ligne.qte || 1);
+        return { prix_mat, surface: surface * (+ligne.qte || 1), qte: +ligne.qte || 0 };
+      });
+
+      const total_mat = totaux.reduce((s, t) => s + t.prix_mat, 0);
+      const total_surf = totaux.reduce((s, t) => s + t.surface, 0);
+      const total_pose = total_mat * (+coeff_pose - 1);
+      const total_ttc = (total_mat + total_pose) * +coeff_marge;
+
+      return (
+        <div>
+          {/* Header projet */}
+          <div style={{ marginBottom: 20, display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>Nom du projet</label>
+              <input value={projetNom} onChange={e => setProjetNom(e.target.value)}
+                placeholder="Ex: Résidence Les Acacias — Marseille"
+                style={{ ...s.input, fontSize: 15, fontWeight: 600 }} />
+            </div>
+            <div style={{ width: 140 }}>
+              <label style={s.label}>Coeff. pose</label>
+              <select value={coeff_pose} onChange={e => setCoeffPose(e.target.value)} style={s.input}>
+                <option value="1.0">Fourniture seule (×1.0)</option>
+                <option value="1.5">Pose simple (×1.5)</option>
+                <option value="1.8">Pose standard (×1.8)</option>
+                <option value="2.2">Pose complexe (×2.2)</option>
+                <option value="2.5">Façade / RDC (×2.5)</option>
+              </select>
+            </div>
+            <div style={{ width: 140 }}>
+              <label style={s.label}>Marge</label>
+              <select value={coeff_marge} onChange={e => setCoeffMarge(e.target.value)} style={s.input}>
+                <option value="1.0">Sans marge (×1.0)</option>
+                <option value="1.10">+10% (×1.10)</option>
+                <option value="1.15">+15% (×1.15)</option>
+                <option value="1.20">+20% (×1.20)</option>
+                <option value="1.30">+30% (×1.30)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Lignes */}
+          {lignes.map((ligne, i) => (
+            <LigneDevis key={ligne.id} ligne={ligne} index={i}
+              onUpdate={(k, v) => upd(ligne.id, k, v)}
+              onRemove={() => rem(ligne.id)} />
+          ))}
+
+          <button onClick={addLigne} style={{ ...s.btnOutline, width: "100%", marginBottom: 24,
+            padding: "12px", borderStyle: "dashed", fontSize: 13, color: "var(--text2)" }}>
+            + Ajouter une ligne
+          </button>
+
+          {/* Récapitulatif */}
+          <div style={{ ...s.card, border: "2px solid var(--border2)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", letterSpacing: "0.1em",
+              textTransform: "uppercase", marginBottom: 16 }}>Récapitulatif estimatif</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+              {[
+                ["Surface totale", total_surf.toFixed(1) + " m²", false],
+                ["Matière estimée HT", total_mat.toLocaleString("fr-FR", {maximumFractionDigits:0}) + " €", false],
+                ["Pose incluse", total_pose.toLocaleString("fr-FR", {maximumFractionDigits:0}) + " €", false],
+              ].map(([label, val, hl]) => (
+                <div key={label} style={{ padding: "12px 14px", background: "var(--bg)",
+                  borderRadius: 8, border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "'DM Mono', monospace",
+                    color: hl ? "var(--accent)" : "var(--text)" }}>{val}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: "16px 20px", background: "linear-gradient(135deg, rgba(240,192,64,0.12), rgba(240,192,64,0.06))",
+              borderRadius: 10, border: "1px solid rgba(240,192,64,0.3)", display: "flex",
+              justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 12, color: "var(--text2)" }}>ESTIMATION TOTALE</div>
+                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>
+                  Hors vitrage · Hors TVA · Hors études
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'DM Mono', monospace",
+                  color: "var(--accent)", letterSpacing: "-0.02em" }}>
+                  {total_ttc.toLocaleString("fr-FR", {maximumFractionDigits:0})} €
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text3)" }}>HT estimatif</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 12, fontSize: 11, color: "var(--text3)", lineHeight: 1.6 }}>
+              ⚠ Estimation indicative basée sur les devis Schüco 2025-2026. Les prix réels dépendent des remises négociées,
+              du volume de commande, des finitions spéciales et de la complexité de pose. ±20% d'écart possible.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── PAGE BASE PRIX ────────────────────────────────────────────────────────
+    function PageBasePrix() {
+      const [selected, setSelected] = useState("AWS 75.II");
+      const gamme = BASE_PRIX[selected];
+
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 20 }}>
+          {/* Liste gammes */}
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.08em",
+              textTransform: "uppercase", marginBottom: 10 }}>Gammes disponibles</div>
+            {Object.keys(BASE_PRIX).map(k => (
+              <button key={k} onClick={() => setSelected(k)} style={{
+                width: "100%", textAlign: "left", background: selected === k ? "rgba(240,192,64,0.1)" : "transparent",
+                border: selected === k ? "1px solid rgba(240,192,64,0.3)" : "1px solid transparent",
+                borderRadius: 8, padding: "10px 12px", cursor: "pointer", marginBottom: 4,
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600,
+                  color: selected === k ? "var(--accent)" : "var(--text)" }}>{k}</div>
+                <div style={{ fontSize: 11, color: "var(--text3)" }}>
+                  {BASE_PRIX[k].marque} · {BASE_PRIX[k].famille}
+                </div>
+              </button>
+            ))}
+            <div style={{ marginTop: 16, padding: "10px 12px", background: "rgba(64,200,120,0.08)",
+              borderRadius: 8, border: "1px solid rgba(64,200,120,0.2)", fontSize: 11, color: "#40c878" }}>
+              {Object.keys(BASE_PRIX).length} gammes · {Object.values(BASE_PRIX).reduce((s,g) => s + g.prix_unitaire.length, 0)} références prix
+            </div>
+          </div>
+
+          {/* Détail gamme */}
+          {gamme && (
+            <div>
+              <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Syne', sans-serif" }}>{gamme.gamme}</div>
+                  <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 2 }}>
+                    {gamme.marque} · {gamme.famille} · {gamme.couleur_ref}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", fontSize: 11, color: "var(--text3)" }}>
+                  Source: {gamme.projet_ref}<br/>{gamme.date_ref}
+                </div>
+              </div>
+
+              {/* Prix au m² */}
+              <div style={{ ...s.card, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.08em",
+                  textTransform: "uppercase", marginBottom: 12 }}>Prix au m² (matière)</div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  {Object.entries(gamme.prix_m2).map(([type, prix]) => (
+                    <div key={type} style={{ flex: 1, padding: "12px 14px", background: "var(--bg)",
+                      borderRadius: 8, border: "1px solid var(--border)", textAlign: "center" }}>
+                      <div style={{ fontSize: 10, color: "var(--text3)", marginBottom: 4 }}>
+                        {type === "fixe" ? "Fixe" : type === "battant_1vtl" ? "1 vantail" : "2 vantaux"}
+                      </div>
+                      {prix ? (
+                        <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'DM Mono', monospace",
+                          color: "var(--accent)" }}>{prix} €/m²</div>
+                      ) : (
+                        <div style={{ fontSize: 13, color: "var(--text3)" }}>—</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Références prix */}
+              <div style={{ ...s.card, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.08em",
+                  textTransform: "uppercase", marginBottom: 12 }}>Références de prix par dimension</div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      {["Dimensions", "Type", "Prix matière", "Surface", "€/m²"].map(h => (
+                        <th key={h} style={{ padding: "6px 10px", textAlign: "left", fontSize: 11,
+                          color: "var(--text3)", fontWeight: 500 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gamme.prix_unitaire.map((pu, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border)",
+                        background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)" }}>
+                        <td style={{ padding: "8px 10px", fontFamily: "'DM Mono', monospace",
+                          fontSize: 13, color: "var(--text)" }}>{pu.dims}</td>
+                        <td style={{ padding: "8px 10px", color: "var(--text2)", fontSize: 12 }}>{pu.type}</td>
+                        <td style={{ padding: "8px 10px", fontFamily: "'DM Mono', monospace",
+                          fontWeight: 700, color: "var(--accent)" }}>{pu.prix} €</td>
+                        <td style={{ padding: "8px 10px", fontFamily: "'DM Mono', monospace",
+                          color: "var(--text3)", fontSize: 12 }}>{pu.surface} m²</td>
+                        <td style={{ padding: "8px 10px", fontFamily: "'DM Mono', monospace",
+                          color: "var(--blue)", fontSize: 12 }}>{Math.round(pu.prix / pu.surface)} €/m²</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Profilés */}
+              {gamme.profils.length > 0 && (
+                <div style={{ ...s.card, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.08em",
+                    textTransform: "uppercase", marginBottom: 12 }}>Prix profilés unitaires</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+                    {gamme.profils.map((p, i) => (
+                      <div key={i} style={{ padding: "10px 12px", background: "var(--bg)",
+                        borderRadius: 8, border: "1px solid var(--border)" }}>
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11,
+                          color: "var(--text3)", marginBottom: 3 }}>{p.ref}</div>
+                        <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 4 }}>{p.label}</div>
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15,
+                          fontWeight: 700, color: "var(--accent)" }}>{p.prix_ml} €/ml</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic" }}>
+                ⚠ {gamme.note}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── APP ────────────────────────────────────────────────────────────────────
+    function App() {
+      const [page, setPage] = useState("estimation");
+
+      const tabs = [
+        { id: "estimation", label: "📊 Estimation", desc: "Calculer un devis rapide" },
+        { id: "base", label: "📚 Base de prix", desc: "Consulter les références" },
+      ];
+
+      return (
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 20px" }}>
+          {/* Header */}
+          <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-end",
+            justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: 20 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                <div style={{ width: 36, height: 36, background: "var(--accent)", borderRadius: 8,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>💰</div>
+                <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "'Syne', sans-serif",
+                  letterSpacing: "-0.02em" }}>PriceIQ</div>
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text3)", marginLeft: 48 }}>
+                Estimation de prix menuiseries aluminium — Schüco 2025/2026
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {tabs.map(t => (
+                <button key={t.id} onClick={() => setPage(t.id)} style={{
+                  background: page === t.id ? "rgba(240,192,64,0.12)" : "transparent",
+                  border: page === t.id ? "1px solid rgba(240,192,64,0.3)" : "1px solid var(--border)",
+                  borderRadius: 8, padding: "8px 16px", cursor: "pointer", color: page === t.id ? "var(--accent)" : "var(--text2)",
+                  fontSize: 13, fontWeight: page === t.id ? 600 : 400, fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Contenu */}
+          {page === "estimation" && <PageEstimation />}
+          {page === "base" && <PageBasePrix />}
+
+          {/* Footer */}
+          <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid var(--border)",
+            display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text3)" }}>
+            <div>PriceIQ · Outil d'estimation menuiseries alu</div>
+            <div>Sources: Schüco France — PAR14 Les Ulis (04/2026) · CHU Angers (03/2026) · Plessis Robinson (12/2025)</div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
