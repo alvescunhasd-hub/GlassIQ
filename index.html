@@ -343,12 +343,14 @@ function PageVent({projet,setProjet,setPage}){
 }
 
 // ── PAGE 3 : COMPARATEUR MULTI-CRITÈRES ───────────────────────────────────
-function PageComparateur({db,projet,setPage}){
+function PageComparateur({db,projet,setProjet,setPage}){
   const [results,setResults]=useState(null);
   const [loading,setLoading]=useState(false);
   const [selEl,setSelEl]=useState(0);
+  const [confirmed,setConfirmed]=useState({});// {elId: {sys,best}}
   const el=projet.elements[selEl]||projet.elements[0];
   const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+
   const chercher=async()=>{
     if(!el)return;
     setLoading(true);
@@ -381,46 +383,105 @@ function PageComparateur({db,projet,setPage}){
     solutions.sort((a,b)=>a.ko!==b.ko?a.ko-b.ko:a.best.rc-b.best.rc);
     setResults(solutions);setLoading(false);
   };
+
+  // Injecte le système retenu dans projet.prescriptions[elId]
+  const utiliser=(sys,best,allMatches)=>{
+    const elId=el.id;
+    // Trouver le meilleur Uw dispo
+    const bestUw=sys.thermique&&sys.thermique.length>0?Math.min(...sys.thermique.map(t=>t.uw)):null;
+    // Trouver meilleur AEV vent
+    const bestAev=sys.aev&&sys.aev.length>0?sys.aev.map(a=>`A${a.A}/E${a.E}/V${a.V}`).join(", "):null;
+    const prescription={
+      elId,
+      gamme:`${sys.marque} ${sys.nom}`,
+      vitrage:best.composition,
+      rw:`${best.rw} dB`,
+      rwctr:`${best.rc} dB`,
+      rapport:best.test.rapport,
+      correction:best.corr!==0?`${best.corr} dB`:"0 dB",
+      uw:bestUw?`${bestUw} W/m²K`:"",
+      aev:sys.aev&&sys.aev.length>0?sys.aev.map(a=>`A${a.A}/E${a.E}/V${a.V}`).join(" | "):"",
+      epaisseur_dtu:projet.epaisseur_dtu||"",
+      allMatches,
+    };
+    setProjet(p=>({...p,prescriptions:{...(p.prescriptions||{}), [elId]:prescription}}));
+    setConfirmed(c=>({...c,[elId]:{sys,best}}));
+  };
+
+  // Résumé des éléments déjà confirmés
+  const nbConfirmed=Object.keys(confirmed).length;
+  const allConfirmed=projet.elements.length>0&&nbConfirmed>=projet.elements.length;
+
   return <div>
     <StepBar current={3} setPage={setPage}/>
     <div style={{...S.card,background:"#eef2ff",border:"1px solid #c7d2fe",marginBottom:14}}>
       <div style={{fontSize:13,fontWeight:600,color:"#3730a3",marginBottom:4}}>⚖ Comparateur multi-critères — acoustique + AEV vent + thermique + feuillure</div>
-      <div style={{fontSize:12,color:"#3730a3"}}>Les 4 critères sont croisés simultanément. Systèmes avec 0 refus en premier.</div>
+      <div style={{fontSize:12,color:"#3730a3"}}>Sélectionne l'élément, analyse, puis clique <strong>"✓ Retenir ce système"</strong> — la prescription se remplit automatiquement.</div>
     </div>
-    {projet.elements.length>1&&<div style={{marginBottom:14}}>
+
+    {/* Sélection élément + statut */}
+    <div style={{marginBottom:14}}>
       <label style={S.label}>Élément à analyser</label>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {projet.elements.map((e,i)=><button key={i} onClick={()=>setSelEl(i)} style={{padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",border:"1.5px solid",background:selEl===i?"#1a1a2e":"#f9fafb",color:selEl===i?"#fff":"#374151",borderColor:selEl===i?"#1a1a2e":"#e5e7eb"}}>{e.label} — RA,tr {e.ratr} dB</button>)}
+        {projet.elements.map((e,i)=>{
+          const done=confirmed[e.id];
+          return <button key={i} onClick={()=>{setSelEl(i);setResults(null);}} style={{padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",border:"1.5px solid",background:selEl===i?"#1a1a2e":done?"#f0fdf4":"#f9fafb",color:selEl===i?"#fff":done?"#065f46":"#374151",borderColor:selEl===i?"#1a1a2e":done?"#6ee7b7":"#e5e7eb"}}>
+            {done?"✓ ":""}{e.label} <span style={{fontSize:11,opacity:0.7}}>RA,tr {e.ratr} dB</span>
+          </button>;
+        })}
       </div>
-    </div>}
+      {nbConfirmed>0&&<div style={{marginTop:8,fontSize:12,color:"#065f46"}}>{nbConfirmed}/{projet.elements.length} élément{nbConfirmed>1?"s":""} confirmé{nbConfirmed>1?"s":""}</div>}
+    </div>
+
     {el&&<div style={{...S.card,background:"#f9fafb",marginBottom:14}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
         <Stat label="RA,tr requis" value={`≥ ${el.ratr} dB`} hi/><Stat label="Uw max" value={projet.uw_max?`≤ ${projet.uw_max}`:"Non précisé"}/><Stat label="g max" value={projet.g_max?`≤ ${projet.g_max}`:"Non précisé"}/><Stat label="Pression vent" value={pression?`${pression} Pa`:"Non calculée"}/><Stat label="Épaisseur DTU 39" value={projet.epaisseur_dtu||"Non calculée"}/>
       </div>
+      {confirmed[el.id]&&<div style={{marginTop:10,padding:"8px 12px",background:"#d1fae5",borderRadius:8,fontSize:12,color:"#065f46",fontWeight:600}}>
+        ✓ Système retenu : <strong>{confirmed[el.id].sys.marque} {confirmed[el.id].sys.nom}</strong> — {confirmed[el.id].best.composition} — RA,tr {confirmed[el.id].best.rc} dB
+      </div>}
     </div>}
-    <button onClick={chercher} disabled={loading||!el} style={S.btnPrimary}>{loading?"Analyse…":"⚖ Analyser tous les systèmes"}</button>
+
+    <button onClick={chercher} disabled={loading||!el} style={S.btnPrimary}>{loading?"Analyse…":"⚖ Analyser les systèmes compatibles"}</button>
+
     {results&&<div style={{marginTop:20}}>
       <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}><strong>{results.length}</strong> système{results.length>1?"s":""} conforme{results.length>1?"s":""} acoustiquement — triés par conformité globale</div>
-      {results.map(({sys,best,uw_ok,aev_ok,ep_ok,ko},i)=>{
+      {results.map(({sys,best,allMatches,uw_ok,aev_ok,ep_ok,ko},i)=>{
         const allOk=ko===0;const bc=allOk?"#6ee7b7":ko>=2?"#fca5a5":"#fde68a";const bg=allOk?"#f0fdf4":ko>=2?"#fff1f2":"#fffbeb";
-        return <div key={sys.id} style={{...S.card,border:`1.5px solid ${bc}`,background:bg,marginBottom:10}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+        const isRetenu=confirmed[el.id]?.sys.id===sys.id;
+        return <div key={sys.id} style={{...S.card,border:isRetenu?"2px solid #059669":(`1.5px solid ${bc}`),background:isRetenu?"#f0fdf4":bg,marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:8}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{width:26,height:26,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:allOk?"#d1fae5":ko>=2?"#fee2e2":"#fef3c7"}}>{allOk?"✓":ko>=2?"✗":"⚠"}</span>
-              <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>{sys.marque} {sys.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{sys.famille} · DTA: {sys.dta||"—"} · Validité: {sys.validite||"—"}</div></div>
+              <span style={{width:26,height:26,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:isRetenu?"#059669":allOk?"#d1fae5":ko>=2?"#fee2e2":"#fef3c7",color:isRetenu?"#fff":undefined}}>{isRetenu?"★":allOk?"✓":ko>=2?"✗":"⚠"}</span>
+              <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>{sys.marque} {sys.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{sys.famille} · DTA: {sys.dta||"—"} · Validité: {sys.validite||"—"} · Feuillure: {sys.epaisseur_min}–{sys.epaisseur_max}mm</div></div>
             </div>
-            <div style={{textAlign:"right"}}><div style={{fontFamily:"monospace",fontWeight:700,fontSize:13,color:"#374151"}}>{best.composition}</div><div style={{fontSize:12,color:"#059669"}}>RA,tr {best.rc} dB{best.corr!==0?` (corrigé ${best.corr} dB)`:""}</div><div style={{fontSize:11,color:"#6b7280"}}>Rapport {best.test.rapport}</div></div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <div style={{textAlign:"right"}}><div style={{fontFamily:"monospace",fontWeight:700,fontSize:13,color:"#374151"}}>{best.composition}</div><div style={{fontSize:12,color:"#059669"}}>RA,tr {best.rc} dB{best.corr!==0?` (corrigé ${best.corr} dB)`:""}</div><div style={{fontSize:11,color:"#6b7280"}}>Rapport {best.test.rapport}</div></div>
+              <button onClick={()=>utiliser(sys,best,allMatches)} style={{padding:"8px 14px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",border:"none",background:isRetenu?"#059669":"#1a1a2e",color:"#fff",whiteSpace:"nowrap"}}>
+                {isRetenu?"★ Retenu":"✓ Retenir ce système"}
+              </button>
+            </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8}}>
-            <CheckRow label="Acoustique RA,tr" ok={true} note={`${best.rc} dB ≥ ${el.ratr} dB ✓`}/>
+            <CheckRow label="Acoustique RA,tr" ok={true} note={`${best.rc} dB ≥ ${el.ratr} dB`}/>
             <CheckRow label="Thermique Uw" ok={uw_ok} note={uw_ok===null?"Données manquantes":uw_ok?"Conforme":"Non conforme"}/>
             <CheckRow label={el.type==="facade"?"Pression AEV essai":"Classement V/C AEV"} ok={aev_ok} note={aev_ok===null?"Pas d'essai AEV":aev_ok?"Couvert":"Insuffisant"}/>
-            <CheckRow label="Épaisseur feuillure" ok={ep_ok} note={ep_ok===null?"Non vérifié":`Feuillure ${sys.epaisseur_min}–${sys.epaisseur_max}mm`}/>
+            <CheckRow label="Épaisseur feuillure" ok={ep_ok} note={ep_ok===null?"Non vérifié":`${sys.epaisseur_min}–${sys.epaisseur_max}mm`}/>
           </div>
-          {best.corr!==0&&<div style={{marginTop:8,padding:"6px 10px",background:"#fef3c7",borderRadius:6,fontSize:12,color:"#92400e"}}>⚠ Correction dimensionnelle {best.corr} dB appliquée (surface projet &gt; surface essai)</div>}
+          {/* Autres compositions compatibles */}
+          {allMatches.length>1&&<div style={{marginTop:8}}>
+            <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>Autres compositions compatibles :</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {allMatches.slice(1).map((m,mi)=><button key={mi} onClick={()=>utiliser(sys,m,allMatches)} style={{padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid #d1d5db",background:"#fff",color:"#374151",fontFamily:"monospace"}}>{m.composition} — {m.rc} dB</button>)}
+            </div>
+          </div>}
+          {best.corr!==0&&<div style={{marginTop:8,padding:"6px 10px",background:"#fef3c7",borderRadius:6,fontSize:12,color:"#92400e"}}>⚠ Correction dimensionnelle {best.corr} dB (surface projet &gt; surface essai)</div>}
         </div>;
       })}
-      <button onClick={()=>setPage("prescription")} style={{...S.btnPrimary,marginTop:8,background:"#059669"}}>📄 Étape 5 — Rédiger la prescription →</button>
+      <div style={{display:"flex",gap:10,marginTop:10,flexWrap:"wrap",alignItems:"center"}}>
+        {allConfirmed&&<div style={{fontSize:13,color:"#059669",fontWeight:600}}>✓ Tous les éléments ont un système retenu</div>}
+        <button onClick={()=>setPage("prescription")} style={{...S.btnPrimary,background:"#059669"}}>📄 Étape 5 — Voir la prescription →</button>
+      </div>
     </div>}
   </div>;
 }
@@ -461,14 +522,19 @@ function PageControleSolaire({projet,setProjet}){
 
 // ── PAGE 5 : PRESCRIPTION ─────────────────────────────────────────────────
 function PagePrescription({projet,setProjet,setPage}){
-  const [typos,setTypos]=useState(()=>projet.elements.map((el,i)=>({
-    id:el.id||i,label:el.label,dims:el.largeur&&el.hauteur?`${el.largeur}×${el.hauteur}mm`:"",
-    orientation:el.orientation||"",usage:el.usage||"",rw_requis:el.ratr?"RA,tr ≥ "+el.ratr+" dB":"",
-    type_element:el.type==="facade"?"Façade rideau":"Châssis",
-    gamme:"",vitrage:"",rw:"",rwctr:"",rapport:"",correction:"0 dB",
-    controle:projet.controle_ref||"",tl:projet.controle_tl||"",fs:projet.controle_fs?String(projet.controle_fs):"",ug:projet.controle_ug||"",
-    epaisseur_dtu:projet.epaisseur_dtu||"",aev:"",
-  })));
+  const prescs=projet.prescriptions||{};
+  // Sync typos quand prescriptions change (retour du comparateur)
+  const [typos,setTypos]=useState(()=>projet.elements.map((el,i)=>{
+    const p=prescs[el.id]||{};
+    return {
+      id:el.id||i,label:el.label,dims:el.largeur&&el.hauteur?`${el.largeur}\u00d7${el.hauteur}mm`:"",
+      orientation:el.orientation||"",usage:el.usage||"",rw_requis:el.ratr?"RA,tr \u2265 "+el.ratr+" dB":"",
+      type_element:el.type==="facade"?"Fa\u00e7ade rideau":"Ch\u00e2ssis",
+      gamme:p.gamme||"",vitrage:p.vitrage||"",rw:p.rw||"",rwctr:p.rwctr||"",rapport:p.rapport||"",correction:p.correction||"0 dB",
+      controle:projet.controle_ref||"",tl:projet.controle_tl||"",fs:projet.controle_fs?String(projet.controle_fs):"",ug:projet.controle_ug||"",
+      epaisseur_dtu:p.epaisseur_dtu||projet.epaisseur_dtu||"",aev:p.aev||"",uw:p.uw||"",
+    };
+  }));
   const upd=(id,k,v)=>setTypos(t=>t.map(x=>x.id===id?{...x,[k]:v}:x));
   const addT=()=>setTypos(t=>[...t,{id:Date.now(),label:`Élément ${t.length+1}`,dims:"",orientation:"",usage:"",rw_requis:"",type_element:"Châssis",gamme:"",vitrage:"",rw:"",rwctr:"",rapport:"",correction:"0 dB",controle:"",tl:"",fs:"",ug:"",epaisseur_dtu:"",aev:""}]);
   return <div>
@@ -526,7 +592,7 @@ function PagePrescription({projet,setProjet,setPage}){
           </div>
           <div style={{padding:"9px 11px",background:"#eef2ff",borderRadius:8,border:"1px solid #c7d2fe"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#3730a3",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>💨 DTU 39 & AEV</div>
-            {[["Épaisseur min. DTU 39","epaisseur_dtu","ex : 8.5 mm"],["Classement AEV","aev","ex : A4 / E9A / C3"]].map(([l,k,ph])=><div key={k} style={{marginBottom:4}}><div style={{fontSize:9,color:"#6b7280",marginBottom:1}}>{l}</div><input value={ty[k]} onChange={e=>upd(ty.id,k,e.target.value)} placeholder={ph} style={{...S.input,fontSize:11,padding:"3px 7px",background:"#fff"}}/></div>)}
+            {[["Épaisseur min. DTU 39","epaisseur_dtu","ex : 8.5 mm"],["Classement AEV","aev","ex : A4 / E9A / C3"],["Uw système","uw","ex : 1.3 W/m²K"]].map(([l,k,ph])=><div key={k} style={{marginBottom:4}}><div style={{fontSize:9,color:"#6b7280",marginBottom:1}}>{l}</div><input value={ty[k]} onChange={e=>upd(ty.id,k,e.target.value)} placeholder={ph} style={{...S.input,fontSize:11,padding:"3px 7px",background:"#fff"}}/></div>)}
             <div style={{marginTop:8,padding:"7px 9px",background:ty.vitrage&&ty.rwctr?"#d1fae5":"#f3f4f6",borderRadius:6}}>
               <div style={{fontSize:10,fontWeight:700,color:ty.vitrage&&ty.rwctr?"#065f46":"#9ca3af"}}>{ty.vitrage&&ty.rwctr?"✓ Prescription complète":"⚠ À compléter"}</div>
               {ty.vitrage&&ty.rwctr&&<div style={{fontSize:9,color:"#374151",marginTop:2,lineHeight:1.5}}>{ty.vitrage} — RA,tr {ty.rwctr}{ty.controle?" · "+ty.controle:""}</div>}
@@ -649,7 +715,7 @@ function App(){
     <div style={{maxWidth:960,margin:"0 auto",padding:"22px 16px"}}>
       {page==="projet"&&<PageProjet projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="vent"&&<PageVent projet={projet} setProjet={setProjet} setPage={setPage}/>}
-      {page==="comparateur"&&<PageComparateur db={db} projet={projet} setPage={setPage}/>}
+      {page==="comparateur"&&<PageComparateur db={db} projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="controle"&&<PageControleSolaire projet={projet} setProjet={setProjet}/>}
       {page==="prescription"&&<PagePrescription projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="base"&&<PageBase db={db} onUpdate={handleUpdate}/>}
