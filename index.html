@@ -33,6 +33,63 @@ const PRESSIONS_DTU39 = {
   "3":{"IV":{H9:1200,H18:1300,H28:1600,H50:2000,H100:2500},"IIIb":{H9:1250,H18:1650,H28:1950,H50:2350,H100:2900},"IIIa":{H9:1650,H18:2050,H28:2350,H50:2800,H100:3300},"II":{H9:2100,H18:2550,H28:2850,H50:3200,H100:3700},"0":{H9:2650,H18:3050,H28:3300,H50:3650,H100:4100}},
   "4":{"IV":{H9:1400,H18:1500,H28:1850,H50:2300,H100:2900},"IIIb":{H9:1450,H18:1950,H28:2250,H50:2750,H100:3350},"IIIa":{H9:1900,H18:2400,H28:2750,H50:3200,H100:3850},"II":{H9:2450,H18:2950,H28:3300,H50:3750,H100:4300},"0":{H9:3050,H18:3500,H28:3800,H50:4200,H100:4750}}
 };
+const PROFILES_FACADE=[
+  {ref:"477 750",nom:"Poteau FW50 P65",type:"meneau",systeme:"FW50",larg:35,haut:65,Ix:36.62,Iy:9.68,Wx:10.18,Wy:5.53},
+  {ref:"477 760",nom:"Poteau FW50 P85",type:"meneau",systeme:"FW50",larg:35,haut:85,Ix:74.37,Iy:12.13,Wx:16.07,Wy:6.93},
+  {ref:"477 770",nom:"Poteau FW50 P105",type:"meneau",systeme:"FW50",larg:35,haut:105,Ix:119.02,Iy:14.23,Wx:21.0,Wy:8.13},
+  {ref:"477 780",nom:"Poteau FW50 P125",type:"meneau",systeme:"FW50",larg:35,haut:125,Ix:200.0,Iy:16.88,Wx:29.91,Wy:9.64},
+  {ref:"477 790",nom:"Poteau FW50 P150",type:"meneau",systeme:"FW50",larg:35,haut:150,Ix:311.21,Iy:19.7,Wx:39.47,Wy:11.26},
+  {ref:"488 310",nom:"Poteau angle FW50 105",type:"meneau_angle",systeme:"FW50",larg:35,haut:105,Ix:210.24,Iy:210.24,Wx:33.47,Wy:33.47},
+  {ref:"488 320",nom:"Poteau angle FW50 125",type:"meneau_angle",systeme:"FW50",larg:35,haut:125,Ix:358.19,Iy:358.19,Wx:48.52,Wy:48.52},
+  {ref:"477 800",nom:"Traverse FW50 T70",type:"traverse",systeme:"FW50",larg:35,haut:70,Ix:32.39,Iy:9.12,Wx:9.03,Wy:5.21},
+  {ref:"477 810",nom:"Traverse FW50 T90",type:"traverse",systeme:"FW50",larg:35,haut:90,Ix:61.26,Iy:11.4,Wx:13.31,Wy:6.51},
+  {ref:"477 820",nom:"Traverse FW50 T110",type:"traverse",systeme:"FW50",larg:35,haut:110,Ix:102.04,Iy:13.88,Wx:18.16,Wy:7.81},
+  {ref:"477 830",nom:"Traverse FW50 T130",type:"traverse",systeme:"FW50",larg:35,haut:130,Ix:168.92,Iy:16.19,Wx:24.33,Wy:9.25},
+  {ref:"477 840",nom:"Traverse FW50 T155",type:"traverse",systeme:"FW50",larg:35,haut:155,Ix:261.42,Iy:19.04,Wx:32.13,Wy:10.88},
+  {ref:"536 830",nom:"Poteau FW60 P105",type:"meneau",systeme:"FW60",larg:50,haut:105,Ix:167.38,Iy:32.41,Wx:27.09,Wy:12.96},
+  {ref:"536 710",nom:"Poteau FW60 P105b",type:"meneau",systeme:"FW60",larg:50,haut:105,Ix:143.55,Iy:31.45,Wx:22.59,Wy:12.58},
+  {ref:"536 720",nom:"Poteau FW60 P115",type:"meneau",systeme:"FW60",larg:50,haut:115,Ix:179.92,Iy:33.91,Wx:26.09,Wy:13.56},
+  {ref:"536 840",nom:"Poteau FW60 P125",type:"meneau",systeme:"FW60",larg:50,haut:125,Ix:278.8,Iy:38.43,Wx:37.23,Wy:15.37},
+  {ref:"536 470",nom:"Poteau FW60 P225",type:"meneau",systeme:"FW60",larg:50,haut:225,Ix:1319.89,Iy:83.62,Wx:109.17,Wy:33.45},
+  {ref:"449 660",nom:"Poteau FW60 P225-renf",type:"meneau",systeme:"FW60",larg:50,haut:225,Ix:1138.5,Iy:83.44,Wx:85.14,Wy:33.37},
+  {ref:"322 500",nom:"Poteau angle FW60 105",type:"meneau_angle",systeme:"FW60",larg:50,haut:105,Ix:202.64,Iy:68.74,Wx:28.8,Wy:14.73},
+  {ref:"322 520",nom:"Poteau angle FW60 65",type:"meneau_angle",systeme:"FW60",larg:65,haut:65,Ix:54.28,Iy:54.28,Wx:12.25,Wy:12.25},
+  {ref:"322 420",nom:"Traverse FW60 T110",type:"traverse",systeme:"FW60",larg:50,haut:110,Ix:144.21,Iy:30.41,Wx:23.87,Wy:12.17},
+  {ref:"536 750",nom:"Traverse FW60 T120",type:"traverse",systeme:"FW60",larg:50,haut:120,Ix:177.64,Iy:32.82,Wx:27.22,Wy:13.13},
+  {ref:"322 430",nom:"Traverse FW60 T130",type:"traverse",systeme:"FW60",larg:50,haut:130,Ix:221.27,Iy:35.37,Wx:31.1,Wy:14.15},
+  {ref:"322 440",nom:"Traverse FW60 T155",type:"traverse",systeme:"FW60",larg:50,haut:155,Ix:354.81,Iy:41.98,Wx:41.51,Wy:16.79},
+  {ref:"322 450",nom:"Traverse FW60 T180",type:"traverse",systeme:"FW60",larg:50,haut:180,Ix:509.78,Iy:48.01,Wx:52.06,Wy:19.2},
+  {ref:"449 590",nom:"Traverse FW60 T205",type:"traverse",systeme:"FW60",larg:50,haut:205,Ix:700.97,Iy:54.04,Wx:63.5,Wy:22.91},
+  {ref:"354 410",nom:"Traverse cablage FW60 T110",type:"traverse",systeme:"FW60",larg:50,haut:110,Ix:112.15,Iy:29.74,Wx:17.93,Wy:11.89},
+  {ref:"336 180",nom:"Traverse cablage FW60 T130",type:"traverse",systeme:"FW60",larg:50,haut:130,Ix:175.81,Iy:34.56,Wx:24.23,Wy:13.82}
+];
+
+// ── CALCUL FLÈCHE FAÇADE RIDEAU (Eurocode / DTU) ───────────────────────────
+// Meneau = poutre sur 2 appuis (planchers), charge vent répartie.
+// E aluminium = 70000 N/mm². Flèche admissible L/200 (DTU 33.1 / EN 13830).
+const E_ALU = 70000;
+function flecheMeneau(pression_Pa, entraxe_m, portee_m, Ix_cm4){
+  const q = pression_Pa * entraxe_m / 1000; // N/mm
+  const L = portee_m * 1000; // mm
+  const I = Ix_cm4 * 1e4; // mm^4
+  const f = (5 * q * Math.pow(L,4)) / (384 * E_ALU * I); // mm
+  return {
+    fleche: +f.toFixed(1),
+    adm_200: +(L/200).toFixed(1),
+    adm_175: +(L/175).toFixed(1),
+    ok_200: f <= L/200,
+    ok_175: f <= L/175,
+    ratio: +(f/(L/200)).toFixed(2),
+  };
+}
+// Trouve les profilés meneaux qui passent pour un système donné
+function profilesCompatibles(systeme, pression_Pa, entraxe_m, portee_m){
+  return PROFILES_FACADE
+    .filter(p=>p.systeme===systeme && (p.type==="meneau"||p.type==="meneau_angle"))
+    .map(p=>({...p, calc: flecheMeneau(pression_Pa, entraxe_m, portee_m, p.Ix)}))
+    .sort((a,b)=>a.Ix-b.Ix);
+}
+
 const ZONES_VENT = {"1":"Region 1 — intérieur protégé","2":"Région 2 — majorité territoire","3":"Région 3 — littoral / montagne","4":"Région 4 — très exposé"};
 const TERRAINS = {"0":"Cat. 0 — plaine dégagée","II":"Cat. II — zone rurale (réf.)","IIIa":"Cat. IIIa — périurbain","IIIb":"Cat. IIIb — suburbain dense","IV":"Cat. IV — mer / côte"};
 const ORIENTATIONS = ['Nord','Nord-Est','Est','Sud-Est','Sud','Sud-Ouest','Ouest','Nord-Ouest','Toutes orientations'];
@@ -1082,6 +1139,89 @@ function PagePrescription({projet,setProjet,setPage}){
   </div>;
 }
 
+// ── PAGE FLÈCHE FAÇADE RIDEAU ──────────────────────────────────────────────
+function PageFleche({projet}){
+  const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const [systeme,setSysteme]=useState("FW60");
+  const [entraxe,setEntraxe]=useState("1.35");
+  const [portee,setPortee]=useState("3.5");
+  const [critere,setCritere]=useState("200");
+  const [results,setResults]=useState(null);
+
+  const calculer=()=>{
+    if(!pression||!entraxe||!portee)return;
+    const profs=profilesCompatibles(systeme,pression,+entraxe,+portee);
+    setResults(profs);
+  };
+
+  return <div>
+    <div style={{...S.card,background:"#eef2ff",border:"1px solid #c7d2fe",marginBottom:14}}>
+      <div style={{fontSize:14,fontWeight:700,color:"#3730a3",marginBottom:4}}>📐 Flèche meneau façade rideau — vérification structurelle</div>
+      <div style={{fontSize:12,color:"#3730a3"}}>Le meneau travaille comme une poutre sur 2 appuis (planchers) sous charge de vent. Flèche admissible L/200 (EN 13830 / DTU 33.1). Données profilés : catalogue Schüco Façades 2026.</div>
+    </div>
+
+    {!pression&&<div style={{...S.card,background:"#fff1f2",border:"1px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13}}>⚠ Pression de vent non calculée — renseigne d'abord la zone, le terrain et la hauteur en étape 1 ou 2.</div>}
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:14}}>
+      <div><label style={S.label}>Système façade</label><select value={systeme} onChange={e=>setSysteme(e.target.value)} style={S.input}><option value="FW50">Schüco FWS 50</option><option value="FW60">Schüco FWS 60</option></select></div>
+      <div><label style={S.label}>Entraxe meneaux (m)</label><input type="number" value={entraxe} onChange={e=>setEntraxe(e.target.value)} step="0.05" placeholder="1.35" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Largeur de trame</div></div>
+      <div><label style={S.label}>Portée meneau (m)</label><input type="number" value={portee} onChange={e=>setPortee(e.target.value)} step="0.1" placeholder="3.5" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Hauteur d'étage (entre planchers)</div></div>
+      <div><label style={S.label}>Critère de flèche</label><select value={critere} onChange={e=>setCritere(e.target.value)} style={S.input}><option value="200">L/200 (courant EN 13830)</option><option value="175">L/175 (admissible max)</option></select></div>
+    </div>
+
+    {pression&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression vent</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{pression} Pa</div></div>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Charge linéique meneau</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{(pression*(+entraxe||1.35)/1000).toFixed(2)} N/mm</div></div>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Flèche admissible L/{critere}</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{((+portee||3.5)*1000/+critere).toFixed(1)} mm</div></div>
+    </div>}
+
+    <button onClick={calculer} disabled={!pression} style={S.btnPrimary}>📐 Vérifier les meneaux {systeme==="FW50"?"FWS 50":"FWS 60"}</button>
+
+    {results&&<div style={{marginTop:20}}>
+      <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>{results.length} profilé{results.length>1?"s":""} meneau analysé{results.length>1?"s":""} — le plus léger qui passe est mis en avant</div>
+      {(()=>{
+        const okList=results.filter(p=>critere==="175"?p.calc.ok_175:p.calc.ok_200);
+        const recommended=okList.length>0?okList[0]:null;
+        return <>
+          {recommended&&<div style={{...S.card,background:"#f0fdf4",border:"2px solid #059669",marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <span style={{width:28,height:28,borderRadius:8,background:"#059669",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>★</span>
+              <div><div style={{fontSize:15,fontWeight:800,color:"#1a1a2e"}}>Profilé minimum recommandé : {recommended.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>Réf. Schüco {recommended.ref} · le plus léger qui satisfait L/{critere}</div></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+              <Stat label="Inertie Ix" value={`${recommended.Ix} cm⁴`} hi/>
+              <Stat label="Flèche calculée" value={`${recommended.calc.fleche} mm`} hi/>
+              <Stat label={`Admissible L/${critere}`} value={`${critere==="175"?recommended.calc.adm_175:recommended.calc.adm_200} mm`}/>
+              <Stat label="Taux d'utilisation" value={`${Math.round(recommended.calc.ratio*100)}%`}/>
+            </div>
+          </div>}
+          {!recommended&&<div style={{...S.card,background:"#fff1f2",border:"1.5px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13,fontWeight:600}}>⚠ Aucun meneau {systeme==="FW50"?"FWS 50":"FWS 60"} ne satisfait L/{critere} dans cette configuration. Il faut réduire l'entraxe, réduire la portée, ou passer à un meneau renforcé acier / un système plus profond.</div>}
+
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead><tr style={{background:"#1a1a2e",color:"#fff"}}>{["Profilé","Réf.","Ix (cm⁴)","Flèche (mm)",`Adm. L/${critere}`,"Taux","Verdict"].map(h=><th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:600,fontSize:12}}>{h}</th>)}</tr></thead>
+            <tbody>{results.map((p,i)=>{
+              const ok=critere==="175"?p.calc.ok_175:p.calc.ok_200;
+              const adm=critere==="175"?p.calc.adm_175:p.calc.adm_200;
+              return <tr key={i} style={{background:ok?(recommended&&p.ref===recommended.ref?"#d1fae5":"#fff"):"#fff1f2"}}>
+                <td style={{padding:"7px 10px",fontWeight:600}}>{p.nom}</td>
+                <td style={{padding:"7px 10px",fontFamily:"monospace",fontSize:12,color:"#6b7280"}}>{p.ref}</td>
+                <td style={{padding:"7px 10px",fontWeight:700}}>{p.Ix}</td>
+                <td style={{padding:"7px 10px",color:ok?"#065f46":"#991b1b",fontWeight:600}}>{p.calc.fleche}</td>
+                <td style={{padding:"7px 10px",color:"#6b7280"}}>{adm}</td>
+                <td style={{padding:"7px 10px"}}>{Math.round(p.calc.ratio*100)}%</td>
+                <td style={{padding:"7px 10px"}}>{ok?<Badge color="green">✓ OK</Badge>:<Badge color="red">✗ Flèche</Badge>}</td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </>;
+      })()}
+      <div style={{...S.card,background:"#f9fafb",marginTop:16,fontSize:12,color:"#6b7280",lineHeight:1.6}}>
+        <strong>Méthode :</strong> meneau modélisé en poutre simplement appuyée, charge vent uniformément répartie q = pression × entraxe. Flèche f = 5qL⁴/(384·E·I) avec E<sub>alu</sub> = 70 000 N/mm². Inertie Ix = flexion sous vent (perpendiculaire à la façade). Les valeurs d'inertie sont issues du catalogue de fabrication Schüco Façades. Pour un dimensionnement définitif, valider avec une note de calcul SchüCal et tenir compte des reprises de charge réelles, du poids propre et des combinaisons ELU/ELS.
+      </div>
+    </div>}
+  </div>;
+}
+
 // ── PAGE PARE-BALLE / COUPE-FEU ────────────────────────────────────────────
 function PageSecurite({db}){
   const secSystems=db.systemes.filter(s=>s.certifications&&s.certifications.length>0);
@@ -1286,6 +1426,7 @@ function App(){
     {id:"comparateur",label:"Comparateur",icon:"⚖"},
     {id:"controle",label:"Contrôle solaire",icon:"☀"},
     {id:"prescription",label:"Prescription",icon:"📄"},
+    {id:"fleche",label:"Flèche façade",icon:"📐"},
     {id:"securite",label:"Pare-balle / Coupe-feu",icon:"🛡"},
     {id:"base",label:"Ma base",icon:"📚"},
     {id:"ajouter",label:"Ajouter système",icon:"＋"},
@@ -1310,6 +1451,7 @@ function App(){
       {page==="comparateur"&&<PageComparateur db={db} projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="controle"&&<PageControleSolaire projet={projet} setProjet={setProjet}/>}
       {page==="prescription"&&<PagePrescription projet={projet} setProjet={setProjet} setPage={setPage}/>}
+      {page==="fleche"&&<PageFleche projet={projet}/>}
       {page==="securite"&&<PageSecurite db={db}/>}
       {page==="base"&&<PageBase db={db} onUpdate={handleUpdate}/>}
       {page==="ajouter"&&<PageAjouter db={db} onUpdate={handleUpdate}/>}
