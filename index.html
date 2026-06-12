@@ -355,6 +355,116 @@ const INITIAL_DB={systemes:[
   {id:"tec_sn75",nom:"Soleal Next 75",marque:"Technal",famille:"Fenêtre",dta:"",validite:"",epaisseur_min:24,epaisseur_max:60,poids_max:150,
    tests:[{rapport:"403/21/0976/A-1",type_chassis:"Fenêtre 1 vantail OB",dim_L:1230,dim_H:1480,labo:"Technal",date:"2021",vitrages:[{composition:"10/16/66.2s",rw:44,rwc:43,rwctr:40},{composition:"66.2s/12/6/12/44.2s",rw:47,rwc:46,rwctr:42},{composition:"88.2s/20/66.2s",rw:48,rwc:47,rwctr:45}]}],
    aev:[],thermique:[{ug:1.0,config:"Fenêtre 1 vantail OB 1.23x1.48 (Ug1.0)",uw:1.2},{ug:1.1,config:"Fenêtre 1 vantail OB 1.23x1.48 (Ug1.1)",uw:1.3}]}
+,
+  // ── PARE-BALLE ─────────────────────────────────────────────────────────
+  {id:"royal_pb",nom:"Royal PB",marque:"Schüco",famille:"Pare-balle",dta:"",validite:"",epaisseur_min:60,epaisseur_max:100,poids_max:200,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"pare-balle",classe:"FB4 (S)",config:"Bloc porte 2 vantaux vitré",dims:"1000x1000",rapport:"B224.2.284/1",date:"2002",labo:"CEBTP"},
+    {type:"pare-balle",classe:"FB4 (S)",config:"Bloc porte 2 vantaux vitré",dims:"1000x1000",rapport:"B224.2.284/2",date:"2002",labo:"CEBTP"},
+    {type:"effraction",classe:"WK3/RC3",config:"Bloc porte 1 vantail vitré",dims:"1000x2100",rapport:"MD 06 01 39",date:"2006",labo:"CNPP"},
+    {type:"effraction",classe:"WK4/RC4",config:"Bloc porte 1 vantail opaque",dims:"1000x2074",rapport:"MD 07 00 62",date:"2007",labo:"CNPP"},
+    {type:"effraction",classe:"WK4/RC4",config:"Bloc porte 2 vantaux opaque",dims:"1708x2099",rapport:"MD 07 00 62 A",date:"2010",labo:"CNPP"}
+  ]},
+  {id:"aws90br",nom:"AWS 90 BR",marque:"Schüco",famille:"Pare-balle",dta:"",validite:"",epaisseur_min:60,epaisseur_max:100,poids_max:200,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"pare-balle",classe:"FSG (NS)",config:"Fenêtre française sur allège",dims:"600x1200",rapport:"182/11/BNE",date:"2011",labo:"BNE"},
+    {type:"pare-balle",classe:"FSG (S)",config:"Fenêtre française sur allège",dims:"600x1200",rapport:"135/11/BNE",date:"2011",labo:"BNE"},
+    {type:"pare-balle",classe:"FB4 (NS)",config:"Oscillo-battante",dims:"1258x2292",rapport:"S10001001/Z",date:"2010",labo:"ULM"},
+    {type:"pare-balle",classe:"FB4 (S)",config:"Fenêtre française sur allège",dims:"1258x2292",rapport:"S10001002/Z",date:"2010",labo:"ULM"},
+    {type:"effraction",classe:"WK4/RC4",config:"2 fenêtres OB 1vtl sous impostes",dims:"2512x1880",rapport:"21138336",date:"2010",labo:"IFT"},
+    {type:"effraction",classe:"WK4/RC4",config:"Fenêtre 1 vantail",dims:"2528x1878",rapport:"21138337",date:"2010",labo:"IFT"},
+    {type:"pare-balle",classe:"FB4 (NS)",config:"Porte ADS 90 BR — 2 vantaux avec imposte",dims:"1947x2740",rapport:"S09003901/Z",date:"2009",labo:"ULM"},
+    {type:"pare-balle",classe:"FB4 (NS)",config:"Porte ADS 90 BR — 2 vantaux",dims:"1200x2300",rapport:"S10001003/Z",date:"2010",labo:"ULM"},
+    {type:"effraction",classe:"WK4/RC4",config:"Porte ADS 90 BR — Porte",dims:"1450x2582",rapport:"21237458",date:"2010",labo:"IFT"},
+    {type:"effraction",classe:"WK4/RC4",config:"Porte ADS 90 BR — Fixe",dims:"2742x2845",rapport:"21238838",date:"2010",labo:"IFT"},
+    {type:"effraction",classe:"WK4/RC4",config:"Porte ADS 90 BR — Porte + Fixe",dims:"1991x2390",rapport:"21238651",date:"2010",labo:"IFT"},
+    {type:"effraction",classe:"WK4/RC4",config:"Porte ADS 90 BR — Porte 2 vantaux",dims:"2830x2565",rapport:"21241248",date:"2010",labo:"IFT"},
+    {type:"pare-balle",classe:"FB4 (NS)",config:"AWS 90 BR dans FW 60 — Ensemble composé",dims:"1440x1466",rapport:"B12003006/Z",date:"2012",labo:"ULM"},
+    {type:"pare-balle",classe:"FB4 (NS)",config:"ADS 90 BR dans FW 60 — Ensemble composé",dims:"1440x1466",rapport:"B12003007/Z",date:"2012",labo:"ULM"}
+  ]},
+  {id:"fws50_pb",nom:"FWS 50 / FWS 60 BF",marque:"Schüco",famille:"Pare-balle",dta:"",validite:"",epaisseur_min:55,epaisseur_max:65,poids_max:500,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"pare-balle",classe:"FB5 (NS)",config:"Élément fixe BR5-NS-57mm",dims:"1200x1200",rapport:"288-FR/19/BNE",date:"2019",labo:"BNE"},
+    {type:"pare-balle",classe:"FB5 (S)",config:"Élément fixe BR5-NS-57mm",dims:"1200x1200",rapport:"288-FR/19/BNE",date:"2019",labo:"BNE"},
+    {type:"pare-balle",classe:"FB5 (NS)",config:"Élément fixe BR5-NS-51mm",dims:"1200x1200",rapport:"148-FR/19/BNE",date:"2019",labo:"BNE"},
+    {type:"pare-balle",classe:"FB6 S",config:"Élément fixe BR6-NS-55mm",dims:"1200x1200",rapport:"201-FR/20/BNE",date:"2020",labo:"BNE"}
+  ]},
+  // ── COUPE-FEU / PARE-FLAMMES ───────────────────────────────────────────
+  {id:"ads60_fr30",nom:"ADS 60 FR 30",marque:"Schüco",famille:"Coupe-feu",dta:"",validite:"",epaisseur_min:50,epaisseur_max:70,poids_max:150,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"coupe-feu",classe:"E/EW 30 — EI 30",config:"Cloison vitrée EW30 Pyrobelite Pare-flammes ½h",dims:"—",rapport:"PV EFR-23-000518",date:"29/11/2028",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW 30 — EI 30",config:"Bloc Porte vitré 1 ou 2 vtx EW30 Pyrobelite Pare-flammes ½h",dims:"—",rapport:"PV EFR-23-000519",date:"13/12/2028",labo:"CNPP"}
+  ]},
+  {id:"ads65ni_fr30",nom:"ADS 65.NI FR 30",marque:"Schüco",famille:"Coupe-feu",dta:"",validite:"",epaisseur_min:55,epaisseur_max:75,poids_max:150,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"coupe-feu",classe:"EW 30",config:"Cloison vitrée EW30 Pyrodur Pare-flammes ½h (Pilkington)",dims:"—",rapport:"PV 09-A-404",date:"07/01/2025",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EW 30",config:"Bloc Porte 1 ou 2 vtx EW30 Pyrodur (Pilkington)",dims:"—",rapport:"PV 05-A-405",date:"07/01/2025",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EW 30",config:"Cloison vitrée EW30 Contraflam Lite Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV 11-A-627",date:"28/02/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E 30 / EW 30",config:"Cloison vitrée E30 Pyroswiss Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV EFR-21-001972",date:"19/10/2025",labo:"CNPP"},
+    {type:"DAS",classe:"EI 60 / EW 30",config:"Porte DAS SA 12 00 79 B — EI60+PF30, 1400-2800x2490",dims:"1400-2800x2490",rapport:"SA 12 00 79 B",date:"02/07/2027",labo:"CNPP"},
+    {type:"DAS",classe:"EI 60 / EW 30",config:"Porte DAS SA 12 00 80 B — EI60+PF30 armatures EM",dims:"1400-2800x2490",rapport:"SA 12 00 80 B",date:"02/07/2027",labo:"CNPP"},
+    {type:"DAS",classe:"EI 60 / EW 30",config:"Porte DAS SA 18 00 43 — EI60+PF30 ferme-porte",dims:"1400-2800x2490",rapport:"SA 18 00 43",date:"28/05/2023",labo:"CNPP"}
+  ]},
+  {id:"ads80_fr30",nom:"ADS 80 FR 30/60",marque:"Schüco",famille:"Coupe-feu",dta:"",validite:"",epaisseur_min:65,epaisseur_max:85,poids_max:200,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"coupe-feu",classe:"EI 30 — Coupe-feu 1h",config:"Cloison vitrée EI30 Pyrostop (Pilkington)",dims:"—",rapport:"PV EFR-14-001890",date:"17/12/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW 30",config:"Vitrage EW30 Pyrodur Pare-flammes ½h (Pilkington)",dims:"—",rapport:"Ext 15/1-EFR-14-001890",date:"17/12/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30",config:"Cloison bord à bord joints verticaux EI30 Pyrostop",dims:"—",rapport:"PV EFR-20-001113",date:"09/08/2028",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30 — Coupe-feu 1h",config:"Bloc porte EI30 Pyrostop (Pilkington)",dims:"—",rapport:"PV EFR-14-001891",date:"15/07/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30",config:"Cloison vitrée EI30 Contraflam (Vetrotech)",dims:"—",rapport:"PV 11-A-624",date:"02/05/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30",config:"Bloc porte 1 ou 2 vtx EI30 Contraflam (Vetrotech)",dims:"—",rapport:"PV 11-A-625",date:"21/05/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 60 — FR 60",config:"Cloison vitrée EI60 Contraflam (Vetrotech)",dims:"—",rapport:"PV 11-A-621",date:"18/04/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 60",config:"Bloc porte 1 ou 2 vtx EI60 Contraflam (Vetrotech)",dims:"—",rapport:"PV 11-A-622",date:"24/04/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 60",config:"Cloison bord à bord EI60 Contraflam (Vetrotech)",dims:"—",rapport:"PV 11-A-623",date:"23/05/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30",config:"Cloison vitrée EI30 Pyrobel (AGC)",dims:"—",rapport:"PV 12-A-172",date:"03/12/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30",config:"Cloison vitrée EI30 Pyrobel (AGC) — FR 60",dims:"—",rapport:"PV EFR-22-002361",date:"14/09/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30",config:"Bloc porte 1 ou 2 vtx EI30 Pyrobel (AGC)",dims:"—",rapport:"PV EFR-22-002362",date:"13/04/2028",labo:"CNPP"},
+    {type:"DAS",classe:"EI 60 / EW 30",config:"Porte DAS SA 12 00 79 B",dims:"1400-2800x2490",rapport:"SA 12 00 79 B",date:"02/07/2027",labo:"CNPP"},
+    {type:"DAS",classe:"EI 60 / EW 30",config:"Porte DAS SA 12 00 80 B",dims:"1400-2800x2490",rapport:"SA 12 00 80 B",date:"02/07/2027",labo:"CNPP"},
+    {type:"DAS",classe:"EI 60 / EW 30",config:"Porte DAS SA 18 00 43",dims:"1400-2800x2490",rapport:"SA 18 00 43",date:"28/05/2028",labo:"CNPP"}
+  ]},
+  {id:"ads90_fr120",nom:"ADS 90 FR 120",marque:"Schüco",famille:"Coupe-feu",dta:"",validite:"",epaisseur_min:75,epaisseur_max:100,poids_max:250,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"coupe-feu",classe:"EI 120 — Coupe-feu 2h",config:"Cloison vitrée EI120 Contraflam (Vetrotech)",dims:"—",rapport:"EFR-22-002638 Rév.1",date:"17/10/2027",labo:"CNPP"}
+  ]},
+  {id:"aws60_fr30",nom:"AWS 60 FR 30",marque:"Schüco",famille:"Coupe-feu",dta:"",validite:"",epaisseur_min:50,epaisseur_max:70,poids_max:150,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"coupe-feu",classe:"EI 30",config:"Fenêtre seule EI30 Pyrostop Coupe-feu ½h (Pilkington)",dims:"—",rapport:"PV 09-A-640",date:"18/05/2025",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW",config:"Fenêtre ensemble menuisé EW Pyrobelite Pare-flammes ½h (AGC)",dims:"—",rapport:"PV 12-V-578",date:"24/09/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30",config:"Bloc fenêtre 1 vtl EI30 Contraflam (Vetrotech)",dims:"—",rapport:"PV 13-A-1006",date:"23/06/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW 30",config:"Cloison vitrée E/EW30 Vetroflam Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV EFR-17-003246",date:"10/05/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW 30",config:"Bloc fenêtre 1 vtl E/EW30 Vetroflam Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV EFR-17-003247",date:"08/07/2029",labo:"CNPP"}
+  ]},
+  {id:"aws75_fr30",nom:"AWS 75 FR 30",marque:"Schüco",famille:"Coupe-feu",dta:"",validite:"",epaisseur_min:55,epaisseur_max:75,poids_max:150,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"coupe-feu",classe:"E/EW 30",config:"Cloison vitrée E/EW30 Vetroflam Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV EFR-17-003246",date:"10/05/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW 30",config:"Bloc fenêtre 1 vtl E/EW30 Vetroflam Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV EFR-17-003247",date:"08/07/2029",labo:"CNPP"}
+  ]},
+  {id:"fws50_fr30",nom:"FWS 50 / FWS 60 BF FR 30/60",marque:"Schüco",famille:"Coupe-feu",dta:"",validite:"",epaisseur_min:50,epaisseur_max:65,poids_max:500,
+   tests:[],aev:[],thermique:[],
+   certifications:[
+    {type:"coupe-feu",classe:"EI 30",config:"Façade vitrée EI30 Contraflam Coupe-feu ½h (Vetrotech)",dims:"—",rapport:"PV 13-A-1004",date:"23/06/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E 30",config:"Façade vitrée E30 Contraflam Lite Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV 13-A-1005",date:"23/06/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW 30",config:"Façade vitrée E/EW30 Vetroflam Climaplus Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV EFR-17-004695 Rév.1",date:"09/12/2025",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW 30",config:"Façade vitrée E/EW30 Pyropane Pare-flammes ½h (AGC, FWS50)",dims:"—",rapport:"PV EFR-22-V-000923",date:"25/04/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 30 — FR 60",config:"Façade EI30 FR60 Pyroguard EI30/15 (Pyrogard)",dims:"—",rapport:"PV EFR-24-002421",date:"18/11/2029",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 60",config:"Façade vitrée EI60 Contraflam 60 Coupe-feu 1h (Vetrotech, FWS60)",dims:"—",rapport:"PV 11-A-530",date:"20/02/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"E/EW 60",config:"Façade vitrée E/EW60 Pyrodur Pare-flammes 1h (Pilkington, FWS60)",dims:"—",rapport:"PV 11-A-721",date:"16/02/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"EI 60",config:"Façade vitrée EI60 Contraflam 60 Coupe-feu 1h (Vetrotech, FR60)",dims:"—",rapport:"PV EFR-21-001489",date:"01/02/2027",labo:"CNPP"},
+    {type:"coupe-feu",classe:"Verrière RE 30",config:"Verrière RE30 Contraflam Lite Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV EFR-18-000778",date:"27/05/2026",labo:"CNPP"},
+    {type:"coupe-feu",classe:"Verrière RE 30",config:"Verrière RE30 Vetroflam Pare-flammes ½h (Vetrotech)",dims:"—",rapport:"PV EFR-18-000771",date:"27/05/2026",labo:"CNPP"},
+    {type:"coupe-feu",classe:"Verrière REI 30",config:"Verrière REI30 Contraflam 30 Coupe-feu ½h (Vetrotech)",dims:"—",rapport:"PV EFR-21-001459 Rév.1",date:"27/05/2026",labo:"CNPP"}
+  ]}
+
 ]};
 
 const INITIAL_CONTROLES=[
@@ -848,17 +958,133 @@ function PagePrescription({projet,setProjet,setPage}){
   </div>;
 }
 
-// ── PAGE BASE ─────────────────────────────────────────────────────────────
-function PageBase({db,onUpdate}){
-  const marques=[...new Set(db.systemes.map(s=>s.marque))];
+// ── PAGE PARE-BALLE / COUPE-FEU ────────────────────────────────────────────
+function PageSecurite({db}){
+  const secSystems=db.systemes.filter(s=>s.certifications&&s.certifications.length>0);
+  const [typeFilter,setTypeFilter]=useState("");
+  const [classeFilter,setClasseFilter]=useState("");
+  const [search,setSearch]=useState("");
+
+  // Toutes les certifications à plat, avec référence au système
+  const allCerts=[];
+  secSystems.forEach(sys=>{
+    sys.certifications.forEach(c=>allCerts.push({...c,sysId:sys.id,sysNom:sys.nom,sysFamille:sys.famille}));
+  });
+
+  const types=[...new Set(allCerts.map(c=>c.type))];
+  const classes=[...new Set(allCerts.map(c=>c.classe))].sort();
+
+  const filtered=allCerts.filter(c=>{
+    if(typeFilter&&c.type!==typeFilter)return false;
+    if(classeFilter&&c.classe!==classeFilter)return false;
+    if(search){
+      const s=search.toLowerCase();
+      if(!c.config.toLowerCase().includes(s)&&!c.sysNom.toLowerCase().includes(s)&&!c.classe.toLowerCase().includes(s))return false;
+    }
+    return true;
+  });
+
+  const typeColors={"pare-balle":"purple","effraction":"red","coupe-feu":"amber","DAS":"blue"};
+  const typeLabels={"pare-balle":"🛡 Pare-balle","effraction":"🔒 Anti-effraction","coupe-feu":"🔥 Coupe-feu / Pare-flammes","DAS":"🚨 DAS (Dispositif Actionné de Sécurité)"};
+
+  // Regrouper par système pour la vue détaillée
+  const bySystem={};
+  filtered.forEach(c=>{
+    if(!bySystem[c.sysId])bySystem[c.sysId]={nom:c.sysNom,famille:c.sysFamille,certs:[]};
+    bySystem[c.sysId].certs.push(c);
+  });
+
+  return <div>
+    <div style={{...S.card,background:"#fffbeb",border:"1px solid #fde68a",marginBottom:14}}>
+      <div style={{fontSize:14,fontWeight:700,color:"#92400e",marginBottom:4}}>🛡 Pare-balle / 🔥 Coupe-feu — recherche directe par exigence sécurité</div>
+      <div style={{fontSize:12,color:"#92400e"}}>Sélectionne le type d'exigence (CCTP sécurité incendie ou résistance balistique) puis la classe demandée — les systèmes Schüco compatibles s'affichent avec leur rapport d'essai.</div>
+    </div>
+
+    {/* Filtres rapides par type */}
+    <div style={{marginBottom:12}}>
+      <label style={S.label}>Type d'exigence</label>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <button onClick={()=>{setTypeFilter("");setClasseFilter("");}} style={{padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",border:"1.5px solid",background:!typeFilter?"#1a1a2e":"#f9fafb",color:!typeFilter?"#fff":"#374151",borderColor:!typeFilter?"#1a1a2e":"#e5e7eb"}}>Tous ({allCerts.length})</button>
+        {types.map(t=>{
+          const count=allCerts.filter(c=>c.type===t).length;
+          const active=typeFilter===t;
+          return <button key={t} onClick={()=>{setTypeFilter(t);setClasseFilter("");}} style={{padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",border:"1.5px solid",background:active?"#1a1a2e":"#f9fafb",color:active?"#fff":"#374151",borderColor:active?"#1a1a2e":"#e5e7eb"}}>{typeLabels[t]||t} ({count})</button>;
+        })}
+      </div>
+    </div>
+
+    {/* Filtre par classe — dépend du type sélectionné */}
+    <div style={{marginBottom:14}}>
+      <label style={S.label}>Classe demandée (CCTP)</label>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[...new Set(allCerts.filter(c=>!typeFilter||c.type===typeFilter).map(c=>c.classe))].sort().map(cl=>{
+          const active=classeFilter===cl;
+          return <button key={cl} onClick={()=>setClasseFilter(active?"":cl)} style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid",background:active?"#059669":"#fff",color:active?"#fff":"#374151",borderColor:active?"#059669":"#d1d5db",fontFamily:"monospace"}}>{cl}</button>;
+        })}
+      </div>
+    </div>
+
+    {/* Recherche libre */}
+    <div style={{marginBottom:16}}>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher : ex. 'porte', 'façade', 'Pyrostop', 'BR4'..." style={S.input}/>
+    </div>
+
+    {/* Résultats groupés par système */}
+    <div style={{fontSize:13,color:"#6b7280",marginBottom:12}}><strong>{filtered.length}</strong> certification{filtered.length>1?"s":""} trouvée{filtered.length>1?"s":""} sur <strong>{Object.keys(bySystem).length}</strong> système{Object.keys(bySystem).length>1?"s":""}</div>
+
+    {Object.entries(bySystem).map(([sysId,data])=>(
+      <div key={sysId} style={{...S.card,marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,paddingBottom:8,borderBottom:"1px solid #f3f4f6"}}>
+          <span style={{width:28,height:28,borderRadius:8,background:"#1a1a2e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>🛡</span>
+          <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>Schüco {data.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{data.famille} · {data.certs.length} certification{data.certs.length>1?"s":""}</div></div>
+        </div>
+        {data.certs.map((c,i)=>(
+          <div key={i} style={{display:"grid",gridTemplateColumns:"110px 1fr 150px 90px",gap:10,alignItems:"center",padding:"7px 0",borderBottom:i<data.certs.length-1?"1px solid #f3f4f6":"none"}}>
+            <Badge color={typeColors[c.type]||"gray"}>{c.classe}</Badge>
+            <div style={{fontSize:12,color:"#374151"}}>{c.config}{c.dims&&c.dims!=="—"?<span style={{color:"#9ca3af"}}> — {c.dims}mm</span>:""}</div>
+            <div style={{fontSize:11,color:"#6b7280",fontFamily:"monospace"}}>{c.rapport}</div>
+            <div style={{fontSize:11,color:"#9ca3af",textAlign:"right"}}>{c.labo}{c.date?" · "+c.date:""}</div>
+          </div>
+        ))}
+      </div>
+    ))}
+
+    {filtered.length===0&&<div style={{padding:14,background:"#fff1f2",borderRadius:10,color:"#991b1b",fontSize:13}}>Aucune certification trouvée pour ces critères</div>}
+
+    {/* Légende classes */}
+    <div style={{...S.card,background:"#f9fafb",marginTop:16}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Repères classes</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,fontSize:12,color:"#6b7280",lineHeight:1.7}}>
+        <div>
+          <strong>🛡 Pare-balle (FB / FSG)</strong><br/>
+          FB4 → arme de poing calibre .357 Mag<br/>
+          FB5 → fusil semi-auto calibre 7.62×51<br/>
+          FB6 → fusil d'assaut calibre 7.62×51 AP<br/>
+          (S) = avec éclats / (NS) = sans éclats
+        </div>
+        <div>
+          <strong>🔥 Coupe-feu / Pare-flammes (E / EI / EW)</strong><br/>
+          E → étanchéité aux flammes seule<br/>
+          EW → étanchéité + rayonnement limité<br/>
+          EI → étanchéité + isolation thermique<br/>
+          30/60/120 → durée en minutes
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+
+  const normalSystems=db.systemes.filter(s=>!s.certifications);
+  const marques=[...new Set(normalSystems.map(s=>s.marque))];
   const [ma,setMa]=useState(marques[0]||"");
-  const [sel,setSel]=useState(db.systemes[0]?.id);
-  const sys=db.systemes.find(s=>s.id===sel);
+  const [sel,setSel]=useState(normalSystems[0]?.id);
+  const sys=normalSystems.find(s=>s.id===sel);
   return <div>
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
-      {marques.map(m=><button key={m} onClick={()=>{setMa(m);const f=db.systemes.find(s=>s.marque===m);if(f)setSel(f.id);}} style={{padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",background:ma===m?"#1a1a2e":"#f3f4f6",color:ma===m?"#fff":"#374151",border:ma===m?"2px solid #1a1a2e":"2px solid #e5e7eb"}}>{m}</button>)}
+      {marques.map(m=><button key={m} onClick={()=>{setMa(m);const f=normalSystems.find(s=>s.marque===m);if(f)setSel(f.id);}} style={{padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",background:ma===m?"#1a1a2e":"#f3f4f6",color:ma===m?"#fff":"#374151",border:ma===m?"2px solid #1a1a2e":"2px solid #e5e7eb"}}>{m}</button>)}
     </div>
-    <div style={{marginBottom:16}}><select value={sel} onChange={e=>setSel(e.target.value)} style={{...S.input,fontWeight:600,color:"#4f46e5",borderColor:"#c7d2fe",background:"#f1f0ff"}}>{db.systemes.filter(s=>s.marque===ma).map(s=><option key={s.id} value={s.id}>{s.nom} — {s.famille}</option>)}</select></div>
+    <div style={{marginBottom:16}}><select value={sel} onChange={e=>setSel(e.target.value)} style={{...S.input,fontWeight:600,color:"#4f46e5",borderColor:"#c7d2fe",background:"#f1f0ff"}}>{normalSystems.filter(s=>s.marque===ma).map(s=><option key={s.id} value={s.id}>{s.nom} — {s.famille}</option>)}</select></div>
     {sys&&<div>
       <div style={{...S.card,background:"#f9fafb"}}><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}><Stat label="Marque" value={sys.marque}/><Stat label="Famille" value={sys.famille}/><Stat label="DTA" value={sys.dta||"—"} mono/><Stat label="Validité" value={sys.validite||"—"}/></div></div>
       {sys.tests.map((test,ti)=><div key={ti} style={{marginBottom:16}}>
@@ -935,6 +1161,7 @@ function App(){
     {id:"comparateur",label:"Comparateur",icon:"⚖"},
     {id:"controle",label:"Contrôle solaire",icon:"☀"},
     {id:"prescription",label:"Prescription",icon:"📄"},
+    {id:"securite",label:"Pare-balle / Coupe-feu",icon:"🛡"},
     {id:"base",label:"Ma base",icon:"📚"},
     {id:"ajouter",label:"Ajouter système",icon:"＋"},
   ];
@@ -958,6 +1185,7 @@ function App(){
       {page==="comparateur"&&<PageComparateur db={db} projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="controle"&&<PageControleSolaire projet={projet} setProjet={setProjet}/>}
       {page==="prescription"&&<PagePrescription projet={projet} setProjet={setProjet} setPage={setPage}/>}
+      {page==="securite"&&<PageSecurite db={db}/>}
       {page==="base"&&<PageBase db={db} onUpdate={handleUpdate}/>}
       {page==="ajouter"&&<PageAjouter db={db} onUpdate={handleUpdate}/>}
     </div>
