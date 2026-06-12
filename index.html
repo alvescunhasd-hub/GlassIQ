@@ -63,6 +63,95 @@ function calcDTU39(P,larg,haut,aL,aH,tv,hSol){
   return{e1:+e1.toFixed(2),eR:+eR.toFixed(2),eF:+eF.toFixed(2),eRequired:+Math.max(eR,eF).toFixed(2),alpha:+alpha.toFixed(4),c,flecheMax:+fMax.toFixed(1)};
 }
 
+// ── ANALYSE COMPOSITION VITRAGE — épaisseur réelle + poids ─────────────────
+// Densité verre = 2.5 kg/m²/mm. PVB ~ négligeable en poids mais ajoute épaisseur.
+// Formats gérés : "44.2", "44.2s", "44.2 sil", "10/16/44.2", "86.2/24/44.2 sil",
+//                 "4/20/4", "10/12/66.2", "55.2s/20/44.2s", "BR5-NS-57mm"
+function parseGlassPart(part){
+  // Retourne {epaisseur_mm, poids_kg_m2} pour un composant (mono ou feuilleté)
+  part=part.trim().toLowerCase().replace(/\s*(sil|silence|s)\s*$/,"").trim();
+  // Feuilleté type "44.2" = 2 verres de 4mm + 2 films PVB (0.38mm chacun → .2 = 2 films)
+  // Format XX.Y : XX = épaisseur de chaque verre ×... non : "44.2" = 4+4 verre + 2 films PVB
+  const lamMatch=part.match(/^(\d)(\d)\.(\d)$/); // ex 44.2 → 4,4,2
+  if(lamMatch){
+    const v1=parseInt(lamMatch[1]),v2=parseInt(lamMatch[2]),films=parseInt(lamMatch[3]);
+    const ep=v1+v2+films*0.38;
+    const poids=(v1+v2)*2.5; // PVB densité ~1.05 négligé
+    return {ep:+ep.toFixed(2),poids:+poids.toFixed(1)};
+  }
+  // Feuilleté 3 chiffres "664.2" rare, ou "86.2" = 8+6 ? Non : "86.2"=8+6+2films
+  const lam2=part.match(/^(\d)(\d)\.(\d)$/);
+  // Monolithique simple "4","6","8","10","12"
+  const mono=part.match(/^(\d{1,2})$/);
+  if(mono){
+    const e=parseInt(mono[1]);
+    return {ep:e,poids:+(e*2.5).toFixed(1)};
+  }
+  // Triple feuilleté "664.2" ou compositions exotiques → approximation
+  const multiLam=part.match(/^(\d+)\.(\d)$/);
+  if(multiLam){
+    const verres=multiLam[1].split('').map(Number);
+    const films=parseInt(multiLam[2]);
+    const epVerres=verres.reduce((a,b)=>a+b,0);
+    const ep=epVerres+films*0.38;
+    return {ep:+ep.toFixed(2),poids:+(epVerres*2.5).toFixed(1)};
+  }
+  return null;
+}
+
+function analyseComposition(compo){
+  // Sépare les composants par "/" : verre / lame d'air / verre [/ lame / verre]
+  // Lame d'air = nombre seul entre deux verres ET généralement 12,16,18,20,24
+  if(!compo||typeof compo!=="string")return null;
+  // Nettoyer mentions BR/NS (pare-balle) non parsables
+  if(/br\d|ns|^\d+\s*mm/i.test(compo))return null;
+  const parts=compo.split('/').map(p=>p.trim()).filter(Boolean);
+  if(parts.length<1)return null;
+
+  let epTotal=0,poidsTotal=0,nbVerres=0,lames=[];
+  parts.forEach((part,i)=>{
+    // Une lame d'air = un nombre seul de 6 à 24 situé en position paire (entre verres)
+    const isGap=/^\d{1,2}$/.test(part.replace(/\s/g,'')) && parseInt(part)>=6 && parseInt(part)<=24 && i%2===1 && parts.length>1;
+    if(isGap){
+      const g=parseInt(part);
+      epTotal+=g;
+      lames.push(g);
+    } else {
+      const r=parseGlassPart(part);
+      if(r){epTotal+=r.ep;poidsTotal+=r.poids;nbVerres++;}
+    }
+  });
+  if(nbVerres===0)return null;
+  return {
+    epaisseur_totale:+epTotal.toFixed(1),
+    poids_m2:+poidsTotal.toFixed(1),
+    nb_verres:nbVerres,
+    lames_air:lames,
+    type:lames.length>0?(nbVerres>=3?"Triple vitrage":"Double vitrage"):"Vitrage simple"
+  };
+}
+
+// Vérifie poids du vantail vs capacité ferrure + épaisseur vs feuillure
+function verifVitrage(compo,largeur_mm,hauteur_mm,sys){
+  const a=analyseComposition(compo);
+  if(!a)return null;
+  const surf=(largeur_mm/1000)*(hauteur_mm/1000); // m²
+  const poids_vantail=+(a.poids_m2*surf).toFixed(1);
+  const poids_ok=sys&&sys.poids_max?poids_vantail<=sys.poids_max:null;
+  const feuillure_ok=sys?(a.epaisseur_totale>=sys.epaisseur_min&&a.epaisseur_totale<=sys.epaisseur_max):null;
+  return {
+    ...a,
+    surface:+surf.toFixed(2),
+    poids_vantail,
+    poids_max:sys?sys.poids_max:null,
+    poids_ok,
+    feuillure_min:sys?sys.epaisseur_min:null,
+    feuillure_max:sys?sys.epaisseur_max:null,
+    feuillure_ok,
+  };
+}
+
+
 const INITIAL_DB={systemes:[
   {id:"aws75cc",nom:"AWS 75 CC",marque:"Schüco",famille:"Fenêtre",dta:"6/16-2290_V3",validite:"31/01/2026",epaisseur_min:24,epaisseur_max:48,poids_max:130,
    tests:[{rapport:"BEB2.C.6053-1",type_chassis:"Oscillo-battant / Fixe sur allège",dim_L:1250,dim_H:2500,labo:"GINGER CEBTP",date:"2013",vitrages:[{composition:"4/18/4",rw:36,rwc:35,rwctr:32},{composition:"4/18/44.2S",rw:39,rwc:38,rwctr:34},{composition:"10/12/44.2s",rw:42,rwc:41,rwctr:38}]},{rapport:"BEB2.C.6053-2",type_chassis:"Grand ouvrant / Française",dim_L:1250,dim_H:2180,labo:"GINGER CEBTP",date:"2013",vitrages:[{composition:"4/18/4",rw:37,rwc:36,rwctr:33},{composition:"4/16/6",rw:39,rwc:37,rwctr:34},{composition:"4/18/44.2S",rw:40,rwc:39,rwctr:35}]}],
@@ -725,10 +814,12 @@ function PageComparateur({db,projet,setProjet,setPage}){
         if(el.type==="facade"){const pp=sys.aev.map(a=>{const m=(a.V||"").match(/(\d+)\s*Pa/);return m?parseInt(m[1]):null;}).filter(Boolean);if(pp.length)aev_ok=Math.max(...pp)>=pression;}
         else{const mc=pression<=600?1:pression<=1200?2:pression<=2000?3:4;aev_ok=sys.aev.some(a=>{const m=(a.V||"").match(/[VC](\d)/);return m&&parseInt(m[1])>=mc;});}
       }
-      const eR=projet.epaisseur_dtu?parseFloat(projet.epaisseur_dtu):null;
-      const ep_ok=eR?sys.epaisseur_min<=eR&&eR<=sys.epaisseur_max:null;
-      const ko=[uw_ok,aev_ok,ep_ok].filter(c=>c===false).length;
-      solutions.push({sys,best,allMatches:matches,uw_ok,aev_ok,ep_ok,ko});
+      // Épaisseur réelle du vitrage retenu vs feuillure (plus fiable que l'épaisseur DTU mini)
+      const vBest=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys);
+      const ep_ok=vBest?vBest.feuillure_ok:(projet.epaisseur_dtu?(sys.epaisseur_min<=parseFloat(projet.epaisseur_dtu)&&parseFloat(projet.epaisseur_dtu)<=sys.epaisseur_max):null);
+      const poids_ok=vBest?vBest.poids_ok:null;
+      const ko=[uw_ok,aev_ok,ep_ok,poids_ok].filter(c=>c===false).length;
+      solutions.push({sys,best,allMatches:matches,uw_ok,aev_ok,ep_ok,poids_ok,ko});
     }
     solutions.sort((a,b)=>a.ko!==b.ko?a.ko-b.ko:a.best.rc-b.best.rc);
     setResults(solutions);setLoading(false);
@@ -739,8 +830,8 @@ function PageComparateur({db,projet,setProjet,setPage}){
     const elId=el.id;
     // Trouver le meilleur Uw dispo
     const bestUw=sys.thermique&&sys.thermique.length>0?Math.min(...sys.thermique.map(t=>t.uw)):null;
-    // Trouver meilleur AEV vent
-    const bestAev=sys.aev&&sys.aev.length>0?sys.aev.map(a=>`A${a.A}/E${a.E}/V${a.V}`).join(", "):null;
+    // Analyse physique du vitrage retenu
+    const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys);
     const prescription={
       elId,
       gamme:`${sys.marque} ${sys.nom}`,
@@ -752,6 +843,9 @@ function PageComparateur({db,projet,setProjet,setPage}){
       uw:bestUw?`${bestUw} W/m²K`:"",
       aev:sys.aev&&sys.aev.length>0?sys.aev.map(a=>`A${a.A}/E${a.E}/V${a.V}`).join(" | "):"",
       epaisseur_dtu:projet.epaisseur_dtu||"",
+      epaisseur_reelle:v?`${v.epaisseur_totale} mm`:"",
+      poids_m2:v?`${v.poids_m2} kg/m²`:"",
+      poids_vantail:v?`${v.poids_vantail} kg`:"",
       allMatches,
     };
     setProjet(p=>({...p,prescriptions:{...(p.prescriptions||{}), [elId]:prescription}}));
@@ -818,6 +912,35 @@ function PageComparateur({db,projet,setProjet,setPage}){
             <CheckRow label={el.type==="facade"?"Pression AEV essai":"Classement V/C AEV"} ok={aev_ok} note={aev_ok===null?"Pas d'essai AEV":aev_ok?"Couvert":"Insuffisant"}/>
             <CheckRow label="Épaisseur feuillure" ok={ep_ok} note={ep_ok===null?"Non vérifié":`${sys.epaisseur_min}–${sys.epaisseur_max}mm`}/>
           </div>
+          {/* Vérification physique : poids vantail + épaisseur réelle vs feuillure */}
+          {(()=>{
+            const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys);
+            if(!v)return null;
+            return <div style={{marginTop:8,padding:"8px 12px",background:"#f9fafb",borderRadius:8,border:"1px solid #e5e7eb"}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>ÉPAISSEUR RÉELLE</div>
+                  <div style={{fontSize:13,fontWeight:700,color:v.feuillure_ok===false?"#991b1b":"#1a1a2e"}}>{v.epaisseur_totale} mm {v.feuillure_ok===false?"✗":v.feuillure_ok?"✓":""}</div>
+                  <div style={{fontSize:10,color:"#9ca3af"}}>{v.type} · feuillure {v.feuillure_min}–{v.feuillure_max}mm</div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>POIDS VITRAGE</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a2e"}}>{v.poids_m2} kg/m²</div>
+                  <div style={{fontSize:10,color:"#9ca3af"}}>{v.nb_verres} verre{v.nb_verres>1?"s":""}{v.lames_air.length?" · lame "+v.lames_air.join("+")+"mm":""}</div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>POIDS VANTAIL ({v.surface} m²)</div>
+                  <div style={{fontSize:13,fontWeight:700,color:v.poids_ok===false?"#991b1b":v.poids_ok?"#059669":"#1a1a2e"}}>{v.poids_vantail} kg {v.poids_ok===false?"✗":v.poids_ok?"✓":""}</div>
+                  <div style={{fontSize:10,color:"#9ca3af"}}>max ferrure : {v.poids_max?v.poids_max+" kg":"non renseigné"}</div>
+                </div>
+                <div>
+                  {v.poids_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Dépasse la capacité de la quincaillerie</div>}
+                  {v.feuillure_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Épaisseur incompatible feuillure</div>}
+                  {v.poids_ok!==false&&v.feuillure_ok!==false&&<div style={{fontSize:11,color:"#059669",fontWeight:600,lineHeight:1.4}}>✓ Faisabilité mécanique OK</div>}
+                </div>
+              </div>
+            </div>;
+          })()}
           {/* Autres compositions compatibles */}
           {allMatches.length>1&&<div style={{marginTop:8}}>
             <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>Autres compositions compatibles :</div>
@@ -883,6 +1006,7 @@ function PagePrescription({projet,setProjet,setPage}){
       gamme:p.gamme||"",vitrage:p.vitrage||"",rw:p.rw||"",rwctr:p.rwctr||"",rapport:p.rapport||"",correction:p.correction||"0 dB",
       controle:projet.controle_ref||"",tl:projet.controle_tl||"",fs:projet.controle_fs?String(projet.controle_fs):"",ug:projet.controle_ug||"",
       epaisseur_dtu:p.epaisseur_dtu||projet.epaisseur_dtu||"",aev:p.aev||"",uw:p.uw||"",
+      epaisseur_reelle:p.epaisseur_reelle||"",poids_m2:p.poids_m2||"",poids_vantail:p.poids_vantail||"",
     };
   }));
   const upd=(id,k,v)=>setTypos(t=>t.map(x=>x.id===id?{...x,[k]:v}:x));
@@ -942,7 +1066,7 @@ function PagePrescription({projet,setProjet,setPage}){
           </div>
           <div style={{padding:"9px 11px",background:"#eef2ff",borderRadius:8,border:"1px solid #c7d2fe"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#3730a3",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>💨 DTU 39 & AEV</div>
-            {[["Épaisseur min. DTU 39","epaisseur_dtu","ex : 8.5 mm"],["Classement AEV","aev","ex : A4 / E9A / C3"],["Uw système","uw","ex : 1.3 W/m²K"]].map(([l,k,ph])=><div key={k} style={{marginBottom:4}}><div style={{fontSize:9,color:"#6b7280",marginBottom:1}}>{l}</div><input value={ty[k]} onChange={e=>upd(ty.id,k,e.target.value)} placeholder={ph} style={{...S.input,fontSize:11,padding:"3px 7px",background:"#fff"}}/></div>)}
+            {[["Épaisseur min. DTU 39","epaisseur_dtu","ex : 8.5 mm"],["Épaisseur réelle vitrage","epaisseur_reelle","ex : 34.8 mm"],["Poids vitrage","poids_m2","ex : 45 kg/m²"],["Poids du vantail","poids_vantail","ex : 78 kg"],["Classement AEV","aev","ex : A4 / E9A / C3"],["Uw système","uw","ex : 1.3 W/m²K"]].map(([l,k,ph])=><div key={k} style={{marginBottom:4}}><div style={{fontSize:9,color:"#6b7280",marginBottom:1}}>{l}</div><input value={ty[k]} onChange={e=>upd(ty.id,k,e.target.value)} placeholder={ph} style={{...S.input,fontSize:11,padding:"3px 7px",background:"#fff"}}/></div>)}
             <div style={{marginTop:8,padding:"7px 9px",background:ty.vitrage&&ty.rwctr?"#d1fae5":"#f3f4f6",borderRadius:6}}>
               <div style={{fontSize:10,fontWeight:700,color:ty.vitrage&&ty.rwctr?"#065f46":"#9ca3af"}}>{ty.vitrage&&ty.rwctr?"✓ Prescription complète":"⚠ À compléter"}</div>
               {ty.vitrage&&ty.rwctr&&<div style={{fontSize:9,color:"#374151",marginTop:2,lineHeight:1.5}}>{ty.vitrage} — RA,tr {ty.rwctr}{ty.controle?" · "+ty.controle:""}</div>}
@@ -1074,7 +1198,8 @@ function PageSecurite({db}){
   </div>;
 }
 
-
+// ── PAGE BASE ─────────────────────────────────────────────────────────────
+function PageBase({db,onUpdate}){
   const normalSystems=db.systemes.filter(s=>!s.certifications);
   const marques=[...new Set(normalSystems.map(s=>s.marque))];
   const [ma,setMa]=useState(marques[0]||"");
