@@ -250,18 +250,47 @@ function analyseComposition(compo){
 }
 
 // Vérifie poids du vantail vs capacité ferrure + épaisseur vs feuillure
-function verifVitrage(compo,largeur_mm,hauteur_mm,sys){
+function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el){
   const a=analyseComposition(compo);
   if(!a)return null;
-  const surf=(largeur_mm/1000)*(hauteur_mm/1000); // m²
-  const poids_vantail=+(a.poids_m2*surf).toFixed(1);
-  const poids_ok=sys&&sys.poids_max?poids_vantail<=sys.poids_max:null;
+  const isFacade=el&&el.type==="facade";
+  let surf, poids_unitaire, base_label, poids_max_ref, poids_ok;
+
+  if(isFacade){
+    // Façade : on raisonne par PANNEAU de trame, pas sur la surface totale.
+    // Largeur panneau = entraxe de trame ; hauteur panneau = hauteur d'étage / nb niveaux,
+    // approximée par une hauteur de panneau courante (vitrage entre 2 traverses).
+    const trame_m=(+el.trame||1350)/1000;
+    const H_m=(hauteur_mm/1000);
+    // Hauteur de panneau vitré : on suppose des panneaux d'environ 1.5–2.0 m,
+    // soit la hauteur totale divisée par le nb de niveaux probable (ceil(H/2)).
+    const nb_niveaux=Math.max(1,Math.ceil(H_m/2.2));
+    const haut_panneau=H_m/nb_niveaux;
+    surf=+(trame_m*haut_panneau).toFixed(2);
+    poids_unitaire=+(a.poids_m2*surf).toFixed(1);
+    base_label=`panneau ${trame_m.toFixed(2)}×${haut_panneau.toFixed(2)}m`;
+    // Pour une façade, la limite n'est pas la ferrure d'ouvrant mais la reprise
+    // par traverse/vérins. On retient une capacité de reprise par panneau (≈ poids_max système
+    // qui pour une façade représente la charge admissible par appui vitrage).
+    poids_max_ref=sys?sys.poids_max:null;
+    poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
+  } else {
+    // Châssis / ouvrant : poids du vantail entier vs capacité ferrure.
+    surf=+((largeur_mm/1000)*(hauteur_mm/1000)).toFixed(2);
+    poids_unitaire=+(a.poids_m2*surf).toFixed(1);
+    base_label=`vantail ${(largeur_mm/1000).toFixed(2)}×${(hauteur_mm/1000).toFixed(2)}m`;
+    poids_max_ref=sys?sys.poids_max:null;
+    poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
+  }
+
   const feuillure_ok=sys?(a.epaisseur_totale>=sys.epaisseur_min&&a.epaisseur_totale<=sys.epaisseur_max):null;
   return {
     ...a,
-    surface:+surf.toFixed(2),
-    poids_vantail,
-    poids_max:sys?sys.poids_max:null,
+    isFacade,
+    surface:surf,
+    base_label,
+    poids_vantail:poids_unitaire,
+    poids_max:poids_max_ref,
     poids_ok,
     feuillure_min:sys?sys.epaisseur_min:null,
     feuillure_max:sys?sys.epaisseur_max:null,
@@ -745,8 +774,23 @@ function PageProjet({projet,setProjet,setPage}){
   const removeEl=(i)=>setProjet(p=>({...p,elements:p.elements.filter((_,idx)=>idx!==i)}));
   const setType=(i,type)=>setProjet(p=>({...p,elements:p.elements.map((e,idx)=>idx===i?{...e,type,soustype:type==="facade"?FACADE_TYPES[0]:CHASSIS_TYPES[0]}:e)}));
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const chargerDemo=()=>{
+    setProjet({
+      nom:"Démo — Façade hall Sud",moa:"Promoteur Exemple",moe:"Architecte Exemple",phase:"DCE / Appel d'offres",date:new Date().toISOString().split("T")[0],redacteur:"Daniel",
+      uw_max:"1.6",g_max:"0.36",tl_min:"50",
+      zone_vent:"2",cat_terrain:"II",hauteur_bat:"12",hauteur_sol:"0.5",type_vitrage:"isolant_2lam",aev_min:"A4 E9A V3",
+      pression_pa:null,epaisseur_dtu:"",
+      elements:[
+        {id:1,label:"Façade hall Sud",type:"facade",orientation:"Sud",usage:"Façade côté rue",ratr:"38",soustype:"Façade rideau FWS",largeur:"8100",hauteur:"3500",trame:"1350",nb_ouvrants:"3",type_ouvrant:"Fenêtre OB",allege_h:"0",allege_opaque:false},
+      ],
+      controle_ref:"",controle_tl:"",controle_fs:"",controle_ug:"",prescriptions:{},
+    });
+  };
   return <div>
     <StepBar current={1} setPage={setPage}/>
+    <div style={{marginBottom:14,display:"flex",justifyContent:"flex-end"}}>
+      <button onClick={chargerDemo} style={{...S.btnSecondary,background:"#f5f3ff",borderColor:"#c4b5fd",color:"#5b21b6"}}>⚡ Charger l'exemple de démo</button>
+    </div>
     {/* Infos projet */}
     <div style={S.card}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,paddingBottom:10,borderBottom:"1px solid #f3f4f6"}}>
@@ -974,7 +1018,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
         else{const mc=pression<=600?1:pression<=1200?2:pression<=2000?3:4;aev_ok=sys.aev.some(a=>{const m=(a.V||"").match(/[VC](\d)/);return m&&parseInt(m[1])>=mc;});}
       }
       // Épaisseur réelle du vitrage retenu vs feuillure (plus fiable que l'épaisseur DTU mini)
-      const vBest=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys);
+      const vBest=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el);
       const ep_ok=vBest?vBest.feuillure_ok:(projet.epaisseur_dtu?(sys.epaisseur_min<=parseFloat(projet.epaisseur_dtu)&&parseFloat(projet.epaisseur_dtu)<=sys.epaisseur_max):null);
       const poids_ok=vBest?vBest.poids_ok:null;
       const ko=[uw_ok,aev_ok,ep_ok,poids_ok].filter(c=>c===false).length;
@@ -990,7 +1034,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
     // Trouver le meilleur Uw dispo
     const bestUw=sys.thermique&&sys.thermique.length>0?Math.min(...sys.thermique.map(t=>t.uw)):null;
     // Analyse physique du vitrage retenu
-    const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys);
+    const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el);
     const prescription={
       elId,
       gamme:`${sys.marque} ${sys.nom}`,
@@ -1073,7 +1117,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
           </div>
           {/* Vérification physique : poids vantail + épaisseur réelle vs feuillure */}
           {(()=>{
-            const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys);
+            const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el);
             if(!v)return null;
             return <div style={{marginTop:8,padding:"8px 12px",background:"#f9fafb",borderRadius:8,border:"1px solid #e5e7eb"}}>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,alignItems:"center"}}>
@@ -1088,12 +1132,12 @@ function PageComparateur({db,projet,setProjet,setPage}){
                   <div style={{fontSize:10,color:"#9ca3af"}}>{v.nb_verres} verre{v.nb_verres>1?"s":""}{v.lames_air.length?" · lame "+v.lames_air.join("+")+"mm":""}</div>
                 </div>
                 <div>
-                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>POIDS VANTAIL ({v.surface} m²)</div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>{v.isFacade?"POIDS / PANNEAU":"POIDS VANTAIL"} ({v.surface} m²)</div>
                   <div style={{fontSize:13,fontWeight:700,color:v.poids_ok===false?"#991b1b":v.poids_ok?"#059669":"#1a1a2e"}}>{v.poids_vantail} kg {v.poids_ok===false?"✗":v.poids_ok?"✓":""}</div>
-                  <div style={{fontSize:10,color:"#9ca3af"}}>max ferrure : {v.poids_max?v.poids_max+" kg":"non renseigné"}</div>
+                  <div style={{fontSize:10,color:"#9ca3af"}}>{v.base_label} · max {v.isFacade?"appui":"ferrure"} : {v.poids_max?v.poids_max+" kg":"non renseigné"}</div>
                 </div>
                 <div>
-                  {v.poids_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Dépasse la capacité de la quincaillerie</div>}
+                  {v.poids_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ {v.isFacade?"Panneau trop lourd pour l'appui vitrage":"Dépasse la capacité de la quincaillerie"}</div>}
                   {v.feuillure_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Épaisseur incompatible feuillure</div>}
                   {v.poids_ok!==false&&v.feuillure_ok!==false&&<div style={{fontSize:11,color:"#059669",fontWeight:600,lineHeight:1.4}}>✓ Faisabilité mécanique OK</div>}
                 </div>
