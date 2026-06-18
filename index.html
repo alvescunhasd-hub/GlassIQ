@@ -839,6 +839,37 @@ function getDB(){try{const r=localStorage.getItem("glassiq_v2_db");return r?JSON
 function saveDB(db){try{localStorage.setItem("glassiq_v2_db",JSON.stringify(db));}catch{}}
 function getControles(){try{const r=localStorage.getItem("glassiq_v2_ctrl");return r?JSON.parse(r):INITIAL_CONTROLES;}catch{return INITIAL_CONTROLES;}}
 
+// ── GESTION DES PROJETS (sauvegarde / chargement) ──────────────────────────
+function getProjets(){try{const r=localStorage.getItem("glassiq_v2_projets");return r?JSON.parse(r):[];}catch{return [];}}
+function saveProjets(list){try{localStorage.setItem("glassiq_v2_projets",JSON.stringify(list));return true;}catch{return false;}}
+function uid(){return "P"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function sauverProjet(projet){
+  const list=getProjets();
+  const now=new Date().toISOString();
+  let p={...projet};
+  if(!p._pid){p._pid=uid();p._cree=now;}
+  p._maj=now;
+  const idx=list.findIndex(x=>x._pid===p._pid);
+  if(idx>=0)list[idx]=p; else list.push(p);
+  saveProjets(list);
+  return p;
+}
+function supprimerProjet(pid){
+  const list=getProjets().filter(x=>x._pid!==pid);
+  saveProjets(list);
+  return list;
+}
+function dupliquerProjet(pid){
+  const list=getProjets();
+  const src=list.find(x=>x._pid===pid);
+  if(!src)return list;
+  const copie={...JSON.parse(JSON.stringify(src)),_pid:uid(),_cree:new Date().toISOString(),_maj:new Date().toISOString(),nom:(src.nom||"Projet")+" (copie)"};
+  list.push(copie);
+  saveProjets(list);
+  return list;
+}
+
+
 function Badge({color,children}){
   const C={green:{bg:"#d1fae5",tx:"#065f46",bd:"#6ee7b7"},amber:{bg:"#fef3c7",tx:"#92400e",bd:"#fcd34d"},red:{bg:"#fee2e2",tx:"#991b1b",bd:"#fca5a5"},blue:{bg:"#dbeafe",tx:"#1e40af",bd:"#93c5fd"},purple:{bg:"#ede9fe",tx:"#5b21b6",bd:"#c4b5fd"},teal:{bg:"#ccfbf1",tx:"#0f766e",bd:"#5eead4"},gray:{bg:"#f3f4f6",tx:"#374151",bd:"#d1d5db"}};
   const c=C[color]||C.gray;
@@ -1516,6 +1547,137 @@ function PagePrescription({projet,setProjet,setPage}){
 }
 
 // ── PAGE MÉTRÉ GLOBAL ──────────────────────────────────────────────────────
+function PageProjets({projet,setProjet,setPage,onToast}){
+  const [list,setList]=useState(()=>getProjets());
+  const [confirmDel,setConfirmDel]=useState(null);
+  const refresh=()=>setList(getProjets());
+
+  const sauver=()=>{
+    if(!projet.nom){onToast&&onToast("Donne d'abord un nom au projet (étape 1)","warn");setPage("projet");return;}
+    const saved=sauverProjet(projet);
+    setProjet(p=>({...p,_pid:saved._pid,_cree:saved._cree,_maj:saved._maj}));
+    refresh();
+    onToast&&onToast("Projet \""+saved.nom+"\" sauvegardé ✓","ok");
+  };
+  const charger=(p)=>{
+    setProjet({...p});
+    onToast&&onToast("Projet \""+p.nom+"\" chargé","ok");
+    setPage("projet");
+  };
+  const dupliquer=(pid)=>{setList(dupliquerProjet(pid));onToast&&onToast("Projet dupliqué","ok");};
+  const supprimer=(pid)=>{setList(supprimerProjet(pid));setConfirmDel(null);onToast&&onToast("Projet supprimé","warn");};
+  const nouveau=()=>{
+    setProjet({...defaultProjet,elements:[],_pid:null});
+    onToast&&onToast("Nouveau projet vierge","ok");
+    setPage("projet");
+  };
+
+  // Export / Import fichier
+  const exporter=(p)=>{
+    const blob=new Blob([JSON.stringify(p,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=`GlassIQ_${(p.nom||"projet").replace(/[^a-z0-9]/gi,"_")}.json`;
+    a.click();URL.revokeObjectURL(url);
+  };
+  const exporterTout=()=>{
+    const blob=new Blob([JSON.stringify(getProjets(),null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download="GlassIQ_tous_projets.json";a.click();URL.revokeObjectURL(url);
+  };
+  const importer=(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        const arr=Array.isArray(data)?data:[data];
+        const cur=getProjets();
+        arr.forEach(p=>{
+          if(!p._pid)p._pid=uid();
+          if(cur.find(x=>x._pid===p._pid))p._pid=uid();
+          p._importe=new Date().toISOString();
+          cur.push(p);
+        });
+        saveProjets(cur);refresh();
+        onToast&&onToast(arr.length+" projet(s) importé(s) ✓","ok");
+      }catch(err){onToast&&onToast("Fichier invalide","warn");}
+    };
+    reader.readAsText(file);
+    e.target.value="";
+  };
+
+  const fmtDate=(iso)=>{if(!iso)return"—";const d=new Date(iso);return d.toLocaleDateString("fr-FR")+" "+d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});};
+
+  return <div>
+    <div style={{...S.card,background:"#eff6ff",border:"1px solid #bfdbfe",marginBottom:14}}>
+      <div style={{fontSize:14,fontWeight:700,color:"#1e40af",marginBottom:4}}>💾 Mes projets — sauvegarde & chargement</div>
+      <div style={{fontSize:12,color:"#1e40af"}}>Sauvegarde tes affaires, retrouve-les, duplique-les. Exporte en fichier pour sauvegarder ailleurs ou partager avec un collègue.</div>
+    </div>
+
+    {/* Actions projet courant */}
+    <div style={{...S.card,marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:12,color:"#6b7280"}}>Projet en cours</div>
+          <div style={{fontSize:16,fontWeight:700,color:"#1a1a2e"}}>{projet.nom||"Sans nom"}</div>
+          {projet._pid&&<div style={{fontSize:11,color:"#9ca3af"}}>Dernière sauvegarde : {fmtDate(projet._maj)}</div>}
+          {!projet._pid&&<div style={{fontSize:11,color:"#d97706"}}>Non sauvegardé</div>}
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button onClick={sauver} style={{...S.btnPrimary,background:"#059669"}}>💾 Sauvegarder</button>
+          <button onClick={()=>exporter(projet)} style={S.btnSecondary}>⬇ Exporter ce projet</button>
+          <button onClick={nouveau} style={S.btnSecondary}>＋ Nouveau projet</button>
+        </div>
+      </div>
+    </div>
+
+    {/* Import / export global */}
+    <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+      <label style={{...S.btnSecondary,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}>
+        ⬆ Importer un fichier
+        <input type="file" accept=".json,application/json" onChange={importer} style={{display:"none"}}/>
+      </label>
+      <button onClick={exporterTout} style={S.btnSecondary}>⬇ Exporter tous les projets</button>
+    </div>
+
+    {/* Liste des projets */}
+    <div style={{fontSize:12,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>{list.length} projet{list.length>1?"s":""} enregistré{list.length>1?"s":""}</div>
+    {list.length===0&&<div style={{...S.card,textAlign:"center",color:"#9ca3af",fontSize:13}}>Aucun projet enregistré. Sauvegarde ton projet en cours pour le retrouver ici.</div>}
+    {list.slice().sort((a,b)=>(b._maj||"").localeCompare(a._maj||"")).map(p=>{
+      const nbEl=p.elements?p.elements.length:0;
+      const nbPresc=p.prescriptions?Object.keys(p.prescriptions).length:0;
+      const isCurrent=p._pid===projet._pid;
+      return <div key={p._pid} style={{...S.card,marginBottom:8,border:isCurrent?"2px solid #059669":"1px solid #e5e7eb"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontSize:15,fontWeight:700,color:"#1a1a2e"}}>{p.nom||"Sans nom"}</div>
+              {isCurrent&&<Badge color="green">en cours</Badge>}
+            </div>
+            <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{p.moa?p.moa+" · ":""}{nbEl} élément{nbEl>1?"s":""}{nbPresc>0?" · "+nbPresc+" prescrit"+(nbPresc>1?"s":""):""}</div>
+            <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>Modifié {fmtDate(p._maj)}</div>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            <button onClick={()=>charger(p)} style={{...S.btnPrimary,padding:"7px 14px",fontSize:12}}>Charger</button>
+            <button onClick={()=>dupliquer(p._pid)} style={{...S.btnSecondary,fontSize:12}}>Dupliquer</button>
+            <button onClick={()=>exporter(p)} style={{...S.btnSecondary,fontSize:12}}>⬇</button>
+            {confirmDel===p._pid
+              ? <button onClick={()=>supprimer(p._pid)} style={{...S.btnSecondary,fontSize:12,background:"#fee2e2",borderColor:"#fca5a5",color:"#991b1b"}}>Confirmer ?</button>
+              : <button onClick={()=>setConfirmDel(p._pid)} style={{...S.btnSecondary,fontSize:12,color:"#991b1b"}}>Supprimer</button>}
+          </div>
+        </div>
+      </div>;
+    })}
+
+    <div style={{...S.card,background:"#fffbeb",border:"1px solid #fde68a",marginTop:14,fontSize:12,color:"#92400e",lineHeight:1.5}}>
+      💡 <strong>Important :</strong> les projets sont stockés dans ce navigateur. Pour ne rien perdre en cas de changement d'ordinateur ou de nettoyage du navigateur, exporte régulièrement tes projets en fichier (bouton ⬇). Tu pourras les réimporter n'importe où.
+    </div>
+  </div>;
+}
+
+// ── PAGE MÉTRÉ GLOBAL ──────────────────────────────────────────────────────
 function PageMetre({projet}){
   const {typologies,totaux:T}=metreGlobal(projet.elements,projet.prescriptions,+projet.hauteur_sol||3);
   const typeOuvrantLabel=(el)=>el.type==="facade"?(el.type_ouvrant||"Fenêtre OB"):el.soustype;
@@ -1893,7 +2055,16 @@ function App(){
   const [db,setDB]=useState(()=>getDB());
   const [page,setPage]=useState("projet");
   const [projet,setProjet]=useState(defaultProjet);
+  const [toast,setToast]=useState(null);
   const handleUpdate=(newDB)=>{setDB(newDB);saveDB(newDB);};
+  const showToast=(msg,type)=>{setToast({msg,type});setTimeout(()=>setToast(null),2800);};
+  // Auto-sauvegarde silencieuse du projet courant s'il a déjà été sauvegardé une fois
+  useEffect(()=>{
+    if(projet._pid&&projet.nom){
+      const t=setTimeout(()=>{sauverProjet(projet);},1500);
+      return ()=>clearTimeout(t);
+    }
+  },[projet]);
   const pages=[
     {id:"projet",label:"Projet & CCTP",icon:"📋"},
     {id:"vent",label:"Calcul vent",icon:"💨"},
@@ -1903,6 +2074,7 @@ function App(){
     {id:"metre",label:"Métré",icon:"📐"},
     {id:"fleche",label:"Flèche façade",icon:"📏"},
     {id:"securite",label:"Pare-balle / Coupe-feu",icon:"🛡"},
+    {id:"projets",label:"Mes projets",icon:"💾"},
     {id:"base",label:"Ma base",icon:"📚"},
     {id:"ajouter",label:"Ajouter système",icon:"＋"},
   ];
@@ -1929,9 +2101,11 @@ function App(){
       {page==="metre"&&<PageMetre projet={projet}/>}
       {page==="fleche"&&<PageFleche projet={projet}/>}
       {page==="securite"&&<PageSecurite db={db}/>}
+      {page==="projets"&&<PageProjets projet={projet} setProjet={setProjet} setPage={setPage} onToast={showToast}/>}
       {page==="base"&&<PageBase db={db} onUpdate={handleUpdate}/>}
       {page==="ajouter"&&<PageAjouter db={db} onUpdate={handleUpdate}/>}
     </div>
+    {toast&&<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:toast.type==="warn"?"#92400e":"#065f46",color:"#fff",padding:"12px 24px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,0.2)",zIndex:1000}}>{toast.msg}</div>}
   </div>;
 }
 
