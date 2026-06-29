@@ -355,7 +355,12 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el){
     // L'utilisateur peut préciser la composition (nb vantaux + largeur fixe éventuelle).
     // Sinon, calcul sur 1 vantail occupant toute la dimension.
     const L_m=largeur_mm/1000, H_m=hauteur_mm/1000;
-    const nb_vantaux=Math.max(1,+el.nb_vantaux||1);
+    // Nombre de vantaux : valeur saisie par l'utilisateur en priorité ; sinon valeur
+    // par défaut du système ; sinon 2 pour les portes-fenêtres/coulissants (par nature
+    // multi-vantaux), 1 pour les fenêtres simples.
+    const famille=(sys&&sys.famille)||"";
+    const defautFamille=/coulissant|porte-?fen/i.test(famille)?2:1;
+    const nb_vantaux=Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||defautFamille);
     const larg_fixe_mm=+el.larg_fixe||0; // largeur de la partie fixe (mm)
     const larg_fixe_m=larg_fixe_mm/1000;
     // Largeur disponible pour les ouvrants = largeur totale - fixe
@@ -405,7 +410,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el){
     poids_max:poids_max_ref,
     poids_ok,
     poids_decoupage,
-    nb_vantaux:isFacade?null:Math.max(1,+el.nb_vantaux||1),
+    nb_vantaux:isFacade?null:Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||(/coulissant|porte-?fen/i.test((sys&&sys.famille)||"")?2:1)),
     feuillure_min:sys?sys.epaisseur_min:null,
     feuillure_max:sys?sys.epaisseur_max:null,
     feuillure_ok,
@@ -457,8 +462,8 @@ const INITIAL_DB={systemes:[
     {ug:1.1,config:"Porte-fenêtre 2 vtx 1.53x2.18 Thi2 (Swisspacer/Thermix)",uw:1.6},
     {ug:1.1,config:"Porte-fenêtre 2 vtx 1.53x2.18 Thi3 (Thermix)",uw:1.5}
   ]},
-  {id:"aws75bd",nom:"AWS 75 BD",marque:"Schüco",famille:"Porte-fenêtre",dta:"6/14-2206_V2",validite:"31/01/2028",epaisseur_min:24,epaisseur_max:50,poids_max:130,
-   tests:[{rapport:"BEB2.E.6055-1",type_chassis:"Porte-fenêtre 1 vantail",dim_L:960,dim_H:2180,labo:"GINGER CEBTP",date:"2014",vitrages:[{composition:"4/20/4",rw:32,rwc:31,rwctr:28},{composition:"6/20/44.2 sil",rw:41,rwc:40,rwctr:36},{composition:"10/16/44.2 sil",rw:42,rwc:41,rwctr:37}]},{rapport:"404-18-271",type_chassis:"Porte-fenêtre 1 vantail",dim_L:950,dim_H:2350,labo:"FCBA",date:"2018",vitrages:[{composition:"6/20/44.2s",rw:43,rwc:41,rwctr:37},{composition:"86.2s/24/64.2s",rw:47,rwc:45,rwctr:41}]}],
+  {id:"aws75bd",nom:"AWS 75 BD",marque:"Schüco",famille:"Porte-fenêtre",dta:"6/14-2206_V2",validite:"31/01/2028",epaisseur_min:24,epaisseur_max:50,poids_max:160,vantaux_defaut:2,
+   tests:[{rapport:"BEB2.E.6055-1",type_chassis:"Porte-fenêtre 1 vantail",dim_L:960,dim_H:2180,labo:"GINGER CEBTP",date:"2014",vitrages:[{composition:"4/20/4",rw:32,rwc:31,rwctr:28},{composition:"6/20/44.2 sil",rw:41,rwc:40,rwctr:36},{composition:"10/16/44.2 sil",rw:42,rwc:41,rwctr:37}]},{rapport:"404-18-271",type_chassis:"Porte-fenêtre 1 vantail",dim_L:950,dim_H:2350,labo:"FCBA",date:"2018",vitrages:[{composition:"6/20/44.2s",rw:43,rwc:41,rwctr:37},{composition:"86.2s/24/64.2s",rw:47,rwc:45,rwctr:41}]},{rapport:"BEB2.E.6078-1 V2",type_chassis:"Porte-fenêtre 2 vantaux OF (ferrure OB 160kg)",dim_L:1450,dim_H:2180,labo:"GINGER CEBTP",date:"2015",vitrages:[{composition:"4/18/6",rw:36,rwc:34,rwctr:31},{composition:"6/18/10",rw:39,rwc:38,rwctr:36},{composition:"10/16/44.2 silence",rw:43,rwc:42,rwctr:38}]}],
    aev:[
     {chassis:"Fenêtre 1 vantail OB",dims:"1350x1600",A:"4",E:"9A",V:"C2",rapport:"BEB1.D.5004-8",date:"2013"},
     {chassis:"Porte-fenêtre 2 vantaux, fixe latéral",dims:"2990x2250",A:"4",E:"8A",V:"C2",rapport:"BEB1.D.5004-7/2",date:"2013"},
@@ -695,6 +700,150 @@ const INITIAL_DB={systemes:[
   {id:"rey_ml8",nom:"Masterline 8",marque:"Reynaers",famille:"Fenêtre",dta:"",validite:"",epaisseur_min:24,epaisseur_max:60,poids_max:130,
    tests:[{rapport:"18-000457-PR02",type_chassis:"Fenêtre 1 vantail",dim_L:985,dim_H:2120,labo:"Reynaers",date:"2018",vitrages:[{composition:"55.2s/20/44.2s",rw:43,rwc:41,rwctr:39}]}],
    aev:[{chassis:"Fenêtre 1 vantail",dims:"985x2120",A:"C2",E:"7A",V:"C1",rapport:"18-000457-PR02",date:"2018"}],thermique:[{ug:1.0,config:"Fenêtre 1 vantail 0.985x2.12 (Ug1.0)",uw:1.2},{ug:1.1,config:"Fenêtre 1 vantail 0.985x2.12 (Ug1.1)",uw:1.3}]},
+  {id:"rey_ts68",nom:"TS 68 / TS 68-HV",marque:"Reynaers",famille:"Fenêtre",dta:"6/14-2195_V2",validite:"31/01/2028",epaisseur_min:24,epaisseur_max:47,poids_max:130,
+   tests:[],
+   aev:[
+    {chassis:"2 vtx française + fixe latéral + seuil PMR",dims:"2400x2300",A:"—",E:"—",V:"—",rapport:"BV14-668 (CSTB)",date:"2014"},
+    {chassis:"2 vtx ouvrants cachés française + fixe latéral + seuil PMR (HV)",dims:"2400x2300",A:"—",E:"—",V:"—",rapport:"BV17-1239 (CSTB)",date:"2017"},
+    {chassis:"2 vtx OF + fixe latéral + seuil PMR",dims:"2400x2330",A:"—",E:"—",V:"—",rapport:"DBV-22-13426 (CSTB)",date:"2022"},
+    {chassis:"2 vtx à la française",dims:"1600x2300",A:"—",E:"—",V:"—",rapport:"BEB1.C.5031-1 (CEBTP)",date:"—"},
+    {chassis:"2 vtx à la française + fixe latéral",dims:"2400x2300",A:"—",E:"—",V:"—",rapport:"14.002/REY (CEBTP)",date:"—"},
+    {chassis:"1 vtl à la française + ouvrant pompier",dims:"1470x1510",A:"—",E:"—",V:"—",rapport:"BEB1.F.4063-3 (CEBTP)",date:"—"},
+    {chassis:"1 vtl OB",dims:"1560x2860",A:"—",E:"—",V:"—",rapport:"BEB1.G.5005-4 (CEBTP)",date:"—"},
+    {chassis:"1 vtl OB",dims:"1400x1800",A:"—",E:"—",V:"—",rapport:"BEB1.H.5002-3 (CEBTP)",date:"—"},
+    {chassis:"1 vtl soufflet sur allège fixe",dims:"1860x1640",A:"—",E:"—",V:"—",rapport:"BEB1.I.5011-2 (CEBTP)",date:"—"}
+   ],
+   thermique:[],
+   dimensions_max:[
+    {type:"1 vantail OF",L:1200,H:2200},
+    {type:"1 vantail OB",L:1150,H:1800},
+    {type:"2 vantaux OB",L:1600,H:1800},
+    {type:"2 vantaux OF",L:1600,H:2300},
+    {type:"2 vantaux + fixe latéral",L:2400,H:2300},
+    {type:"Soufflet",L:1800,H:600}
+   ],
+   permeabilite:[{classe:"A*2",debit:3.16},{classe:"A*3",debit:1.05},{classe:"A*4",debit:0.35}],
+   masse_console:[{ref:"024.5107.00",epaisseur:"24-30mm",masse_max:130},{ref:"024.5108.00",epaisseur:"32-38mm",masse_max:70},{ref:"024.5109.00",epaisseur:"40-46mm",masse_max:40}],
+   note:"Fenêtre/PF française, OB ou soufflet RPT. Classements A*E*V* selon Certificat de Qualification du menuisier (non figés au DTA). Performances acoustiques/thermiques via certification ACOTHERM. Flèche P1 < 1/150 portée, max 15mm sous 800Pa. Vitrage verre ≥16mm ou vantail >83kg → vérif NF P20-302."},
+  {id:"rey_sl38n",nom:"SlimLine 38 (RPT)",marque:"Reynaers",famille:"Fenêtre",dta:"6/20-2413_V2",validite:"30/09/2028",epaisseur_min:24,epaisseur_max:38,poids_max:130,
+   tests:[],
+   aev:[
+    {chassis:"1 vtl OB méca/manœuvre/perméa, vitrage 44.2/16/4",dims:"1200x1800",A:"—",E:"—",V:"—",rapport:"BV19-1517 (CSTB)",date:"2019"},
+    {chassis:"1 vtl OB endurance/manœuvre/perméa, vitrage 44.2/16/4",dims:"1200x1800",A:"—",E:"—",V:"—",rapport:"BV20-0118 (CSTB)",date:"2020"},
+    {chassis:"2 vtx française perméa sous gradient thermique",dims:"1600x2250",A:"—",E:"—",V:"—",rapport:"BV19-0355 (CSTB)",date:"2019"},
+    {chassis:"PF 2 vtx + fixe perméa air + étanch. eau dégradé",dims:"2400x2330",A:"—",E:"—",V:"—",rapport:"BV20-1404 (CSTB)",date:"2020"},
+    {chassis:"PF 2 vtx française + fixe latéral A*E*V*",dims:"2400x2330",A:"—",E:"—",V:"—",rapport:"SKG 18.01348",date:"2018"}
+   ],
+   thermique:[],
+   dimensions_max:[
+    {type:"1 vantail OF",L:1200,H:2330},
+    {type:"1 vantail OB",L:1200,H:1800},
+    {type:"2 vantaux OB",L:1600,H:1800},
+    {type:"2 vantaux OF",L:1600,H:2330},
+    {type:"2 vantaux + fixe latéral",L:2400,H:2330}
+   ],
+   permeabilite:[{classe:"A*2",debit:3.16},{classe:"A*3",debit:1.05},{classe:"A*4",debit:0.35}],
+   note:"Fenêtre/PF française, OB, soufflet RPT — profil fin 38mm. Vitrage ouvrant ≤30mm, dormant ≤38mm. ⚠ Ne répond PAS au DTU 39 P5 §4.2.3 (sécurité chute) — la prise en feuillure ne permet PAS de vitrage faisant allège/garde-corps. Pas de seuil PMR. Classements A*E*V* selon Certificat de Qualification. Acoustique/thermique via ACOTHERM. Flèche 1/150, max 15mm sous 800Pa. Verre ≥12mm ou vantail >66kg → NF P20-302."},
+  {id:"rey_slimpatio68",nom:"SlimPatio 68",marque:"Reynaers",famille:"Coulissant",dta:"6/19-2403_V2",validite:"31/03/2028",epaisseur_min:24,epaisseur_max:36,poids_max:90,
+   tests:[],
+   aev:[
+    {chassis:"2 vtx 2 rails perméa air sous écart température",dims:"2400x2250",A:"—",E:"—",V:"—",rapport:"BV19-0354 (CSTB)",date:"2019"},
+    {chassis:"3 vtx 3 rails essai mécanique spécifique",dims:"3600x2500",A:"—",E:"—",V:"—",rapport:"BV19-0262 (CSTB)",date:"2019"},
+    {chassis:"3 vtx 3 rails endurance ouv/ferm",dims:"3600x2500",A:"—",E:"—",V:"—",rapport:"BV19-1347 (CSTB)",date:"2019"},
+    {chassis:"3 vtx 2 rails endurance + méca spécifique",dims:"3190x2900",A:"—",E:"—",V:"—",rapport:"BV20-1063 (CSTB)",date:"2020"},
+    {chassis:"4 vtx 2 rails A*E*V*",dims:"4740x2490",A:"—",E:"—",V:"—",rapport:"RE demandeur",date:"—"},
+    {chassis:"2 vtx 2 rails A*E*V*",dims:"3040x3090",A:"—",E:"—",V:"—",rapport:"RE demandeur",date:"—"},
+    {chassis:"3 vtx 3 rails A*E*V*",dims:"3570x2490",A:"—",E:"—",V:"—",rapport:"RE demandeur",date:"—"}
+   ],
+   thermique:[],
+   dimensions_max:[
+    {type:"2 rails 2 vantaux (selon montants)",L:2450,H:2025},
+    {type:"2 rails 2 vantaux (montants renforcés)",L:2950,H:2475},
+    {type:"2 rails 4 vantaux",L:4750,H:2475},
+    {type:"3 rails 3 vantaux",L:3550,H:2475}
+   ],
+   profiles_montants:[
+    {ref:"013.5306",Ix:4.9},{ref:"013.5309",Ix:6.0},
+    {ref:"013.6302",Ix:9.4},{ref:"013.6307",Ix:11.2},
+    {ref:"013.6303",Ix:41.4},{ref:"013.6308",Ix:45.9},
+    {ref:"013.6304",Ix:91.5},{ref:"013.6309",Ix:99.1}
+   ],
+   permeabilite:[{classe:"A*2",debit:3.16},{classe:"A*3",debit:1.05},{classe:"A*4",debit:0.35}],
+   note:"Coulissant RPT 2 rails (2/3/4 vtx) ou 3 rails (3 vtx). Vitrage 24-36mm. Seuil PMR possible. ⚠ >4m largeur : déformation planchers ≤1mm requise. Classements A*E*V* selon Certificat de Qualification. Acoustique/thermique via ACOTHERM. Inerties montants centraux disponibles (Ix). Verre ≥10mm ou vantail >90kg → NF P20-302."},
+  {id:"rey_cp68",nom:"CP 68 / IndusPatio 68",marque:"Reynaers",famille:"Coulissant",dta:"6/14-2197_V3",validite:"28/02/2031",epaisseur_min:24,epaisseur_max:38,poids_max:200,
+   tests:[],
+   aev:[
+    {chassis:"4 vtx 2 rails (joint glissant)",dims:"3600x2300",A:"—",E:"—",V:"—",rapport:"BEB.D.5013-3 (CEBTP)",date:"—"},
+    {chassis:"4 vtx 2 rails (joint brosse)",dims:"3600x2300",A:"—",E:"—",V:"—",rapport:"BEB1.G.5005-9 (CEBTP)",date:"—"},
+    {chassis:"4 vtx 2 rails",dims:"3600x2500",A:"—",E:"—",V:"—",rapport:"BEB1.N.5029-2 (CEBTP)",date:"—"},
+    {chassis:"2 vtx 2 rails",dims:"2400x2300",A:"—",E:"—",V:"—",rapport:"BEB.D.5013-4 (CEBTP)",date:"—"},
+    {chassis:"2 vtx 2 rails",dims:"2450x2580",A:"—",E:"—",V:"—",rapport:"BEB1.O.5003-2 (CEBTP)",date:"—"},
+    {chassis:"3 vtx 3 rails",dims:"3600x2300",A:"—",E:"—",V:"—",rapport:"BEB.D.5013-2 (CEBTP)",date:"—"},
+    {chassis:"3 vtx 3 rails",dims:"3670x2480",A:"—",E:"—",V:"—",rapport:"BEB1.O.5003-1 (CEBTP)",date:"—"},
+    {chassis:"2 vtx 2 rails (profilé récupérateur d'eau)",dims:"3000x2500",A:"—",E:"—",V:"—",rapport:"BEB.H.5002-11 (CEBTP)",date:"—"},
+    {chassis:"4 vtx 2 rails",dims:"5000x2880",A:"—",E:"—",V:"—",rapport:"BEB1.L.5014-3 (CEBTP)",date:"—"},
+    {chassis:"3 vtx 3 rails",dims:"4300x2880",A:"—",E:"—",V:"—",rapport:"BEB1.L.5022-4-2 (CEBTP)",date:"—"},
+    {chassis:"2 vtx 2 rails + méca spécifique",dims:"3000x2300",A:"—",E:"—",V:"—",rapport:"BV14-999 (CSTB)",date:"2014"},
+    {chassis:"2 vtx 2 rails",dims:"2400x2300",A:"—",E:"—",V:"—",rapport:"BV20-1335 (CSTB)",date:"2020"}
+   ],
+   thermique:[],
+   dimensions_max:[
+    {type:"CP68 2 rails 2 vtx (montants 07+07/10+10)",L:2400,H:2300},
+    {type:"CP68 2 rails 2 vtx (montants renforcés 47+47)",L:3000,H:2500},
+    {type:"CP68 2 rails 3 vtx (renforcés)",L:4500,H:2500},
+    {type:"CP68 2 rails 4 vtx (11+11)",L:5000,H:2880},
+    {type:"CP68 3 rails 3 vtx (11+11)",L:4300,H:2880},
+    {type:"IndusPatio 68 2 rails 2 vtx",L:2450,H:2580},
+    {type:"IndusPatio 68 2 rails 4 vtx",L:3600,H:2500},
+    {type:"IndusPatio 68 3 rails 3 vtx",L:3670,H:2500}
+   ],
+   permeabilite:[{classe:"A*2",debit:3.16},{classe:"A*3",debit:1.05},{classe:"A*4",debit:0.35}],
+   note:"Coulissant RPT — CP68 (courant) et IndusPatio 68 (lourd, jusqu'à 200kg/vantail). 2 rails (2/3/4 vtx) ou 3 rails (3 vtx). Vitrage 24-38mm. Seuil PMR. RT existant par élément : Uw ≤1.9 requis. ⚠ >4m largeur : déformation planchers ≤1mm. Hauteur max selon montant latéral (013.5460→1.62m … 013.5305/5463→2.50m). Classements A*E*V* selon Certificat de Qualification. CP68 verre >12mm ou vantail >83.6kg / IndusPatio verre >16mm ou >118kg → NF P20-302."},
+  {id:"rey_cw50fv",nom:"CW 50-FV (VEC)",marque:"Reynaers",famille:"Façade",dta:"2.1/13-1599_V3",validite:"30/06/2027",epaisseur_min:5,epaisseur_max:36,poids_max:130,
+   tests:[],
+   aev:[
+    {chassis:"Façade grille — capot 4 côtés, trame 1500",dims:"trame 1500",A:"AE750",E:"R7",V:"1200 Pa",rapport:"CSTB CL07-26002881/A",date:"—"},
+    {chassis:"Façade trame horizontale",dims:"—",A:"A4",E:"R7",V:"1200 Pa",rapport:"CSTB CL07-26002881/B",date:"—"},
+    {chassis:"Trame verticale + ouvrant italienne 1420x1920",dims:"1420x1920",A:"A4",E:"RE750",V:"1200 Pa",rapport:"CEBTP BEB1.L.5004-1",date:"—"},
+    {chassis:"Trame verticale + ouvrant OB 1500x1998",dims:"1500x1998",A:"A4",E:"R6",V:"1200 Pa",rapport:"CEBTP BEB1.L.5004-2",date:"—"},
+    {chassis:"Ouvrant italienne (NF EN 14351-1)",dims:"1700x1700",A:"—",E:"—",V:"—",rapport:"CSTB CL05-070",date:"—"},
+    {chassis:"Ouvrant oscillo-battant (NF EN 14351-1)",dims:"1400x1850",A:"—",E:"—",V:"—",rapport:"CSTB CL05-069",date:"—"},
+    {chassis:"Ouvrant OB capot 4 côtés",dims:"1500x1800",A:"—",E:"—",V:"—",rapport:"CEBTP BEB1.L.5004-3",date:"—"}
+   ],
+   thermique:[],
+   dimensions_max:[
+    {type:"Ouvrant italienne (compas 80kg)",L:1350,H:2000},
+    {type:"Ouvrant italienne (compas 105kg)",L:1750,H:1750},
+    {type:"Ouvrant italienne (compas 130kg)",L:2000,H:1200},
+    {type:"Ouvrant OB / française",L:1500,H:1998}
+   ],
+   chocs:"I5 (intérieur) / E5 (extérieur) selon NF EN 14019",
+   note:"Façade rideau VEC (Vitrage Extérieur Collé) NF EN 13830, ETA-04/0045. Vitrage collé mastic silicone sur profilé support + pièces de sécurité anti-chute. Grille / trame horizontale / trame verticale. Ouvrants : italienne (≤2000x1350/1750x1750/1200x2000), OB/française, pompier. Vitrage ouvrant italienne 18-32mm, intérieur 24/32/36mm, fixe trame verticale 5-36mm. ELS ≤1200 Pa. Compas italienne 80/105/130kg. ⚠ Ouvrants n'assurent PAS la sécurité chute. Ucw RT par élément ≤1.9, RT global ≤2.6. Uf/Ψg en annexe (étude DER/HTO 07-056). Suivi PASS VEC obligatoire."},
+  {id:"rey_cw50sc",nom:"CW 50-SC (VEC clames)",marque:"Reynaers",famille:"Façade",dta:"2.1/17-1790_V3",validite:"30/09/2025",epaisseur_min:26,epaisseur_max:63,poids_max:350,
+   tests:[],
+   aev:[
+    {chassis:"Ouvrant italienne (perméa/eau/vent + endurance/méca)",dims:"—",A:"—",E:"—",V:"—",rapport:"10.1153 / 11.1135 / 03.143C",date:"—"},
+    {chassis:"Façade (perméa/eau/vent + endurance/méca)",dims:"—",A:"—",E:"—",V:"—",rapport:"06.135 / 09.160 / 09.161 / 13.00255 / 14.00765",date:"—"},
+    {chassis:"Choc intérieur de sécurité",dims:"—",A:"—",E:"—",V:"—",rapport:"10.1158",date:"—"},
+    {chassis:"Essais sismiques élément de façade vitrée",dims:"—",A:"—",E:"—",V:"—",rapport:"MRF 16 26063413",date:"—"}
+   ],
+   thermique:[
+    {ug:"—",config:"Fixe-ouvrant (poteau, coupe 1)",uw:2.58},
+    {ug:"—",config:"Fixe-ouvrant (traverse, coupe 2)",uw:2.57},
+    {ug:"—",config:"Fixe-ouvrant (poteau, coupe 3)",uw:2.83},
+    {ug:"—",config:"Fixe-fixe clameaux ponctuels (poteau, coupe 5)",uw:3.17},
+    {ug:"—",config:"Fixe-fixe clameaux ponctuels (traverse, coupe 6)",uw:3.53},
+    {ug:"—",config:"Fixe-fixe clames filantes (poteau, coupe 11)",uw:2.93},
+    {ug:"—",config:"Fixe-fixe clames filantes (traverse, coupe 12)",uw:2.92}
+   ],
+   dimensions_max:[
+    {type:"Partie fixe",L:2000,H:3000},
+    {type:"Ouvrant italienne (format 1)",L:1750,H:1750},
+    {type:"Ouvrant italienne (format 2)",L:1350,H:2500}
+   ],
+   masse_console:[{ref:"073.7293.39 (fixe)",epaisseur:"—",masse_max:350},{ref:"073.7290.39 (ouvrant)",epaisseur:"—",masse_max:150},{ref:"073.7291.39 (ouvrant)",epaisseur:"—",masse_max:120},{ref:"073.7180/7182.39 (ouvrant)",epaisseur:"—",masse_max:100},{ref:"073.7292.39 (ouvrant)",epaisseur:"—",masse_max:90}],
+   compas_italienne:[{ref:"021.5640",poids_max:80,ouverture:38},{ref:"021.5650",poids_max:105,ouverture:30},{ref:"021.5660",poids_max:130,ouverture:24},{ref:"060.8370",poids_max:180,ouverture:29}],
+   note:"⚠ VALIDITÉ EXPIRÉE le 30/09/2025 — vérifier la version en cours auprès de Reynaers avant prescription. Façade rideau VEC NF EN 13830, ETA-06/0208. Fixes maintenus par clames filantes/clameaux ponctuels dans le joint de scellement ; ouvrants italienne par collage VEC ; panneaux à lame d'air ventilée. ELS ≤2000 Pa. Fixe ≤2.0×3.0m, ouvrant italienne ≤1.75×1.75m ou 1.35×2.50m. Vitrage VEC fixe double 26-42mm/triple 42-63mm, ouvrant italienne double 27-40mm. Support poids propre : fixe jusqu'à 350daN, ouvrant 90-150daN. Compas italienne 80/105/130/180daN, manœuvre motorisée possible. Sismique testé toutes zones (PV MRF 16 26063413). ⚠ Ouvrants n'assurent PAS la sécurité chute. U0 chiffrés disponibles (étude CSTB 17-048) : fixe-ouvrant 2.57-2.83, fixe-fixe clameaux 3.17-3.53, clames filantes 2.92-5.28 W/m²K selon coupe ; Ψg 0.099-0.14. Suivi PASS VEC obligatoire."},
   {id:"wic_wictec50",nom:"WICTEC 50",marque:"Wicona",famille:"Façade",dta:"21-001298-PR01",validite:"05/05/2021",epaisseur_min:24,epaisseur_max:63,poids_max:560,
    tests:[{rapport:"161 30789/Z1+Z3+Z4",type_chassis:"Façade rideau fixe",dim_L:7410,dim_H:6360,labo:"IFT Rosenheim",date:"2005",vitrages:[{composition:"10/16/6",rw:38,rwc:36,rwctr:34},{composition:"8 LSG/18/10",rw:43,rwc:41,rwctr:39},{composition:"12 LSG/20/8 LSG",rw:47,rwc:46,rwctr:43}]}],
    aev:[{chassis:"WICTEC 50 standard",dims:"7410x6360",A:"AE",E:"RE1200",V:"2000 Pa",rapport:"108 30206",date:"2005"}],
@@ -1028,7 +1177,7 @@ function PageProjet({projet,setProjet,setPage}){
           {!iF&&<div style={{marginTop:8,padding:"10px 12px",background:"#ecfdf5",borderRadius:8,border:"1px solid #a7f3d0"}}>
             <div style={{fontSize:11,fontWeight:700,color:"#065f46",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>🪟 Composition du châssis</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10}}>
-              <div><label style={{...S.label,fontSize:10}}>Nombre de vantaux</label><select value={el.nb_vantaux||"1"} onChange={e=>updEl(i,"nb_vantaux",e.target.value)} style={S.input}><option value="1">1 vantail</option><option value="2">2 vantaux</option><option value="3">3 vantaux</option><option value="4">4 vantaux</option></select></div>
+              <div><label style={{...S.label,fontSize:10}}>Nombre de vantaux</label><select value={el.nb_vantaux||"auto"} onChange={e=>updEl(i,"nb_vantaux",e.target.value==="auto"?"":e.target.value)} style={S.input}><option value="auto">Auto (selon système)</option><option value="1">1 vantail</option><option value="2">2 vantaux</option><option value="3">3 vantaux</option><option value="4">4 vantaux</option></select><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Auto : 2 pour PF/coulissant, 1 sinon</div></div>
               <div><label style={{...S.label,fontSize:10}}>Largeur fixe (mm)</label><input type="number" value={el.larg_fixe||""} placeholder="0" onChange={e=>updEl(i,"larg_fixe",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Si fixe accolé · 0 = aucun</div></div>
               <div><label style={{...S.label,fontSize:10}}>Hauteur d'allège (mm)</label><input type="number" value={el.allege_h||""} placeholder="1000" onChange={e=>updEl(i,"allege_h",e.target.value)} style={S.input}/></div>
               <div><label style={{...S.label,fontSize:10}}>Allège opaque ?</label><select value={el.allege_opaque?"oui":"non"} onChange={e=>updEl(i,"allege_opaque",e.target.value==="oui")} style={S.input}><option value="non">Non — vitré bas</option><option value="oui">Oui — opaque</option></select></div>
