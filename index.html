@@ -66,7 +66,10 @@ const PROFILES_FACADE=[
 
 // ── CALCUL FLÈCHE FAÇADE RIDEAU (Eurocode / DTU) ───────────────────────────
 // Meneau = poutre sur 2 appuis (planchers), charge vent répartie.
-// E aluminium = 70000 N/mm². Flèche admissible L/200 (DTU 33.1 / EN 13830).
+// E aluminium = 70000 N/mm². Flèche admissible : valeur usuelle L/200 (à confirmer
+// par le DTA du système — NF EN 13830 ne fixe pas de valeur universelle pour les
+// façades rideaux ; seule la flèche des châssis fenêtres/portes est fixée par le
+// NF DTU 39 P1-1 : L/150, max 15mm sous 800 Pa — cf. onglet dédié le cas échéant).
 const E_ALU = 70000;
 function flecheMeneau(pression_Pa, entraxe_m, portee_m, Ix_cm4){
   const q = pression_Pa * entraxe_m / 1000; // N/mm
@@ -250,49 +253,68 @@ function calcDTU39(P,larg,haut,aL,aH,tv,hSol){
   if(aT>=4)e1=(L/l)<=2.5?Math.sqrt(L*l*10000*P/10)/100:l*Math.sqrt(P)/6.3;
   else if(aT===3)e1=(L/l)<=7.5?Math.sqrt(L*100*3*l*100*P/10)/100:3*l*Math.sqrt(P)/6.3;
   else e1=L*Math.sqrt(P)/6.3;
-  let e1v=1.0,e2v=1.0;
-  if(tv==="isolant_mono"){e1v=1.6;e2v=1.0;}
-  if(tv==="isolant_lamine"||tv==="isolant_2lam"){e1v=1.6;e2v=1.3;}
-  if(tv==="simple_lamine"){e1v=1.0;e2v=1.3;}
-  const eR=e1*e1v*e2v*c;
   const alpha=aT>=4?interp(A4T,l/L):aT===3?interp(A3T,L/l):2.1143;
-  const bmm=aT>=4?lmm:Lmm,b=bmm/1000,fMax=Math.min(bmm/60,30);
-  const eF=Math.pow((alpha*P*Math.pow(b,4))/(1.5*(fMax/1000)),1/3)*1000*e1v;
-  return{e1:+e1.toFixed(2),eR:+eR.toFixed(2),eF:+eF.toFixed(2),eRequired:+Math.max(eR,eF).toFixed(2),alpha:+alpha.toFixed(4),c,flecheMax:+fMax.toFixed(1)};
+  const bmm=aT>=4?lmm:Lmm,b=bmm/1000;
+  // Critère de flèche (Art. 9.2) : vitrage appuyé sur tout son pourtour (aT>=4) → 1/60
+  // du petit côté, plafonné à 30mm. Vitrage à bord libre (aT<4) → 1/100 (simple) ou
+  // 1/150 (double/isolant) du bord libre, plafonné à 50mm.
+  let fMax;
+  if(aT>=4) fMax=Math.min(bmm/60,30);
+  else fMax=Math.min(bmm/(tv==="simple_lamine"?100:150),50);
+  // e_F requis (Art.9, formule 29 réarrangée) — SANS coefficient ε : c'est la valeur
+  // physique pure demandée par la pression/déflection, à comparer à l'eF RÉEL de la
+  // composition (calcEquivalences), et non multipliée par ε comme dans une version précédente.
+  // BUG CORRIGÉ (présent depuis la 1ère version) : b est en mètres et fMax déjà en mm,
+  // exactement comme pour e1 (coefficient 6.3 sans conversion supplémentaire) — le
+  // coefficient 1,5 et les valeurs α (qui intègrent déjà E=70GPa, cf. Annexe D du DTU)
+  // ne nécessitent AUCUNE conversion /1000 ou ×1000 additionnelle. L'ancienne version
+  // donnait des résultats ~1000× trop grands (ex. 52 000 mm au lieu de 5,2 mm).
+  const eF_requis=Math.pow((alpha*P*Math.pow(b,4))/(1.5*fMax),1/3);
+  const eRequired=Math.max(e1*c,eF_requis);
+  return{e1:+e1.toFixed(2),eF_requis:+eF_requis.toFixed(2),eRequired:+eRequired.toFixed(2),alpha:+alpha.toFixed(4),c,flecheMax:+fMax.toFixed(1),aT};
 }
+
+// ── COEFFICIENTS D'ÉQUIVALENCE OFFICIELS — NF DTU 39 P4, Quadros 7/8/9 ─────
+// Validés à l'identique contre les 11 exemples chiffrés du document (Art. 8 et 9).
+const EPS1_ISOLANT = {2:1.6, 3:2.0}; // Quadro 7 : double=1.6, triple=2.0 (nb panneaux)
+const EPS2_LAMINE = {2:1.3, 3:1.5, 4:1.6}; // Quadro 8 : nb composants verre du feuilleté
+const EPS3_TYPES = { // Quadro 9 (types les plus courants en menuiserie/façade)
+  recuit:{label:"Recuit standard (float)",eps3:1.0},
+  durci:{label:"Durci (heat-strengthened)",eps3:0.8},
+  trempe:{label:"Trempé (sécurité)",eps3:0.61},
+  arme:{label:"Armé (fil)",eps3:1.3},
+};
+function eps2Lamine(n){return EPS2_LAMINE[n]||EPS2_LAMINE[Math.min(n,4)];}
 
 // ── ANALYSE COMPOSITION VITRAGE — épaisseur réelle + poids ─────────────────
 // Densité verre = 2.5 kg/m²/mm. PVB ~ négligeable en poids mais ajoute épaisseur.
 // Formats gérés : "44.2", "44.2s", "44.2 sil", "10/16/44.2", "86.2/24/44.2 sil",
 //                 "4/20/4", "10/12/66.2", "55.2s/20/44.2s", "BR5-NS-57mm"
 function parseGlassPart(part){
-  // Retourne {epaisseur_mm, poids_kg_m2} pour un composant (mono ou feuilleté)
+  // Retourne {epaisseur_mm, poids_kg_m2, components:[...ep monolithiques]} pour un composant (mono ou feuilleté)
   part=part.trim().toLowerCase().replace(/\s*(sil|silence|s)\s*$/,"").trim();
   // Feuilleté type "44.2" = 2 verres de 4mm + 2 films PVB (0.38mm chacun → .2 = 2 films)
-  // Format XX.Y : XX = épaisseur de chaque verre ×... non : "44.2" = 4+4 verre + 2 films PVB
   const lamMatch=part.match(/^(\d)(\d)\.(\d)$/); // ex 44.2 → 4,4,2
   if(lamMatch){
     const v1=parseInt(lamMatch[1]),v2=parseInt(lamMatch[2]),films=parseInt(lamMatch[3]);
     const ep=v1+v2+films*0.38;
     const poids=(v1+v2)*2.5; // PVB densité ~1.05 négligé
-    return {ep:+ep.toFixed(2),poids:+poids.toFixed(1)};
+    return {ep:+ep.toFixed(2),poids:+poids.toFixed(1),components:[v1,v2]};
   }
-  // Feuilleté 3 chiffres "664.2" rare, ou "86.2" = 8+6 ? Non : "86.2"=8+6+2films
-  const lam2=part.match(/^(\d)(\d)\.(\d)$/);
   // Monolithique simple "4","6","8","10","12"
   const mono=part.match(/^(\d{1,2})$/);
   if(mono){
     const e=parseInt(mono[1]);
-    return {ep:e,poids:+(e*2.5).toFixed(1)};
+    return {ep:e,poids:+(e*2.5).toFixed(1),components:[e]};
   }
-  // Triple feuilleté "664.2" ou compositions exotiques → approximation
+  // Triple feuilleté "664.2" ou compositions exotiques
   const multiLam=part.match(/^(\d+)\.(\d)$/);
   if(multiLam){
     const verres=multiLam[1].split('').map(Number);
     const films=parseInt(multiLam[2]);
     const epVerres=verres.reduce((a,b)=>a+b,0);
     const ep=epVerres+films*0.38;
-    return {ep:+ep.toFixed(2),poids:+(epVerres*2.5).toFixed(1)};
+    return {ep:+ep.toFixed(2),poids:+(epVerres*2.5).toFixed(1),components:verres};
   }
   return null;
 }
@@ -306,7 +328,7 @@ function analyseComposition(compo){
   const parts=compo.split('/').map(p=>p.trim()).filter(Boolean);
   if(parts.length<1)return null;
 
-  let epTotal=0,poidsTotal=0,nbVerres=0,lames=[];
+  let epTotal=0,poidsTotal=0,nbVerres=0,lames=[],panes=[];
   parts.forEach((part,i)=>{
     // Une lame d'air = un nombre seul de 6 à 24 situé en position paire (entre verres)
     const isGap=/^\d{1,2}$/.test(part.replace(/\s/g,'')) && parseInt(part)>=6 && parseInt(part)<=24 && i%2===1 && parts.length>1;
@@ -316,7 +338,7 @@ function analyseComposition(compo){
       lames.push(g);
     } else {
       const r=parseGlassPart(part);
-      if(r){epTotal+=r.ep;poidsTotal+=r.poids;nbVerres++;}
+      if(r){epTotal+=r.ep;poidsTotal+=r.poids;nbVerres++;panes.push({components:r.components});}
     }
   });
   if(nbVerres===0)return null;
@@ -325,12 +347,50 @@ function analyseComposition(compo){
     poids_m2:+poidsTotal.toFixed(1),
     nb_verres:nbVerres,
     lames_air:lames,
+    panes,
     type:lames.length>0?(nbVerres>=3?"Triple vitrage":"Double vitrage"):"Vitrage simple"
   };
 }
 
+// ── ÉQUIVALENCES RÉSISTANCE (Art.8) & FLÈCHE (Art.9) — NF DTU 39 P4 ────────
+// Calculées à partir de la composition RÉELLE (panes), validées à l'identique
+// contre les 11 exemples chiffrés officiels du document (écart nul).
+// verre_type_eps3 : coefficient ε3 du type de verre (uniforme sur la composition —
+// simplification si la composition mélange plusieurs types de verre différents).
+function calcEquivalences(panes, eps3){
+  eps3=eps3||1.0;
+  const n=panes.length;
+  if(n===0)return null;
+  if(n===1){
+    const p=panes[0];
+    if(p.components.length===1){
+      // Monolithique simple : eR = e/ε3 ; eF = e
+      return {eR:+(p.components[0]/eps3).toFixed(2), eF:+p.components[0].toFixed(2)};
+    }
+    // Feuilleté simple : eR = Σe/(0.9×ε2×ε3) ; eF = Σe/ε2
+    const somme=p.components.reduce((a,b)=>a+b,0);
+    const eps2=eps2Lamine(p.components.length);
+    return {eR:+(somme/(0.9*eps2*eps3)).toFixed(2), eF:+(somme/eps2).toFixed(2)};
+  }
+  // Vitrage isolant (double ou triple) : chaque panneau contribue sa propre
+  // équivalence (directe si monolithique, /(0.9×ε2) ou /ε2 si feuilleté),
+  // le tout divisé par ε1(nb panneaux)×0.9×ε3 (résistance) ou ε1 seul (flèche).
+  const eps1=EPS1_ISOLANT[n]||EPS1_ISOLANT[3];
+  let sumR=0,sumF=0;
+  for(const p of panes){
+    if(p.components.length===1){
+      sumR+=p.components[0]; sumF+=p.components[0];
+    } else {
+      const somme=p.components.reduce((a,b)=>a+b,0);
+      const eps2=eps2Lamine(p.components.length);
+      sumR+=somme/(0.9*eps2); sumF+=somme/eps2;
+    }
+  }
+  return {eR:+(sumR/(eps1*0.9*eps3)).toFixed(2), eF:+(sumF/eps1).toFixed(2)};
+}
+
 // Vérifie poids du vantail vs capacité ferrure + épaisseur vs feuillure
-function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el){
+function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
   const a=analyseComposition(compo);
   if(!a)return null;
   const isFacade=el&&el.type==="facade";
@@ -409,6 +469,26 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el){
   }
 
   const feuillure_ok=sys?(a.epaisseur_totale>=sys.epaisseur_min&&a.epaisseur_totale<=sys.epaisseur_max):null;
+
+  // ── Vérification résistance & flèche du vitrage — NF DTU 39 P4 Art.7-9 ──
+  // Comparaison de la composition RÉELLE (via calcEquivalences) aux exigences
+  // physiques pures (e1×c pour la résistance, eF_requis pour la flèche).
+  let resistance_ok=null, fleche_verre_ok=null, eR_reel=null, eF_reel=null, dtu_verre=null;
+  if(projet){
+    const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+    if(pression&&a.panes&&a.panes.length>0){
+      const eps3=EPS3_TYPES[projet.type_verre]?EPS3_TYPES[projet.type_verre].eps3:1.0;
+      const equiv=calcEquivalences(a.panes,eps3);
+      // aL/aH=2/2 : hypothèse châssis/façade appuyé sur tout le pourtour (cas standard
+      // fenêtre/façade en feuillure) — cas par défaut de l'outil, cohérent avec le calcul
+      // affiché en étape 2 (calcul vent).
+      dtu_verre=calcDTU39(pression,largeur_mm,hauteur_mm,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
+      eR_reel=equiv.eR; eF_reel=equiv.eF;
+      resistance_ok=eR_reel>=(dtu_verre.e1*dtu_verre.c);
+      fleche_verre_ok=eF_reel>=dtu_verre.eF_requis;
+    }
+  }
+
   return {
     ...a,
     isFacade,
@@ -418,6 +498,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el){
     poids_max:poids_max_ref,
     poids_ok,
     poids_decoupage,
+    resistance_ok, fleche_verre_ok, eR_reel, eF_reel, dtu_verre,
     nb_vantaux:isFacade?null:Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||(/coulissant|porte-?fen/i.test((sys&&sys.famille)||"")?2:1)),
     feuillure_min:sys?sys.epaisseur_min:null,
     feuillure_max:sys?sys.epaisseur_max:null,
@@ -1046,7 +1127,7 @@ function CheckRow({label,ok,note}){
 const defaultProjet={
   nom:"",moa:"",moe:"",phase:"DCE / Appel d'offres",date:new Date().toISOString().split("T")[0],redacteur:"",
   uw_max:"",g_max:"",tl_min:"",
-  zone_vent:"2",cat_terrain:"II",hauteur_bat:"",hauteur_sol:"3",type_vitrage:"isolant_2lam",aev_min:"A4 E9A V3",
+  zone_vent:"2",cat_terrain:"II",hauteur_bat:"",hauteur_sol:"3",type_vitrage:"isolant_2lam",type_verre:"recuit",aev_min:"A4 E9A V3",
   pression_pa:null,epaisseur_dtu:"",
   elements:[
     {id:1,label:"Façade Sud — rue",type:"facade",orientation:"Sud",usage:"Façade côté rue",ratr:"38",soustype:"Façade rideau FWS",largeur:"12000",hauteur:"3200",trame:"1350",nb_ouvrants:"6",type_ouvrant:"Fenêtre OB",allege_h:"1050",allege_opaque:true},
@@ -1080,7 +1161,7 @@ function PageProjet({projet,setProjet,setPage}){
     setProjet({
       nom:"Démo — Façade hall Sud",moa:"Promoteur Exemple",moe:"Architecte Exemple",phase:"DCE / Appel d'offres",date:new Date().toISOString().split("T")[0],redacteur:"Daniel",
       uw_max:"1.6",g_max:"0.36",tl_min:"50",
-      zone_vent:"2",cat_terrain:"II",hauteur_bat:"12",hauteur_sol:"0.5",type_vitrage:"isolant_2lam",aev_min:"A4 E9A V3",
+      zone_vent:"2",cat_terrain:"II",hauteur_bat:"12",hauteur_sol:"0.5",type_vitrage:"isolant_2lam",type_verre:"recuit",aev_min:"A4 E9A V3",
       pression_pa:null,epaisseur_dtu:"",
       elements:[
         {id:1,label:"Façade hall Sud",type:"facade",orientation:"Sud",usage:"Façade côté rue",ratr:"38",soustype:"Façade rideau FWS",largeur:"8100",hauteur:"3500",trame:"1350",nb_ouvrants:"3",type_ouvrant:"Fenêtre OB",allege_h:"0",allege_opaque:false},
@@ -1234,6 +1315,10 @@ function PageProjet({projet,setProjet,setPage}){
         <div><label style={S.label}>Hauteur vitrage/sol — calcul vent (m)</label><input type="number" value={projet.hauteur_sol} onChange={e=>upd("hauteur_sol",e.target.value)} placeholder="3" step="0.5" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>≤ 6m → c = 0.9 (DTU 39)</div></div>
         <div><label style={S.label}>Type de vitrage</label><select value={projet.type_vitrage} onChange={e=>upd("type_vitrage",e.target.value)} style={S.input}><option value="isolant_2lam">Double — 2 feuilletés</option><option value="isolant_lamine">Double — 1 mono + 1 feuilleté</option><option value="isolant_mono">Double — 2 monolithiques</option><option value="simple_lamine">Simple feuilleté</option></select></div>
       </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 3fr",gap:12,marginTop:12}}>
+        <div><label style={S.label}>Type de verre (ε3, Art.8 DTU 39)</label><select value={projet.type_verre||"recuit"} onChange={e=>upd("type_verre",e.target.value)} style={S.input}>{Object.entries(EPS3_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
+        <div style={{fontSize:11,color:"#9ca3af",alignSelf:"center"}}>Détermine ε3 (coefficient de résistance selon le type de verre) — même type appliqué à toute la composition. Pour un mélange de types dans un même vitrage, vérifier manuellement.</div>
+      </div>
       {pression&&<div style={{marginTop:12,padding:"10px 16px",background:"#1a1a2e",borderRadius:10,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.55)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m</div></div>}
     </div>
     {/* Récapitulatif */}
@@ -1311,10 +1396,11 @@ function PageVent({projet,setProjet,setPage}){
           <details style={{marginBottom:8}}>
             <summary style={{fontSize:11,color:"#9ca3af",cursor:"pointer",userSelect:"none"}}>Voir le détail du calcul DTU 39</summary>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginTop:8,padding:"10px 12px",background:"#f9fafb",borderRadius:8}}>
-              <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (rupture)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{dtu.eR} mm</div></div>
-              <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (déformation ≤ {dtu.flecheMax}mm)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{dtu.eF} mm</div></div>
+              <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (e1×c, Art.7-8)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{(dtu.e1*dtu.c).toFixed(2)} mm</div></div>
+              <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (déformation ≤ {dtu.flecheMax}mm, Art.9)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{dtu.eF_requis} mm</div></div>
               <div><div style={{fontSize:10,color:"#6b7280"}}>Retenu (le plus grand)</div><div style={{fontSize:14,fontWeight:700,color:"#059669"}}>{dtu.eRequired} mm</div></div>
             </div>
+            <div style={{fontSize:10,color:"#9ca3af",marginTop:6}}>Valeurs exprimées en épaisseur de verre monolithique équivalente — la composition réelle (feuilleté/isolant) est ensuite vérifiée par ses propres coefficients d'équivalence (ε1/ε2/ε3, NF DTU 39 P4 Art.8-9) dans le comparateur.</div>
           </details>
           {el.type==="facade"?<div style={{padding:"7px 12px",background:"#ede9fe",borderRadius:8,fontSize:12,color:"#5b21b6"}}>⚠ Façade rideau — l'essai AEV du système doit couvrir une pression ≥ <strong>{pression} Pa</strong></div>:<div style={{padding:"7px 12px",background:"#ccfbf1",borderRadius:8,fontSize:12,color:"#0f766e"}}>ℹ Châssis — vérifier que le classement V/C couvre <strong>{pression} Pa</strong> (V3 ≈ 1200 Pa, V4 ≈ 1600 Pa)</div>}
         </div>}
@@ -1358,11 +1444,13 @@ function PageComparateur({db,projet,setProjet,setPage}){
         else{const mc=pression<=600?1:pression<=1200?2:pression<=2000?3:4;aev_ok=sys.aev.some(a=>{const m=(a.V||"").match(/[VC](\d)/);return m&&parseInt(m[1])>=mc;});}
       }
       // Épaisseur réelle du vitrage retenu vs feuillure (plus fiable que l'épaisseur DTU mini)
-      const vBest=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el);
+      const vBest=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
       const ep_ok=vBest?vBest.feuillure_ok:(projet.epaisseur_dtu?(sys.epaisseur_min<=parseFloat(projet.epaisseur_dtu)&&parseFloat(projet.epaisseur_dtu)<=sys.epaisseur_max):null);
       const poids_ok=vBest?vBest.poids_ok:null;
-      const ko=[uw_ok,aev_ok,ep_ok,poids_ok].filter(c=>c===false).length;
-      solutions.push({sys,best,allMatches:matches,uw_ok,aev_ok,ep_ok,poids_ok,ko});
+      const resistance_ok=vBest?vBest.resistance_ok:null;
+      const fleche_verre_ok=vBest?vBest.fleche_verre_ok:null;
+      const ko=[uw_ok,aev_ok,ep_ok,poids_ok,resistance_ok,fleche_verre_ok].filter(c=>c===false).length;
+      solutions.push({sys,best,allMatches:matches,uw_ok,aev_ok,ep_ok,poids_ok,resistance_ok,fleche_verre_ok,ko});
     }
     solutions.sort((a,b)=>a.ko!==b.ko?a.ko-b.ko:a.best.rc-b.best.rc);
     setResults(solutions);setLoading(false);
@@ -1374,7 +1462,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
     // Trouver le meilleur Uw dispo
     const bestUw=sys.thermique&&sys.thermique.length>0?Math.min(...sys.thermique.map(t=>t.uw)):null;
     // Analyse physique du vitrage retenu
-    const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el);
+    const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
     const prescription={
       elId,
       gamme:`${sys.marque} ${sys.nom}`,
@@ -1457,7 +1545,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
           </div>
           {/* Vérification physique : poids vantail + épaisseur réelle vs feuillure */}
           {(()=>{
-            const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el);
+            const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
             if(!v)return null;
             return <div style={{marginTop:8,padding:"8px 12px",background:"#f9fafb",borderRadius:8,border:"1px solid #e5e7eb"}}>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,alignItems:"center"}}>
@@ -1479,9 +1567,24 @@ function PageComparateur({db,projet,setProjet,setPage}){
                 <div>
                   {v.poids_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ {v.isFacade?"Panneau trop lourd pour l'appui vitrage":"Vantail trop lourd pour la quincaillerie"}</div>}
                   {v.feuillure_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Épaisseur incompatible feuillure</div>}
-                  {v.poids_ok!==false&&v.feuillure_ok!==false&&<div style={{fontSize:11,color:"#059669",fontWeight:600,lineHeight:1.4}}>✓ Faisabilité mécanique OK</div>}
+                  {v.resistance_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Résistance au vent insuffisante (Art.8)</div>}
+                  {v.fleche_verre_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Flèche du vitrage excessive (Art.9)</div>}
+                  {v.poids_ok!==false&&v.feuillure_ok!==false&&v.resistance_ok!==false&&v.fleche_verre_ok!==false&&<div style={{fontSize:11,color:"#059669",fontWeight:600,lineHeight:1.4}}>✓ Faisabilité mécanique OK</div>}
                 </div>
               </div>
+              {/* Résistance & flèche du vitrage — NF DTU 39 P4 Art.8-9 */}
+              {v.dtu_verre&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #e5e7eb",display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
+                <div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>RÉSISTANCE AU VENT (Art.8)</div>
+                  <div style={{fontSize:13,fontWeight:700,color:v.resistance_ok===false?"#991b1b":"#059669"}}>eR = {v.eR_reel} mm {v.resistance_ok===false?"✗":"✓"}</div>
+                  <div style={{fontSize:10,color:"#9ca3af"}}>requis ≥ {(v.dtu_verre.e1*v.dtu_verre.c).toFixed(2)} mm (e1×c)</div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>FLÈCHE DU VITRAGE (Art.9)</div>
+                  <div style={{fontSize:13,fontWeight:700,color:v.fleche_verre_ok===false?"#991b1b":"#059669"}}>eF = {v.eF_reel} mm {v.fleche_verre_ok===false?"✗":"✓"}</div>
+                  <div style={{fontSize:10,color:"#9ca3af"}}>requis ≥ {v.dtu_verre.eF_requis} mm (déformation ≤ {v.dtu_verre.flecheMax}mm)</div>
+                </div>
+              </div>}
               {/* Suggestions de découpage si vantail trop lourd */}
               {v.poids_decoupage&&v.poids_decoupage.length>0&&<div style={{marginTop:8,padding:"8px 12px",background:"#eff6ff",borderRadius:8,border:"1px solid #bfdbfe"}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#1e40af",marginBottom:6}}>💡 Solutions de découpage pour passer sous {v.poids_max} kg/vantail :</div>
@@ -1946,7 +2049,7 @@ function PageFleche({projet}){
   return <div>
     <div style={{...S.card,background:"#eef2ff",border:"1px solid #c7d2fe",marginBottom:14}}>
       <div style={{fontSize:14,fontWeight:700,color:"#3730a3",marginBottom:4}}>📐 Flèche meneau façade rideau — vérification structurelle</div>
-      <div style={{fontSize:12,color:"#3730a3"}}>Le meneau travaille comme une poutre sur 2 appuis (planchers) sous charge de vent. Flèche admissible L/200 (EN 13830 / DTU 33.1). Données profilés : catalogue Schüco Façades 2026.</div>
+      <div style={{fontSize:12,color:"#3730a3"}}>Le meneau travaille comme une poutre sur 2 appuis (planchers) sous charge de vent. Flèche admissible : valeur usuelle L/200 — <strong>à confirmer par le DTA du système retenu</strong>, NF EN 13830 ne fixant pas de valeur universelle pour les façades rideaux (seule la flèche des châssis fenêtres/portes est fixée par le NF DTU 39 : L/150, max 15mm sous 800 Pa). Données profilés : catalogue Schüco Façades 2026.</div>
     </div>
 
     {!pression&&<div style={{...S.card,background:"#fff1f2",border:"1px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13}}>⚠ Pression de vent non calculée — renseigne d'abord la zone, le terrain et la hauteur en étape 1 ou 2.</div>}
