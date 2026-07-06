@@ -1439,6 +1439,14 @@ function PageComparateur({db,projet,setProjet,setPage}){
     for(const sys of db.systemes){
       if(el.type==="facade"&&sys.famille!=="Façade")continue;
       if(el.type==="chassis"&&sys.famille==="Façade")continue;
+      // Un système Coulissant (rails, quincaillerie glissante) n'est pas fabricable en
+      // ouvrant battant (OB/OF) et inversement — mécanismes physiquement incompatibles.
+      if(el.type==="chassis"){
+        const estCoulissant=/coulissant/i.test(el.soustype||"");
+        const sysEstCoulissant=sys.famille==="Coulissant";
+        if(estCoulissant&&!sysEstCoulissant)continue;
+        if(!estCoulissant&&sysEstCoulissant)continue;
+      }
       const bpc={};
       for(const test of sys.tests){
         const st=(test.dim_L/1000)*(test.dim_H/1000);let corr=0;
