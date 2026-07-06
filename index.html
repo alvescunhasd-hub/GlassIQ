@@ -394,7 +394,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
   const a=analyseComposition(compo);
   if(!a)return null;
   const isFacade=el&&el.type==="facade";
-  let surf, poids_unitaire, base_label, poids_max_ref, poids_ok, poids_decoupage=null;
+  let surf, poids_unitaire, base_label, poids_max_ref, poids_ok, poids_decoupage=null, nb_vantaux=1;
   let panel_L_mm=largeur_mm, panel_H_mm=hauteur_mm; // dimensions du panneau réel (redéfinies pour façade ci-dessous)
 
   if(isFacade){
@@ -426,11 +426,16 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
     // Sinon, calcul sur 1 vantail occupant toute la dimension.
     const L_m=largeur_mm/1000, H_m=hauteur_mm/1000;
     // Nombre de vantaux : valeur saisie par l'utilisateur en priorité ; sinon valeur
-    // par défaut du système ; sinon 2 pour les portes-fenêtres/coulissants (par nature
-    // multi-vantaux), 1 pour les fenêtres simples.
+    // par défaut du système catalogue ; sinon selon le TYPE D'ÉLÉMENT réellement
+    // configuré par l'utilisateur (el.soustype : "Porte-fenêtre"/"Coulissant" → 2 vantaux),
+    // et seulement à défaut la famille catalogue du système (qui reste souvent générique,
+    // ex. "Fenêtre" même pour un profil utilisable en porte-fenêtre — ne pas s'y fier seule).
+    const soustype=(el&&el.soustype)||"";
     const famille=(sys&&sys.famille)||"";
+    const defautSoustype=/coulissant|porte-?fen/i.test(soustype)?2:/fen[êe]tre|porte\b/i.test(soustype)?1:null;
     const defautFamille=/coulissant|porte-?fen/i.test(famille)?2:1;
-    const nb_vantaux=Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||defautFamille);
+    const nb_vantaux_calc=Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||defautSoustype||defautFamille);
+    nb_vantaux=nb_vantaux_calc;
     const larg_fixe_mm=+el.larg_fixe||0; // largeur de la partie fixe (mm)
     const larg_fixe_m=larg_fixe_mm/1000;
     // Largeur disponible pour les ouvrants = largeur totale - fixe
@@ -505,7 +510,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
     poids_ok,
     poids_decoupage,
     resistance_ok, fleche_verre_ok, eR_reel, eF_reel, dtu_verre,
-    nb_vantaux:isFacade?null:Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||(/coulissant|porte-?fen/i.test((sys&&sys.famille)||"")?2:1)),
+    nb_vantaux:isFacade?null:nb_vantaux,
     feuillure_min:sys?sys.epaisseur_min:null,
     feuillure_max:sys?sys.epaisseur_max:null,
     feuillure_ok,
