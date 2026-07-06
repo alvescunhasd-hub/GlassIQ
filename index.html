@@ -395,6 +395,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
   if(!a)return null;
   const isFacade=el&&el.type==="facade";
   let surf, poids_unitaire, base_label, poids_max_ref, poids_ok, poids_decoupage=null;
+  let panel_L_mm=largeur_mm, panel_H_mm=hauteur_mm; // dimensions du panneau réel (redéfinies pour façade ci-dessous)
 
   if(isFacade){
     // Façade : on raisonne par PANNEAU de trame, pas sur la surface totale.
@@ -410,6 +411,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
       const nb_niveaux=Math.max(1,Math.ceil(H_m/2.2));
       haut_panneau=H_m/nb_niveaux;
     }
+    panel_L_mm=+(trame_m*1000).toFixed(0); panel_H_mm=+(haut_panneau*1000).toFixed(0);
     surf=+(trame_m*haut_panneau).toFixed(2);
     poids_unitaire=+(a.poids_m2*surf).toFixed(1);
     base_label=`panneau ${trame_m.toFixed(2)}×${haut_panneau.toFixed(2)}m${+el.haut_panneau>0?"":" (est.)"}`;
@@ -434,6 +436,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
     // Largeur disponible pour les ouvrants = largeur totale - fixe
     const larg_ouvrants_m=Math.max(0,L_m-larg_fixe_m);
     const larg_vantail=larg_ouvrants_m/nb_vantaux;
+    panel_L_mm=+(larg_vantail*1000).toFixed(0); panel_H_mm=hauteur_mm;
     surf=+(larg_vantail*H_m).toFixed(2);
     poids_unitaire=+(a.poids_m2*surf).toFixed(1);
     base_label=nb_vantaux>1||larg_fixe_mm>0
@@ -482,7 +485,10 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
       // aL/aH=2/2 : hypothèse châssis/façade appuyé sur tout le pourtour (cas standard
       // fenêtre/façade en feuillure) — cas par défaut de l'outil, cohérent avec le calcul
       // affiché en étape 2 (calcul vent).
-      dtu_verre=calcDTU39(pression,largeur_mm,hauteur_mm,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
+      // Pour une façade, la résistance/flèche du verre se vérifie sur la dimension
+      // RÉELLE du panneau (entraxe trame × hauteur panneau), pas sur la façade entière —
+      // chaque case de trame est un vitrage indépendant posé sur les meneaux/traverses.
+      dtu_verre=calcDTU39(pression,panel_L_mm,panel_H_mm,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
       eR_reel=equiv.eR; eF_reel=equiv.eF;
       resistance_ok=eR_reel>=(dtu_verre.e1*dtu_verre.c);
       fleche_verre_ok=eF_reel>=dtu_verre.eF_requis;
@@ -1521,9 +1527,13 @@ function PageComparateur({db,projet,setProjet,setPage}){
 
     {results&&<div style={{marginTop:20}}>
       <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}><strong>{results.length}</strong> système{results.length>1?"s":""} conforme{results.length>1?"s":""} acoustiquement — triés par conformité globale</div>
-      {results.map(({sys,best,allMatches,uw_ok,aev_ok,ep_ok,ko},i)=>{
+      {results.map(({sys,best:bestAlgo,allMatches,uw_ok,aev_ok,ep_ok,ko},i)=>{
         const allOk=ko===0;const bc=allOk?"#6ee7b7":ko>=2?"#fca5a5":"#fde68a";const bg=allOk?"#f0fdf4":ko>=2?"#fff1f2":"#fffbeb";
         const isRetenu=confirmed[el.id]?.sys.id===sys.id;
+        // Si ce système est retenu, on affiche la composition RÉELLEMENT choisie par
+        // l'utilisateur (qui peut être une "autre composition compatible"), pas celle
+        // proposée par défaut par l'algorithme — sinon la sélection ne se reflète jamais.
+        const best=isRetenu?confirmed[el.id].best:bestAlgo;
         return <div key={sys.id} style={{...S.card,border:isRetenu?"2px solid #059669":(`1.5px solid ${bc}`),background:isRetenu?"#f0fdf4":bg,marginBottom:10}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:8}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1614,7 +1624,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
           {allMatches.length>1&&<div style={{marginTop:8}}>
             <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>Autres compositions compatibles :</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {allMatches.slice(1).map((m,mi)=><button key={mi} onClick={()=>utiliser(sys,m,allMatches)} style={{padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid #d1d5db",background:"#fff",color:"#374151",fontFamily:"monospace"}}>{m.composition} — {m.rc} dB</button>)}
+              {allMatches.filter(m=>m.composition!==best.composition).map((m,mi)=><button key={mi} onClick={()=>utiliser(sys,m,allMatches)} style={{padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid #d1d5db",background:"#fff",color:"#374151",fontFamily:"monospace"}}>{m.composition} — {m.rc} dB</button>)}
             </div>
           </div>}
           {best.corr!==0&&<div style={{marginTop:8,padding:"6px 10px",background:"#fef3c7",borderRadius:6,fontSize:12,color:"#92400e"}}>⚠ Correction dimensionnelle {best.corr} dB (surface projet &gt; surface essai)</div>}
@@ -1682,6 +1692,21 @@ function PagePrescription({projet,setProjet,setPage}){
     };
   }));
   const upd=(id,k,v)=>setTypos(t=>t.map(x=>x.id===id?{...x,[k]:v}:x));
+  // Resynchronise les champs issus du comparateur (vitrage, gamme, RA,tr...) si la
+  // prescription change après un retour à l'étape 3 — sans écraser les champs propres
+  // à cette page (dims/orientation/usage/contrôle) que l'utilisateur peut avoir modifiés.
+  useEffect(()=>{
+    setTypos(t=>t.map(ty=>{
+      const p=prescs[ty.id];
+      if(!p)return ty;
+      return {...ty,
+        gamme:p.gamme||ty.gamme, vitrage:p.vitrage||ty.vitrage, rw:p.rw||ty.rw, rwctr:p.rwctr||ty.rwctr,
+        rapport:p.rapport||ty.rapport, correction:p.correction||ty.correction,
+        epaisseur_dtu:p.epaisseur_dtu||ty.epaisseur_dtu, aev:p.aev||ty.aev, uw:p.uw||ty.uw,
+        epaisseur_reelle:p.epaisseur_reelle||ty.epaisseur_reelle, poids_m2:p.poids_m2||ty.poids_m2, poids_vantail:p.poids_vantail||ty.poids_vantail,
+      };
+    }));
+  },[projet.prescriptions]);
   const addT=()=>setTypos(t=>[...t,{id:Date.now(),label:`Élément ${t.length+1}`,dims:"",orientation:"",usage:"",rw_requis:"",type_element:"Châssis",gamme:"",vitrage:"",rw:"",rwctr:"",rapport:"",correction:"0 dB",controle:"",tl:"",fs:"",ug:"",epaisseur_dtu:"",aev:""}]);
   return <div>
     <StepBar current={5} setPage={setPage}/>
