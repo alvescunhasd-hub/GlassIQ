@@ -238,7 +238,7 @@ const ZONES_VENT = {"1":"Region 1 — intérieur protégé","2":"Région 2 — m
 const TERRAINS = {"0":"Cat. 0 — plaine dégagée","II":"Cat. II — zone rurale (réf.)","IIIa":"Cat. IIIa — périurbain","IIIb":"Cat. IIIb — suburbain dense","IV":"Cat. IV — mer / côte"};
 const ORIENTATIONS = ['Nord','Nord-Est','Est','Sud-Est','Sud','Sud-Ouest','Ouest','Nord-Ouest','Toutes orientations'];
 const USAGES = ['Chambre / bureau','Séjour / salle de classe','Couloir / communs','Façade côté rue','Façade côté cour','Façade pignon'];
-const CHASSIS_TYPES = ['Fenêtre OB','Fenêtre OF','Porte-fenêtre','Coulissant','Porte'];
+const CHASSIS_TYPES = ['Fenêtre OB','Fenêtre OF','Fenêtre fixe','Porte-fenêtre','Coulissant','Porte'];
 const FACADE_TYPES = ['Façade rideau FWS','Façade rideau CW','Façade VEC','Façade VEP','Verrière'];
 
 function getTranche(h){const z=parseFloat(h);if(z<=9)return"H9";if(z<=18)return"H18";if(z<=28)return"H28";if(z<=50)return"H50";return"H100";}
@@ -421,10 +421,25 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
     poids_max_ref=sys?sys.poids_max:null;
     poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
   } else {
-    // Châssis / ouvrant : poids par VANTAIL RÉEL.
+    // Châssis / ouvrant : poids par VANTAIL RÉEL (ou par CARREAU si grille fixe).
+    const L_m=largeur_mm/1000, H_m=hauteur_mm/1000;
+    const nb_montants=Math.max(0,+el.nb_montants||0), nb_traverses=Math.max(0,+el.nb_traverses||0);
+
+    if(el.soustype==="Fenêtre fixe"&&(nb_montants>0||nb_traverses>0)){
+      // Châssis fixe divisé en grille de carreaux (montants/traverses) — comme une
+      // mini-façade : on vérifie le poids/résistance/flèche sur le CARREAU le plus
+      // grand, pas sur le châssis entier (aucun vantail ici, tout est fixe).
+      const largCarreau=L_m/(nb_montants+1), hautCarreau=H_m/(nb_traverses+1);
+      panel_L_mm=+(largCarreau*1000).toFixed(0); panel_H_mm=+(hautCarreau*1000).toFixed(0);
+      surf=+(largCarreau*hautCarreau).toFixed(2);
+      poids_unitaire=+(a.poids_m2*surf).toFixed(1);
+      base_label=`carreau ${panel_L_mm}×${panel_H_mm}mm (grille ${nb_montants+1}×${nb_traverses+1})`;
+      nb_vantaux=0; // tout est fixe, pas de vantail
+      poids_max_ref=sys?sys.poids_max:null;
+      poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
+    } else {
     // L'utilisateur peut préciser la composition (nb vantaux + largeur fixe éventuelle).
     // Sinon, calcul sur 1 vantail occupant toute la dimension.
-    const L_m=largeur_mm/1000, H_m=hauteur_mm/1000;
     // Nombre de vantaux : valeur saisie par l'utilisateur en priorité ; sinon valeur
     // par défaut du système catalogue ; sinon selon le TYPE D'ÉLÉMENT réellement
     // configuré par l'utilisateur (el.soustype : "Porte-fenêtre"/"Coulissant" → 2 vantaux),
@@ -473,6 +488,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
         if(p<=poids_max_ref){options.push({label:`Imposte fixe haute + ouvrant`,detail:`imposte ${(hImp*1000).toFixed(0)}mm + ouvrant ${largeur_mm}×${(ho*1000).toFixed(0)}mm`,poids:p});break;}
       }
       poids_decoupage=options;
+    }
     }
   }
 
@@ -1294,6 +1310,20 @@ function PageProjet({projet,setProjet,setPage}){
               const L_m=(+el.largeur||0)/1000, lf=(+el.larg_fixe||0)/1000, nv=Math.max(1,+el.nb_vantaux||1);
               const lv=Math.max(0,(L_m-lf))/nv*1000;
               return <div style={{marginTop:8,fontSize:11,color:"#065f46"}}>→ Chaque vantail : <strong>{lv.toFixed(0)} × {el.hauteur} mm</strong>{lf>0?` · fixe ${(+el.larg_fixe)} mm`:""}</div>;
+            })()}
+          </div>}
+          {/* Grille de carreaux fixes — pour un châssis entièrement fixe divisé par montants/traverses */}
+          {!iF&&el.soustype==="Fenêtre fixe"&&<div style={{marginTop:8,padding:"10px 12px",background:"#eef2ff",borderRadius:8,border:"1px solid #c7d2fe"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#3730a3",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>▦ Grille de carreaux (montants/traverses)</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label style={{...S.label,fontSize:10}}>Nombre de montants intermédiaires</label><input type="number" min="0" value={el.nb_montants||""} placeholder="0" onChange={e=>updEl(i,"nb_montants",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Divisions verticales · 0 = aucune</div></div>
+              <div><label style={{...S.label,fontSize:10}}>Nombre de traverses intermédiaires</label><input type="number" min="0" value={el.nb_traverses||""} placeholder="0" onChange={e=>updEl(i,"nb_traverses",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Divisions horizontales · 0 = aucune</div></div>
+            </div>
+            {(+el.nb_montants>0||+el.nb_traverses>0)&&(()=>{
+              const L_m=(+el.largeur||0)/1000, H_m=(+el.hauteur||0)/1000;
+              const nm=Math.max(0,+el.nb_montants||0), nt=Math.max(0,+el.nb_traverses||0);
+              const largCarreau=L_m/(nm+1), hautCarreau=H_m/(nt+1);
+              return <div style={{marginTop:8,fontSize:11,color:"#3730a3"}}>→ Grille {nm+1}×{nt+1} = <strong>{(nm+1)*(nt+1)}</strong> carreaux de <strong>{(largCarreau*1000).toFixed(0)} × {(hautCarreau*1000).toFixed(0)} mm</strong> chacun (le plus grand vérifié)</div>;
             })()}
           </div>}
           {/* Vérification sécurité allège */}
