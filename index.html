@@ -191,19 +191,27 @@ function metreGlobal(elements, prescriptions, hauteur_sol_m){
   return {typologies,totaux:T};
 }
 
-// ── SÉCURITÉ ALLÈGE — NF P08-302 / DTU 39 ──────────────────────────────────
-// Détermine l'exigence de vitrage feuilleté selon hauteur d'allège et chute.
-function verifAllege(el, hauteur_sol_m){
+// ── SÉCURITÉ ALLÈGE — NF P08-302 / DTU 39 P5 ───────────────────────────────
+// Règle : allège < 1.00m → protection contre chute requise, INDÉPENDAMMENT
+// de la hauteur du bâtiment (contrairement au champ "hauteur vitrage/sol" qui
+// lui sert uniquement à la correction de pression de vent DTU 39 — les deux
+// notions sont physiquement différentes et ne doivent pas être confondues).
+// Seule exception explicite : élément marqué "sans risque de chute" par
+// l'utilisateur (ex. rez-de-chaussée sur terrain naturel, sans vide en contrebas).
+function verifAllege(el){
   const allege_mm=+el.allege_h||0;
   const allege_m=allege_mm/1000;
-  const chute=hauteur_sol_m||0; // hauteur de chute potentielle derrière le vitrage
-  // Règle : si allège < 1.00m ET chute > 1.00m → protection contre chute requise
-  const protection_requise=allege_m<1.0 && chute>1.0;
+  const sans_risque=!!el.sans_risque_chute;
+  const protection_requise=allege_m<1.0 && !sans_risque;
   let exigence,classe_min,detail;
-  if(!protection_requise){
+  if(sans_risque){
+    exigence="Aucune exigence — sans risque de chute déclaré";
+    classe_min=null;
+    detail="Vérifier que ce cas (rez-de-chaussée sans vide en contrebas) est bien justifié";
+  } else if(!protection_requise){
     exigence="Aucune exigence sécurité chute";
     classe_min=null;
-    detail=allege_m>=1.0?`Allège ${allege_m.toFixed(2)}m ≥ 1m — pas de risque de chute`:"Hauteur de chute ≤ 1m";
+    detail=`Allège ${allege_m.toFixed(2)}m ≥ 1m — pas de risque de chute`;
   } else if(el.allege_opaque){
     exigence="Allège opaque — garde-corps assuré par le remplissage";
     classe_min="1B1 (panneau)";
@@ -213,7 +221,7 @@ function verifAllege(el, hauteur_sol_m){
     classe_min="1B1 (EN 12600)";
     detail="Face intérieure feuilletée min 44.2 — résistance au choc corps mou 1B1";
   }
-  return {allege_m:+allege_m.toFixed(2),chute,protection_requise,exigence,classe_min,detail};
+  return {allege_m:+allege_m.toFixed(2),protection_requise,exigence,classe_min,detail};
 }
 
 // Vérifie si une composition a une face feuilletée suffisante (pour allège)
@@ -1162,6 +1170,10 @@ function PageProjet({projet,setProjet,setPage}){
                 <div><label style={{...S.label,fontSize:10}}>Hauteur d'allège (mm)</label><input type="number" value={el.allege_h||""} placeholder="1050" onChange={e=>updEl(i,"allege_h",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Bas du vitrage / sol fini</div></div>
                 <div><label style={{...S.label,fontSize:10}}>Hauteur panneau vitré (mm)</label><input type="number" value={el.haut_panneau||""} placeholder="auto" onChange={e=>updEl(i,"haut_panneau",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Vide = estimation auto · sinon hauteur entre traverses</div></div>
               </div>
+              <label style={{display:"flex",alignItems:"center",gap:6,marginTop:8,fontSize:11,color:"#374151",cursor:"pointer"}}>
+                <input type="checkbox" checked={!!el.sans_risque_chute} onChange={e=>updEl(i,"sans_risque_chute",e.target.checked)}/>
+                Sans risque de chute (rez-de-chaussée sur terrain naturel, sans vide en contrebas)
+              </label>
               {af&&<div style={{marginTop:10,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
                 {[["Meneaux",af.nb_meneaux,`${af.nb_travees} travées`],["Vitrage fixe",`${af.surf_vitree_fixe} m²`,`sur ${af.surf_totale} m²`],["Ouvrants",`${af.surf_ouvrants} m²`,`${af.nb_ouvrants} unités`],["Allège opaque",`${af.surf_allege} m²`,el.allege_opaque?"panneau":"néant"]].map(([l,v,sub])=>(
                   <div key={l} style={{background:"#fff",borderRadius:6,padding:"6px 8px",textAlign:"center",border:"1px solid #ede9fe"}}>
@@ -1182,6 +1194,10 @@ function PageProjet({projet,setProjet,setPage}){
               <div><label style={{...S.label,fontSize:10}}>Hauteur d'allège (mm)</label><input type="number" value={el.allege_h||""} placeholder="1000" onChange={e=>updEl(i,"allege_h",e.target.value)} style={S.input}/></div>
               <div><label style={{...S.label,fontSize:10}}>Allège opaque ?</label><select value={el.allege_opaque?"oui":"non"} onChange={e=>updEl(i,"allege_opaque",e.target.value==="oui")} style={S.input}><option value="non">Non — vitré bas</option><option value="oui">Oui — opaque</option></select></div>
             </div>
+            <label style={{display:"flex",alignItems:"center",gap:6,marginTop:8,fontSize:11,color:"#374151",cursor:"pointer"}}>
+              <input type="checkbox" checked={!!el.sans_risque_chute} onChange={e=>updEl(i,"sans_risque_chute",e.target.checked)}/>
+              Sans risque de chute (rez-de-chaussée sur terrain naturel, sans vide en contrebas)
+            </label>
             {(+el.nb_vantaux>1||+el.larg_fixe>0)&&(()=>{
               const L_m=(+el.largeur||0)/1000, lf=(+el.larg_fixe||0)/1000, nv=Math.max(1,+el.nb_vantaux||1);
               const lv=Math.max(0,(L_m-lf))/nv*1000;
@@ -1190,7 +1206,7 @@ function PageProjet({projet,setProjet,setPage}){
           </div>}
           {/* Vérification sécurité allège */}
           {(()=>{
-            const va=verifAllege(el,+projet.hauteur_sol||3);
+            const va=verifAllege(el);
             if(!va.protection_requise)return null;
             return <div style={{marginTop:8,padding:"8px 12px",background:va.classe_min?"#fef2f2":"#f0fdf4",borderRadius:8,border:`1px solid ${va.classe_min?"#fecaca":"#bbf7d0"}`}}>
               <div style={{fontSize:12,fontWeight:600,color:va.classe_min?"#991b1b":"#065f46"}}>🛡 Sécurité chute : {va.exigence}</div>
@@ -1215,7 +1231,7 @@ function PageProjet({projet,setProjet,setPage}){
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
         <div><label style={S.label}>Classement AEV min (CCTP)</label><select value={projet.aev_min} onChange={e=>upd("aev_min",e.target.value)} style={S.input}><option value="">Non précisé</option><option>A3 E7B V1</option><option>A3 E7B V2</option><option>A4 E9A V2</option><option>A4 E9A V3</option><option>A4 E9A C3</option><option>A4 E9A C4</option></select></div>
-        <div><label style={S.label}>Hauteur vitrage / sol (m)</label><input type="number" value={projet.hauteur_sol} onChange={e=>upd("hauteur_sol",e.target.value)} placeholder="3" step="0.5" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>≤ 6m → c = 0.9 (DTU 39)</div></div>
+        <div><label style={S.label}>Hauteur vitrage/sol — calcul vent (m)</label><input type="number" value={projet.hauteur_sol} onChange={e=>upd("hauteur_sol",e.target.value)} placeholder="3" step="0.5" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>≤ 6m → c = 0.9 (DTU 39)</div></div>
         <div><label style={S.label}>Type de vitrage</label><select value={projet.type_vitrage} onChange={e=>upd("type_vitrage",e.target.value)} style={S.input}><option value="isolant_2lam">Double — 2 feuilletés</option><option value="isolant_lamine">Double — 1 mono + 1 feuilleté</option><option value="isolant_mono">Double — 2 monolithiques</option><option value="simple_lamine">Simple feuilleté</option></select></div>
       </div>
       {pression&&<div style={{marginTop:12,padding:"10px 16px",background:"#1a1a2e",borderRadius:10,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.55)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m</div></div>}
@@ -1265,7 +1281,7 @@ function PageVent({projet,setProjet,setPage}){
       <div><label style={S.label}>Hauteur bâtiment (m)</label><input type="number" value={projet.hauteur_bat} onChange={e=>upd("hauteur_bat",e.target.value)} placeholder="18" style={S.input}/></div>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-      <div><label style={S.label}>Hauteur vitrage / sol (m)</label><input type="number" value={projet.hauteur_sol} onChange={e=>upd("hauteur_sol",e.target.value)} placeholder="3" step="0.5" style={S.input}/></div>
+      <div><label style={S.label}>Hauteur vitrage/sol — calcul vent (m)</label><input type="number" value={projet.hauteur_sol} onChange={e=>upd("hauteur_sol",e.target.value)} placeholder="3" step="0.5" style={S.input}/></div>
       <div><label style={S.label}>Type de vitrage</label><select value={projet.type_vitrage} onChange={e=>upd("type_vitrage",e.target.value)} style={S.input}><option value="isolant_2lam">Double — 2 feuilletés</option><option value="isolant_lamine">Double — 1 mono + 1 feuilleté</option><option value="isolant_mono">Double — 2 monolithiques</option><option value="simple_lamine">Simple feuilleté</option></select></div>
     </div>
     {pression&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m / {projet.hauteur_bat?getTranche(projet.hauteur_bat):""}</div></div>}
@@ -1484,7 +1500,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
           })()}
           {/* Sécurité allège — feuilleté obligatoire si vitrage fait garde-corps */}
           {(()=>{
-            const va=verifAllege(el,+projet.hauteur_sol||3);
+            const va=verifAllege(el);
             if(!va.protection_requise||el.allege_opaque)return null;
             const feuillete=compoEstFeuillete(best.composition);
             return <div style={{marginTop:8,padding:"7px 12px",borderRadius:8,background:feuillete?"#f0fdf4":"#fef2f2",border:`1px solid ${feuillete?"#bbf7d0":"#fecaca"}`,fontSize:12,color:feuillete?"#065f46":"#991b1b",fontWeight:600}}>
@@ -1558,7 +1574,7 @@ function PagePrescription({projet,setProjet,setPage}){
       epaisseur_dtu:p.epaisseur_dtu||projet.epaisseur_dtu||"",aev:p.aev||"",uw:p.uw||"",
       epaisseur_reelle:p.epaisseur_reelle||"",poids_m2:p.poids_m2||"",poids_vantail:p.poids_vantail||"",
       _facade:el.type==="facade"?analyseFacade(el):null,
-      _allege:verifAllege(el,+projet.hauteur_sol||3),
+      _allege:verifAllege(el),
       _allege_opaque:!!el.allege_opaque,
     };
   }));
