@@ -1282,6 +1282,13 @@ function PageProjet({projet,setProjet,setPage}){
                 <input type="checkbox" checked={!!el.sans_risque_chute} onChange={e=>updEl(i,"sans_risque_chute",e.target.checked)}/>
                 Sans risque de chute (rez-de-chaussée sur terrain naturel, sans vide en contrebas)
               </label>
+              <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,fontSize:11,color:"#374151",cursor:"pointer"}}>
+                <input type="checkbox" checked={!!el.rc3_requis} onChange={e=>updEl(i,"rc3_requis",e.target.checked)}/>
+                Exigence anti-effraction RC3 (RDC / rez-de-chaussée)
+              </label>
+              {el.rc3_requis&&<div style={{marginTop:6,padding:"8px 12px",background:"#fef3c7",borderRadius:8,border:"1px solid #fde68a",fontSize:11,color:"#92400e",lineHeight:1.5}}>
+                ⚠ Le RC3 sur une façade rideau <strong>n'est pas couvert par le DTA standard</strong> du système — le profilé de base ne change pas, mais il faut des <strong>capots et un serrage renforcés</strong> (généralement vissés plutôt que clipsés) ainsi que des <strong>raidisseurs internes dans les montants et traverses</strong>. Demander au fabricant un <strong>PV d'essai EN 1627-1630 spécifique</strong> pour cette configuration — ce n'est pas une donnée que GlassIQ peut vérifier automatiquement.
+              </div>}
               {af&&<div style={{marginTop:10,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
                 {[["Meneaux",af.nb_meneaux,`${af.nb_travees} travées`],["Vitrage fixe",`${af.surf_vitree_fixe} m²`,`sur ${af.surf_totale} m²`],["Ouvrants",`${af.surf_ouvrants} m²`,`${af.nb_ouvrants} unités`],["Allège opaque",`${af.surf_allege} m²`,el.allege_opaque?"panneau":"néant"]].map(([l,v,sub])=>(
                   <div key={l} style={{background:"#fff",borderRadius:6,padding:"6px 8px",textAlign:"center",border:"1px solid #ede9fe"}}>
@@ -1731,6 +1738,7 @@ function PagePrescription({projet,setProjet,setPage}){
       epaisseur_reelle:p.epaisseur_reelle||"",poids_m2:p.poids_m2||"",poids_vantail:p.poids_vantail||"",
       _facade:el.type==="facade"?analyseFacade(el):null,
       _allege:verifAllege(el),
+      _rc3:!!el.rc3_requis,
       _allege_opaque:!!el.allege_opaque,
     };
   }));
@@ -1813,8 +1821,8 @@ function PagePrescription({projet,setProjet,setPage}){
             </div>
           </div>
         </div>
-        {/* Métré façade + sécurité allège */}
-        {(ty._facade||ty._allege.protection_requise)&&<div style={{padding:"8px 12px",background:"#fafafa",borderTop:"1px solid #e5e7eb",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+        {/* Métré façade + sécurité allège + RC3 */}
+        {(ty._facade||ty._allege.protection_requise||ty._rc3)&&<div style={{padding:"8px 12px",background:"#fafafa",borderTop:"1px solid #e5e7eb",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
           {ty._facade&&<div style={{display:"flex",gap:14,fontSize:11,color:"#374151"}}>
             <span>🏢 <strong>{ty._facade.nb_meneaux}</strong> meneaux ({ty._facade.nb_travees} travées)</span>
             <span>Vitré fixe <strong>{ty._facade.surf_vitree_fixe} m²</strong></span>
@@ -1824,6 +1832,9 @@ function PagePrescription({projet,setProjet,setPage}){
           </div>}
           {ty._allege.protection_requise&&<div style={{fontSize:11,fontWeight:600,color:ty._allege_opaque?"#92400e":"#991b1b",padding:"3px 10px",background:"#fff",borderRadius:6,border:"1px solid #fde68a"}}>
             🛡 {ty._allege_opaque?"Allège opaque — garde-corps panneau":"Feuilleté 1B1 obligatoire (allège "+ty._allege.allege_m+"m)"}
+          </div>}
+          {ty._rc3&&<div style={{fontSize:11,fontWeight:600,color:"#92400e",padding:"3px 10px",background:"#fff",borderRadius:6,border:"1px solid #fde68a"}}>
+            ⚠ RC3 requis — hors DTA, capots/serrage renforcés + raidisseurs montants/traverses, PV EN 1627-1630 spécifique à demander au fabricant
           </div>}
         </div>}
       </div>)}
@@ -2286,6 +2297,11 @@ function PageSecurite({db}){
     ))}
 
     {filtered.length===0&&<div style={{padding:14,background:"#fff1f2",borderRadius:10,color:"#991b1b",fontSize:13}}>Aucune certification trouvée pour ces critères</div>}
+
+    {/* Message explicite : cas fréquent façade + anti-effraction, aucune donnée en base */}
+    {typeFilter==="effraction"&&!allCerts.some(c=>c.type==="effraction"&&c.sysFamille==="Façade")&&<div style={{marginTop:10,padding:"12px 16px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,fontSize:12,color:"#1e40af",lineHeight:1.5}}>
+      ℹ️ <strong>Aucun système Façade n'a de certification anti-effraction (RC/WK) dans la base actuellement</strong> — seuls des systèmes Porte/Fenêtre (Royal PB, AWS 90 BR) en ont. Ce n'est pas un problème d'affichage : ce sont des données manquantes. Si tu as un DTA ou PV d'essai anti-effraction pour un système façade (ex. une déclinaison RC de FWS 50/60), transmets-le pour intégration.
+    </div>}
 
     {/* Légende classes */}
     <div style={{...S.card,background:"#f9fafb",marginTop:16}}>
