@@ -96,8 +96,40 @@ function profilesCompatibles(systeme, pression_Pa, entraxe_m, portee_m){
 // ── ANALYSE TRAME FAÇADE — métré meneaux/traverses/ouvrants ────────────────
 function analyseFacade(el){
   const L=(+el.largeur||0)/1000, H=(+el.hauteur||0)/1000; // m
-  const trame=(+el.trame||1350)/1000; // m
   if(!L||!H)return null;
+
+  if(el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0){
+    // ── MODE PANNEAUX PERSONNALISÉS — trame irrégulière (tailles différentes) ──
+    // Pour une façade où les panneaux n'ont pas tous la même dimension (porte,
+    // fixes de tailles variées...), on ne peut pas déduire un entraxe unique.
+    // L'utilisateur liste chaque panneau réel ; le métré et la vérification se
+    // font à partir de cette liste, pas d'une trame régulière supposée.
+    const panneaux=el.panneaux.map(p=>({...p,l:(+p.largeur||0)/1000,h:(+p.hauteur||0)/1000,qte:Math.max(1,+p.qte||1)}));
+    let surf_totale=0,surf_ouvrants=0,surf_vitree_fixe=0,nb_ouvrants=0,nb_portes=0,nb_fixe=0;
+    panneaux.forEach(p=>{
+      const s=p.l*p.h*p.qte;
+      surf_totale+=s;
+      if(p.type==="ouvrant"){surf_ouvrants+=s;nb_ouvrants+=p.qte;}
+      else if(p.type==="porte"){surf_ouvrants+=s;nb_portes+=p.qte;}
+      else {surf_vitree_fixe+=s;nb_fixe+=p.qte;}
+    });
+    const nb_panneaux_total=panneaux.reduce((a,p)=>a+p.qte,0);
+    return {
+      L,H,mode:"personnalisee",panneaux,
+      nb_meneaux:+el.nb_montants||null,nb_travees:null,
+      ml_meneaux:null,ml_traverses:null,
+      surf_totale:+surf_totale.toFixed(1),
+      nb_ouvrants:nb_ouvrants+nb_portes,nb_portes,nb_fixe,
+      surf_ouvrants:+surf_ouvrants.toFixed(1),
+      surf_allege:0,
+      surf_vitree_fixe:+surf_vitree_fixe.toFixed(1),
+      entraxe_meneau:null,
+      nb_panneaux_total,
+    };
+  }
+
+  // ── MODE TRAME RÉGULIÈRE (par défaut) ──
+  const trame=(+el.trame||1350)/1000; // m
   const nb_meneaux=Math.max(2,Math.round(L/trame)+1); // meneaux verticaux
   const nb_travees=nb_meneaux-1;
   const ml_meneaux=nb_meneaux*H; // ml verticaux
@@ -398,6 +430,23 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
   let panel_L_mm=largeur_mm, panel_H_mm=hauteur_mm; // dimensions du panneau réel (redéfinies pour façade ci-dessous)
 
   if(isFacade){
+    if(el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0){
+      // Mode panneaux personnalisés : on vérifie le poids sur le panneau le PLUS
+      // GRAND (le plus défavorable), pas sur une trame régulière supposée.
+      let pire=null,pireSurf=-1;
+      el.panneaux.forEach(p=>{
+        const l=(+p.largeur||0)/1000,h=(+p.hauteur||0)/1000,s=l*h;
+        if(s>pireSurf){pireSurf=s;pire={l,h,label:p.label||""};}
+      });
+      if(pire){
+        panel_L_mm=+(pire.l*1000).toFixed(0); panel_H_mm=+(pire.h*1000).toFixed(0);
+        surf=+(pire.l*pire.h).toFixed(2);
+        poids_unitaire=+(a.poids_m2*surf).toFixed(1);
+        base_label=`panneau le plus grand ${panel_L_mm}×${panel_H_mm}mm${pire.label?" ("+pire.label+")":""}`;
+        poids_max_ref=sys?sys.poids_max:null;
+        poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
+      }
+    } else {
     // Façade : on raisonne par PANNEAU de trame, pas sur la surface totale.
     // Largeur panneau = entraxe de trame ; hauteur panneau = hauteur d'étage / nb niveaux,
     // approximée par une hauteur de panneau courante (vitrage entre 2 traverses).
@@ -420,6 +469,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
     // qui pour une façade représente la charge admissible par appui vitrage).
     poids_max_ref=sys?sys.poids_max:null;
     poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
+    }
   } else {
     // Châssis / ouvrant : poids par VANTAIL RÉEL (ou par CARREAU si grille fixe).
     const L_m=largeur_mm/1000, H_m=hauteur_mm/1000;
@@ -509,7 +559,24 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
       // Pour une façade, la résistance/flèche du verre se vérifie sur la dimension
       // RÉELLE du panneau (entraxe trame × hauteur panneau), pas sur la façade entière —
       // chaque case de trame est un vitrage indépendant posé sur les meneaux/traverses.
-      dtu_verre=calcDTU39(pression,panel_L_mm,panel_H_mm,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
+      // En mode "panneaux personnalisés", le panneau le plus lourd (poids) n'est pas
+      // forcément celui qui exige le plus de résistance au vent (ça dépend du rapport
+      // largeur/hauteur, pas seulement de la surface) — on teste donc TOUS les panneaux
+      // et on retient le cas le plus défavorable pour la résistance/flèche.
+      if(isFacade&&el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0){
+        let pireDtu=null,pireReq=-1,pirePanneau=null;
+        el.panneaux.forEach(p=>{
+          const pl=+p.largeur||0, ph=+p.hauteur||0;
+          if(!pl||!ph)return;
+          const d=calcDTU39(pression,pl,ph,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
+          const req=d.e1*d.c;
+          if(req>pireReq){pireReq=req;pireDtu=d;pirePanneau=p;}
+        });
+        dtu_verre=pireDtu;
+        if(pirePanneau)base_label=`pire cas : panneau ${pirePanneau.largeur}×${pirePanneau.hauteur}mm${pirePanneau.label?" ("+pirePanneau.label+")":""}`;
+      } else {
+        dtu_verre=calcDTU39(pression,panel_L_mm,panel_H_mm,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
+      }
       eR_reel=equiv.eR; eF_reel=equiv.eF;
       resistance_ok=eR_reel>=(dtu_verre.e1*dtu_verre.c);
       fleche_verre_ok=eF_reel>=dtu_verre.eF_requis;
@@ -1268,16 +1335,44 @@ function PageProjet({projet,setProjet,setPage}){
             const af=analyseFacade(el);
             return <div style={{marginTop:8,padding:"10px 12px",background:"#f5f3ff",borderRadius:8,border:"1px solid #ddd6fe"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#5b21b6",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>🏢 Composition de la façade</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10}}>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <button onClick={()=>updEl(i,"mode_trame","reguliere")} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:el.mode_trame!=="personnalisee"?"2px solid #7c3aed":"1px solid #d1d5db",background:el.mode_trame!=="personnalisee"?"#ede9fe":"#fff",color:el.mode_trame!=="personnalisee"?"#5b21b6":"#6b7280"}}>Trame régulière</button>
+                <button onClick={()=>updEl(i,"mode_trame","personnalisee")} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:el.mode_trame==="personnalisee"?"2px solid #7c3aed":"1px solid #d1d5db",background:el.mode_trame==="personnalisee"?"#ede9fe":"#fff",color:el.mode_trame==="personnalisee"?"#5b21b6":"#6b7280"}}>Panneaux personnalisés</button>
+              </div>
+              {el.mode_trame==="personnalisee"?(()=>{
+                const panneaux=el.panneaux||[];
+                const updPanneau=(idx,champ,val)=>{const arr=panneaux.map((p,pi)=>pi===idx?{...p,[champ]:val}:p);updEl(i,"panneaux",arr);};
+                const addPanneau=()=>updEl(i,"panneaux",[...panneaux,{largeur:"",hauteur:"",type:"fixe",qte:"1",label:""}]);
+                const delPanneau=(idx)=>updEl(i,"panneaux",panneaux.filter((_,pi)=>pi!==idx));
+                return <div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:8}}>Liste chaque panneau réel (dimensions différentes possibles) — porte, fixes de tailles variées, etc. La résistance/flèche sera vérifiée sur le panneau le plus défavorable.</div>
+                  {panneaux.map((p,pi)=>(
+                    <div key={pi} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:6,marginBottom:6,alignItems:"end"}}>
+                      <div><label style={{...S.label,fontSize:9}}>Largeur (mm)</label><input type="number" value={p.largeur} onChange={e=>updPanneau(pi,"largeur",e.target.value)} style={S.input}/></div>
+                      <div><label style={{...S.label,fontSize:9}}>Hauteur (mm)</label><input type="number" value={p.hauteur} onChange={e=>updPanneau(pi,"hauteur",e.target.value)} style={S.input}/></div>
+                      <div><label style={{...S.label,fontSize:9}}>Type</label><select value={p.type} onChange={e=>updPanneau(pi,"type",e.target.value)} style={S.input}><option value="fixe">Fixe</option><option value="porte">Porte</option><option value="ouvrant">Ouvrant</option></select></div>
+                      <div><label style={{...S.label,fontSize:9}}>Qté</label><input type="number" min="1" value={p.qte} onChange={e=>updPanneau(pi,"qte",e.target.value)} style={S.input}/></div>
+                      <div><label style={{...S.label,fontSize:9}}>Repère</label><input type="text" value={p.label||""} placeholder="ex: porte" onChange={e=>updPanneau(pi,"label",e.target.value)} style={S.input}/></div>
+                      <button onClick={()=>delPanneau(pi)} style={{padding:"7px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:12}}>✕</button>
+                    </div>
+                  ))}
+                  <button onClick={addPanneau} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:4}}>＋ Ajouter un panneau</button>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
+                    <div><label style={{...S.label,fontSize:10}}>Nombre de montants (total, info)</label><input type="number" value={el.nb_montants||""} placeholder="ex: 4" onChange={e=>updEl(i,"nb_montants",e.target.value)} style={S.input}/></div>
+                    <div><label style={{...S.label,fontSize:10}}>Nombre de traverses (total, info)</label><input type="number" value={el.nb_traverses_total||""} placeholder="ex: 8" onChange={e=>updEl(i,"nb_traverses_total",e.target.value)} style={S.input}/></div>
+                  </div>
+                </div>;
+              })():null}
+              {el.mode_trame!=="personnalisee"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10}}>
                 <div><label style={{...S.label,fontSize:10}}>Entraxe trame (mm)</label><input type="number" value={el.trame||""} placeholder="1350" onChange={e=>updEl(i,"trame",e.target.value)} style={S.input}/></div>
                 <div><label style={{...S.label,fontSize:10}}>Nombre d'ouvrants</label><input type="number" value={el.nb_ouvrants||""} placeholder="6" onChange={e=>updEl(i,"nb_ouvrants",e.target.value)} style={S.input}/></div>
                 <div><label style={{...S.label,fontSize:10}}>Type d'ouvrant</label><select value={el.type_ouvrant||"Fenêtre OB"} onChange={e=>updEl(i,"type_ouvrant",e.target.value)} style={S.input}><option>Fenêtre OB</option><option>Fenêtre OF</option><option>Fenêtre italienne</option><option>Porte</option><option>Aucun (tout fixe)</option></select></div>
                 <div><label style={{...S.label,fontSize:10}}>Allège opaque ?</label><select value={el.allege_opaque?"oui":"non"} onChange={e=>updEl(i,"allege_opaque",e.target.value==="oui")} style={S.input}><option value="non">Non — vitré jusqu'au sol</option><option value="oui">Oui — panneau opaque</option></select></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:8}}>
+              </div>}
+              {el.mode_trame!=="personnalisee"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:8}}>
                 <div><label style={{...S.label,fontSize:10}}>Hauteur d'allège (mm)</label><input type="number" value={el.allege_h||""} placeholder="1050" onChange={e=>updEl(i,"allege_h",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Bas du vitrage / sol fini</div></div>
                 <div><label style={{...S.label,fontSize:10}}>Hauteur panneau vitré (mm)</label><input type="number" value={el.haut_panneau||""} placeholder="auto" onChange={e=>updEl(i,"haut_panneau",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Vide = estimation auto · sinon hauteur entre traverses</div></div>
-              </div>
+              </div>}
               <label style={{display:"flex",alignItems:"center",gap:6,marginTop:8,fontSize:11,color:"#374151",cursor:"pointer"}}>
                 <input type="checkbox" checked={!!el.sans_risque_chute} onChange={e=>updEl(i,"sans_risque_chute",e.target.checked)}/>
                 Sans risque de chute (rez-de-chaussée sur terrain naturel, sans vide en contrebas)
@@ -1289,7 +1384,16 @@ function PageProjet({projet,setProjet,setPage}){
               {el.rc3_requis&&<div style={{marginTop:6,padding:"8px 12px",background:"#fef3c7",borderRadius:8,border:"1px solid #fde68a",fontSize:11,color:"#92400e",lineHeight:1.5}}>
                 ⚠ Le RC3 sur une façade rideau <strong>n'est pas couvert par le DTA standard</strong> du système — le profilé de base ne change pas, mais il faut des <strong>capots et un serrage renforcés</strong> (généralement vissés plutôt que clipsés) ainsi que des <strong>raidisseurs internes dans les montants et traverses</strong>. Demander au fabricant un <strong>PV d'essai EN 1627-1630 spécifique</strong> pour cette configuration — ce n'est pas une donnée que GlassIQ peut vérifier automatiquement.
               </div>}
-              {af&&<div style={{marginTop:10,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              {af&&af.mode==="personnalisee"&&<div style={{marginTop:10,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                {[["Panneaux",af.nb_panneaux_total,`${af.panneaux.length} tailles diff.`],["Vitrage fixe",`${af.surf_vitree_fixe} m²`,`sur ${af.surf_totale} m²`],["Portes/Ouvrants",`${af.surf_ouvrants} m²`,`${af.nb_ouvrants} unités`],["Montants/Traverses",`${el.nb_montants||"?"}/${el.nb_traverses_total||"?"}`,"renseignés (info)"]].map(([l,v,sub])=>(
+                  <div key={l} style={{background:"#fff",borderRadius:6,padding:"6px 8px",textAlign:"center",border:"1px solid #ede9fe"}}>
+                    <div style={{fontSize:13,fontWeight:700,color:"#1a1a2e"}}>{v}</div>
+                    <div style={{fontSize:9,color:"#6b7280"}}>{l}</div>
+                    <div style={{fontSize:9,color:"#9ca3af"}}>{sub}</div>
+                  </div>
+                ))}
+              </div>}
+              {af&&af.mode!=="personnalisee"&&<div style={{marginTop:10,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
                 {[["Meneaux",af.nb_meneaux,`${af.nb_travees} travées`],["Vitrage fixe",`${af.surf_vitree_fixe} m²`,`sur ${af.surf_totale} m²`],["Ouvrants",`${af.surf_ouvrants} m²`,`${af.nb_ouvrants} unités`],["Allège opaque",`${af.surf_allege} m²`,el.allege_opaque?"panneau":"néant"]].map(([l,v,sub])=>(
                   <div key={l} style={{background:"#fff",borderRadius:6,padding:"6px 8px",textAlign:"center",border:"1px solid #ede9fe"}}>
                     <div style={{fontSize:13,fontWeight:700,color:"#1a1a2e"}}>{v}</div>
