@@ -2546,7 +2546,10 @@ function App(){
           {p.icon} {p.label}{p.id==="projet"&&projet.elements.length>0?<span style={{marginLeft:4,background:"#22c55e",color:"#fff",borderRadius:10,padding:"1px 5px",fontSize:10}}>{projet.elements.length}</span>:""}
         </button>)}
       </nav>
-      <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",padding:"11px 0"}}>{db.systemes.length} systèmes</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0"}}>
+        <a href="priceiq/index.html" style={{padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:700,textDecoration:"none",background:"rgba(240,192,64,0.15)",color:"#f0c040",border:"1px solid rgba(240,192,64,0.3)",display:"flex",alignItems:"center",gap:5}}>💰 PriceIQ</a>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{db.systemes.length} systèmes</div>
+      </div>
     </div>
     <div style={{maxWidth:960,margin:"0 auto",padding:"22px 16px"}}>
       {page==="projet"&&<PageProjet projet={projet} setProjet={setProjet} setPage={setPage}/>}
