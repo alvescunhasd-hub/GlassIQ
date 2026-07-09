@@ -194,21 +194,44 @@
     // ── COMPOSANT LIGNE DEVIS ─────────────────────────────────────────────────
     function LigneDevis({ ligne, index, onUpdate, onRemove, gammes }) {
       const gamme = BASE_PRIX[ligne.gamme];
-      const [modeCalc, setModeCalc] = useState("m2"); // m2 ou unitaire
+      const composeMode = ligne.mode_compo === "compose";
+      const parties = ligne.parties || [];
 
-      const surface = ((+ligne.largeur || 0) / 1000) * ((+ligne.hauteur || 0) / 1000);
-      const prix_m2 = gamme?.prix_m2[ligne.type_ouvrant] || null;
-      const prix_calc = prix_m2 ? surface * prix_m2 * (ligne.qte || 1) : null;
+      // Mode simple : une seule surface/type comme avant
+      const surfaceSimple = ((+ligne.largeur || 0) / 1000) * ((+ligne.hauteur || 0) / 1000);
+      const prixM2Simple = gamme?.prix_m2[ligne.type_ouvrant] || null;
 
-      // Trouver le prix unitaire le plus proche
-      const closestUnit = gamme?.prix_unitaire?.reduce((best, pu) => {
+      // Mode composé : un châssis = plusieurs parties (vantail principal, fixe latéral,
+      // fixe bas/allège...) chacune avec son propre taux (fixe vs ouvrant)
+      const partiesCalc = parties.map(p => {
+        const l = (+p.largeur || 0) / 1000, h = (+p.hauteur || 0) / 1000;
+        const surf = l * h;
+        const rate = p.type === "fixe" ? gamme?.prix_m2?.fixe : gamme?.prix_m2?.battant_1vtl;
+        return { ...p, surf, rate, prix: rate ? surf * rate : 0 };
+      });
+      const surfaceCompose = partiesCalc.reduce((a, p) => a + p.surf, 0);
+      const prixComposeUnitaire = partiesCalc.reduce((a, p) => a + p.prix, 0);
+
+      const surface = composeMode ? surfaceCompose : surfaceSimple;
+      const prix_m2 = composeMode ? null : prixM2Simple;
+      const prix_calc = composeMode
+        ? (prixComposeUnitaire > 0 ? prixComposeUnitaire * (ligne.qte || 1) : null)
+        : (prixM2Simple ? surfaceSimple * prixM2Simple * (ligne.qte || 1) : null);
+
+      // Trouver le prix unitaire le plus proche (mode simple uniquement)
+      const closestUnit = !composeMode && gamme?.prix_unitaire?.reduce((best, pu) => {
         const [pw, ph] = pu.dims.split("×").map(Number);
         const diff = Math.abs(pw - (+ligne.largeur || 0)) + Math.abs(ph - (+ligne.hauteur || 0));
         const bestDiff = best ? Math.abs(best.pw - (+ligne.largeur||0)) + Math.abs(best.ph-(+ligne.hauteur||0)) : Infinity;
         return diff < bestDiff ? { ...pu, pw, ph } : best;
       }, null);
 
-      const total = prix_calc || 0;
+      const updPartie = (idx, champ, val) => {
+        const arr = parties.map((p, pi) => pi === idx ? { ...p, [champ]: val } : p);
+        onUpdate("parties", arr);
+      };
+      const addPartie = () => onUpdate("parties", [...parties, { position: "", type: "fixe", largeur: "", hauteur: "" }]);
+      const delPartie = (idx) => onUpdate("parties", parties.filter((_, pi) => pi !== idx));
 
       return (
         <div style={{ ...s.card, marginBottom: 12, position: "relative" }}>
@@ -227,58 +250,141 @@
                 <option key={k} value={k}>{k} — {BASE_PRIX[k].marque}</option>
               ))}
             </select>
-            <select value={ligne.type_ouvrant} onChange={e => onUpdate("type_ouvrant", e.target.value)}
-              style={{ ...s.input, width: 180 }}>
-              <option value="fixe">Fixe</option>
-              <option value="battant_1vtl">1 vantail</option>
-              <option value="battant_2vtx">2 vantaux</option>
-            </select>
+            {!composeMode && (
+              <select value={ligne.type_ouvrant} onChange={e => onUpdate("type_ouvrant", e.target.value)}
+                style={{ ...s.input, width: 180 }}>
+                <option value="fixe">Fixe</option>
+                <option value="battant_1vtl">1 vantail</option>
+                <option value="battant_2vtx">2 vantaux</option>
+              </select>
+            )}
+            <button onClick={() => onUpdate("mode_compo", composeMode ? "simple" : "compose")}
+              style={{ ...s.btnOutline, padding: "8px 12px", fontSize: 11, whiteSpace: "nowrap",
+                color: composeMode ? "var(--accent)" : "var(--text2)",
+                borderColor: composeMode ? "rgba(240,192,64,0.4)" : "var(--border2)" }}>
+              {composeMode ? "▦ Composé" : "▢ Simple"}
+            </button>
             <button onClick={onRemove} style={{ ...s.btnOutline, padding: "8px 12px", color: "var(--red)",
               borderColor: "rgba(240,80,80,0.3)", flexShrink: 0 }}>✕</button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 2fr", gap: 10 }}>
-            <div>
-              <label style={s.label}>Largeur (mm)</label>
-              <input type="number" value={ligne.largeur} onChange={e => onUpdate("largeur", e.target.value)}
-                placeholder="ex: 1230" style={s.input} />
-            </div>
-            <div>
-              <label style={s.label}>Hauteur (mm)</label>
-              <input type="number" value={ligne.hauteur} onChange={e => onUpdate("hauteur", e.target.value)}
-                placeholder="ex: 1480" style={s.input} />
-            </div>
-            <div>
-              <label style={s.label}>Quantité</label>
-              <input type="number" value={ligne.qte} onChange={e => onUpdate("qte", e.target.value)}
-                placeholder="1" style={s.input} />
-            </div>
-            <div>
-              <label style={s.label}>Surface unitaire</label>
-              <div style={{ ...s.input, color: surface > 0 ? "var(--accent)" : "var(--text3)",
-                fontFamily: "'DM Mono', monospace" }}>
-                {surface > 0 ? surface.toFixed(2) + " m²" : "—"}
+          {!composeMode && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 2fr", gap: 10 }}>
+              <div>
+                <label style={s.label}>Largeur (mm)</label>
+                <input type="number" value={ligne.largeur} onChange={e => onUpdate("largeur", e.target.value)}
+                  placeholder="ex: 1230" style={s.input} />
+              </div>
+              <div>
+                <label style={s.label}>Hauteur (mm)</label>
+                <input type="number" value={ligne.hauteur} onChange={e => onUpdate("hauteur", e.target.value)}
+                  placeholder="ex: 1480" style={s.input} />
+              </div>
+              <div>
+                <label style={s.label}>Quantité</label>
+                <input type="number" value={ligne.qte} onChange={e => onUpdate("qte", e.target.value)}
+                  placeholder="1" style={s.input} />
+              </div>
+              <div>
+                <label style={s.label}>Surface unitaire</label>
+                <div style={{ ...s.input, color: surface > 0 ? "var(--accent)" : "var(--text3)",
+                  fontFamily: "'DM Mono', monospace" }}>
+                  {surface > 0 ? surface.toFixed(2) + " m²" : "—"}
+                </div>
+              </div>
+              <div>
+                <label style={s.label}>Finition</label>
+                <select value={ligne.finition} onChange={e => onUpdate("finition", e.target.value)}
+                  style={s.input}>
+                  <option value="std">RAL Standard</option>
+                  <option value="ral_maj">RAL Majeur (+10%)</option>
+                  <option value="anodise">Anodisé (+15%)</option>
+                  <option value="laque_spec">Laque spéciale (+25%)</option>
+                </select>
               </div>
             </div>
+          )}
+
+          {composeMode && (
             <div>
-              <label style={s.label}>Finition</label>
-              <select value={ligne.finition} onChange={e => onUpdate("finition", e.target.value)}
-                style={s.input}>
-                <option value="std">RAL Standard</option>
-                <option value="ral_maj">RAL Majeur (+10%)</option>
-                <option value="anodise">Anodisé (+15%)</option>
-                <option value="laque_spec">Laque spéciale (+25%)</option>
-              </select>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 8 }}>
+                Décompose ce châssis en plusieurs parties réelles (vantail principal, fixe latéral, fixe bas/allège...) —
+                chaque partie fixe est chiffrée au tarif "Fixe", chaque partie ouvrante au tarif "1 vantail".
+              </div>
+              {parties.map((p, pi) => (
+                <div key={pi} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr auto", gap: 8,
+                  marginBottom: 6, alignItems: "end" }}>
+                  <div>
+                    <label style={s.label}>Position</label>
+                    <input value={p.position} onChange={e => updPartie(pi, "position", e.target.value)}
+                      placeholder="ex: fixe latéral gauche" style={s.input} />
+                  </div>
+                  <div>
+                    <label style={s.label}>Type</label>
+                    <select value={p.type} onChange={e => updPartie(pi, "type", e.target.value)} style={s.input}>
+                      <option value="fixe">Fixe</option>
+                      <option value="ouvrant">Ouvrant</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={s.label}>Largeur (mm)</label>
+                    <input type="number" value={p.largeur} onChange={e => updPartie(pi, "largeur", e.target.value)} style={s.input} />
+                  </div>
+                  <div>
+                    <label style={s.label}>Hauteur (mm)</label>
+                    <input type="number" value={p.hauteur} onChange={e => updPartie(pi, "hauteur", e.target.value)} style={s.input} />
+                  </div>
+                  <button onClick={() => delPartie(pi)} style={{ ...s.btnOutline, padding: "8px 10px",
+                    color: "var(--red)", borderColor: "rgba(240,80,80,0.3)" }}>✕</button>
+                </div>
+              ))}
+              <button onClick={addPartie} style={{ ...s.btnOutline, fontSize: 11, padding: "6px 12px", marginTop: 2, marginBottom: 10 }}>
+                + Ajouter une partie
+              </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={s.label}>Quantité (nb de châssis identiques)</label>
+                  <input type="number" value={ligne.qte} onChange={e => onUpdate("qte", e.target.value)}
+                    placeholder="1" style={s.input} />
+                </div>
+                <div>
+                  <label style={s.label}>Finition</label>
+                  <select value={ligne.finition} onChange={e => onUpdate("finition", e.target.value)} style={s.input}>
+                    <option value="std">RAL Standard</option>
+                    <option value="ral_maj">RAL Majeur (+10%)</option>
+                    <option value="anodise">Anodisé (+15%)</option>
+                    <option value="laque_spec">Laque spéciale (+25%)</option>
+                  </select>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Résultat prix */}
-          {gamme && ligne.largeur && ligne.hauteur && (
+          {gamme && ((composeMode && parties.length > 0) || (!composeMode && ligne.largeur && ligne.hauteur)) && (
             <div style={{ marginTop: 12, padding: "12px 14px", background: "var(--bg)",
               borderRadius: 8, border: "1px solid var(--border2)", display: "flex",
               justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                {prix_m2 ? (
+                {composeMode ? (
+                  <div style={{ fontSize: 12, color: "var(--text2)" }}>
+                    {partiesCalc.map((p, pi) => (
+                      <div key={pi}>
+                        {p.position || "(sans nom)"} — {p.type === "fixe" ? "Fixe" : "Ouvrant"} {(+p.largeur||0)}×{(+p.hauteur||0)}mm
+                        {" "}({p.surf.toFixed(2)} m²) × <span style={{ ...s.mono, color: "var(--accent)" }}>{p.rate || "—"} €/m²</span>
+                        {" "}= <span style={{ ...s.mono }}>{Math.round(p.prix).toLocaleString("fr-FR")} €</span>
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 4, fontWeight: 600 }}>
+                      Total châssis : {surfaceCompose.toFixed(2)} m² × {ligne.qte || 1} unité(s)
+                      {ligne.finition !== "std" && (
+                        <span style={{ color: "var(--text3)" }}>
+                          {" "}× {ligne.finition === "ral_maj" ? "1.10" : ligne.finition === "anodise" ? "1.15" : "1.25"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : prix_m2 ? (
                   <div style={{ fontSize: 12, color: "var(--text2)" }}>
                     <span style={{ ...s.mono, color: "var(--accent)" }}>{prix_m2} €/m²</span>
                     {" "}× {surface.toFixed(2)} m² × {ligne.qte || 1} unité(s)
@@ -328,7 +434,7 @@
     function PageEstimation() {
       const [projetNom, setProjetNom] = useState("");
       const [lignes, setLignes] = useState([
-        { id: 1, repere: "Type A", gamme: "AWS 75.II", type_ouvrant: "battant_1vtl",
+        { id: 1, repere: "Type A", gamme: "AWS 75.II", type_ouvrant: "battant_1vtl", mode_compo: "simple", parties: [],
           largeur: "1230", hauteur: "1480", qte: "10", finition: "std" },
       ]);
       const [coeff_pose, setCoeffPose] = useState("1.8");
@@ -336,20 +442,37 @@
 
       const addLigne = () => setLignes(l => [...l, {
         id: Date.now(), repere: `Type ${String.fromCharCode(65 + l.length)}`,
-        gamme: "AWS 75.II", type_ouvrant: "battant_1vtl",
+        gamme: "AWS 75.II", type_ouvrant: "battant_1vtl", mode_compo: "simple", parties: [],
         largeur: "", hauteur: "", qte: "1", finition: "std"
       }]);
 
       const upd = (id, k, v) => setLignes(l => l.map(x => x.id === id ? { ...x, [k]: v } : x));
       const rem = id => setLignes(l => l.filter(x => x.id !== id));
 
-      // Calcul totaux
+      // Calcul totaux — gère le mode simple (1 taux sur toute la surface) et le mode
+      // composé (plusieurs parties fixe/ouvrant, chacune à son propre taux)
       const totaux = lignes.map(ligne => {
         const gamme = BASE_PRIX[ligne.gamme];
-        if (!gamme || !ligne.largeur || !ligne.hauteur) return { prix_mat: 0, surface: 0, qte: +ligne.qte || 0 };
+        if (!gamme) return { prix_mat: 0, surface: 0, qte: +ligne.qte || 0 };
+        const coeff_fin = ligne.finition === "ral_maj" ? 1.10 : ligne.finition === "anodise" ? 1.15 : ligne.finition === "laque_spec" ? 1.25 : 1.0;
+
+        if (ligne.mode_compo === "compose") {
+          const parties = ligne.parties || [];
+          let surfaceTot = 0, prixUnitaire = 0;
+          parties.forEach(p => {
+            const l = (+p.largeur || 0) / 1000, h = (+p.hauteur || 0) / 1000;
+            const surf = l * h;
+            const rate = p.type === "fixe" ? gamme.prix_m2.fixe : gamme.prix_m2.battant_1vtl;
+            surfaceTot += surf;
+            if (rate) prixUnitaire += surf * rate;
+          });
+          const prix_mat = prixUnitaire * coeff_fin * (+ligne.qte || 1);
+          return { prix_mat, surface: surfaceTot * (+ligne.qte || 1), qte: +ligne.qte || 0 };
+        }
+
+        if (!ligne.largeur || !ligne.hauteur) return { prix_mat: 0, surface: 0, qte: +ligne.qte || 0 };
         const surface = ((+ligne.largeur) / 1000) * ((+ligne.hauteur) / 1000);
         const prix_m2 = gamme.prix_m2[ligne.type_ouvrant] || 0;
-        const coeff_fin = ligne.finition === "ral_maj" ? 1.10 : ligne.finition === "anodise" ? 1.15 : ligne.finition === "laque_spec" ? 1.25 : 1.0;
         const prix_mat = surface * prix_m2 * coeff_fin * (+ligne.qte || 1);
         return { prix_mat, surface: surface * (+ligne.qte || 1), qte: +ligne.qte || 0 };
       });
