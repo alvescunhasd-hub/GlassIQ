@@ -92,6 +92,17 @@ function profilesCompatibles(systeme, pression_Pa, entraxe_m, portee_m){
     .map(p=>({...p, calc: flecheMeneau(pression_Pa, entraxe_m, portee_m, p.Ix)}))
     .sort((a,b)=>a.Ix-b.Ix);
 }
+// Calcul INVERSE : inertie minimale requise (cm⁴) pour respecter le critère de flèche.
+// Inversion directe de la formule de flècheMeneau : f = 5qL⁴/(384·E·I) ≤ L/critère
+// → I ≥ 5·q·L³·critère/(384·E). Universel : comparable à n'importe quel catalogue
+// fabricant (Schüco, Reynaers, Technal...), même si le profil n'est pas en base.
+function inertieRequise(pression_Pa, entraxe_m, portee_m, critere){
+  const q = pression_Pa * entraxe_m / 1000; // N/mm
+  const L = portee_m * 1000; // mm
+  const fAdm = L / critere; // mm
+  const I_mm4 = (5 * q * Math.pow(L,4)) / (384 * E_ALU * fAdm);
+  return +(I_mm4 / 1e4).toFixed(1); // cm⁴
+}
 
 // ── ANALYSE TRAME FAÇADE — métré meneaux/traverses/ouvrants ────────────────
 function analyseFacade(el){
@@ -2268,6 +2279,11 @@ function PageFleche({projet}){
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression vent</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{pression} Pa</div></div>
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Charge linéique meneau</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{(pression*(+entraxe||1.35)/1000).toFixed(2)} N/mm</div></div>
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Flèche admissible L/{critere}</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{((+portee||3.5)*1000/+critere).toFixed(1)} mm</div></div>
+      <div style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(240,192,64,0.15)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8}}>
+        <div style={{fontSize:11,color:"rgba(240,192,64,0.8)"}}>Inertie Ix minimale requise</div>
+        <div style={{fontSize:22,fontWeight:800,color:"#f0c040"}}>{inertieRequise(pression,+entraxe||1.35,+portee||3.5,+critere)} cm⁴</div>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>universel — comparable à tout catalogue fabricant</div>
+      </div>
     </div>}
 
     <button onClick={calculer} disabled={!pression} style={S.btnPrimary}>📐 Vérifier les meneaux {systeme==="FW50"?"FWS 50":"FWS 60"}</button>
