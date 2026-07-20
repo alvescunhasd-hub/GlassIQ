@@ -1355,8 +1355,93 @@ function PageProjet({projet,setProjet,setPage}){
                 const updPanneau=(idx,champ,val)=>{const arr=panneaux.map((p,pi)=>pi===idx?{...p,[champ]:val}:p);updEl(i,"panneaux",arr);};
                 const addPanneau=()=>updEl(i,"panneaux",[...panneaux,{largeur:"",hauteur:"",type:"fixe",qte:"1",label:""}]);
                 const delPanneau=(idx)=>updEl(i,"panneaux",panneaux.filter((_,pi)=>pi!==idx));
+                // Génère une grille régulière de panneaux à partir des comptages TOTAUX
+                // (montants et traverses, RIVES INCLUSES) : 4 montants → 3 travées ;
+                // 9 traverses réparties sur 3 travées → 3 par travée → 2 rangées → 6 zones.
+                const genererGrille=()=>{
+                  const nm=+el.nb_montants||0, nt=+el.nb_traverses_total||0;
+                  const L=+el.largeur||0, H=+el.hauteur||0;
+                  if(nm<2||!L||!H)return;
+                  const travees=nm-1;
+                  const travPerTravee=travees>0?nt/travees:0;
+                  const rangees=Math.max(1,Math.round(travPerTravee)-1);
+                  const largP=Math.round(L/travees), hautP=Math.round(H/rangees);
+                  updEl(i,"panneaux",[{largeur:String(largP),hauteur:String(hautP),type:"fixe",qte:String(travees*rangees),label:"grille auto"}]);
+                };
                 return <div>
                   <div style={{fontSize:10,color:"#6b7280",marginBottom:8}}>Liste chaque panneau réel (dimensions différentes possibles) — porte, fixes de tailles variées, etc. La résistance/flèche sera vérifiée sur le panneau le plus défavorable.</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,marginBottom:10,alignItems:"end"}}>
+                    <div><label style={{...S.label,fontSize:10}}>Nombre de montants (total, rives incluses)</label><input type="number" value={el.nb_montants||""} placeholder="ex: 4" onChange={e=>updEl(i,"nb_montants",e.target.value)} style={S.input}/></div>
+                    <div><label style={{...S.label,fontSize:10}}>Nombre de traverses (total)</label><input type="number" value={el.nb_traverses_total||""} placeholder="ex: 9" onChange={e=>updEl(i,"nb_traverses_total",e.target.value)} style={S.input}/></div>
+                    <button onClick={genererGrille} style={{...S.btnSecondary,fontSize:11,padding:"8px 14px",whiteSpace:"nowrap"}}>⚡ Générer la grille</button>
+                  </div>
+                  {(+el.nb_montants>=2)&&(()=>{
+                    const travees=(+el.nb_montants)-1;
+                    const nt=+el.nb_traverses_total||0;
+                    const rangees=travees>0?Math.max(1,Math.round(nt/travees)-1):1;
+                    return <div style={{fontSize:10,color:"#7c3aed",marginBottom:8}}>→ {(+el.nb_montants)} montants = {travees} travées{nt>0?` · ${nt} traverses = ${rangees} rangée${rangees>1?"s":""} → ${travees*rangees} zones vitrées de ${el.largeur&&Math.round((+el.largeur)/travees)}×${el.hauteur&&Math.round((+el.hauteur)/rangees)}mm`:""}</div>;
+                  })()}
+                  {/* Aperçu VISUEL de la trame — schéma à l'échelle, vérifiable avant de générer.
+                      Largeurs de travées et hauteurs de rangées personnalisables (ex. 2000,1000)
+                      pour les trames non uniformes ; uniforme par défaut depuis montants/traverses. */}
+                  {(+el.nb_montants>=2||el.travees_larg||el.rangees_haut)&&(()=>{
+                    const L=+el.largeur||0, H=+el.hauteur||0;
+                    if(!L||!H)return null;
+                    const nm=+el.nb_montants||0, nt=+el.nb_traverses_total||0;
+                    const travees=Math.max(1,nm-1);
+                    const rangees=travees>0?Math.max(1,Math.round((nt||travees)/travees)-1):1;
+                    const parseList=(s,n,total)=>{
+                      if(!s)return Array(n).fill(total/n);
+                      const vals=String(s).split(/[,;\s]+/).map(Number).filter(v=>v>0);
+                      if(vals.length===0)return Array(n).fill(total/n);
+                      if(vals.length===1)return Array(n).fill(vals[0]);
+                      return vals;
+                    };
+                    const largs=parseList(el.travees_larg,travees,L);
+                    const hauts=parseList(el.rangees_haut,rangees,H);
+                    const sumL=largs.reduce((a,b)=>a+b,0), sumH=hauts.reduce((a,b)=>a+b,0);
+                    const okL=Math.abs(sumL-L)<=5, okH=Math.abs(sumH-H)<=5;
+                    const W=460, scale=W/Math.max(sumL,1), Hpx=Math.max(60,sumH*scale)+14;
+                    let cx=0; const cols=largs.map(w=>{const c={x:cx,w};cx+=w;return c;});
+                    let cy=0; const rows=hauts.map(h=>{const r={y:cy,h};cy+=h;return r;});
+                    const genererDepuisSchema=()=>{
+                      const groupes={};
+                      cols.forEach(c=>rows.forEach(r=>{
+                        const key=Math.round(c.w)+"x"+Math.round(r.h);
+                        groupes[key]=(groupes[key]||0)+1;
+                      }));
+                      updEl(i,"panneaux",Object.entries(groupes).map(([k,q])=>{
+                        const parts=k.split("x");
+                        return {largeur:parts[0],hauteur:parts[1],type:"fixe",qte:String(q),label:"schéma"};
+                      }));
+                    };
+                    return <div style={{marginBottom:8,padding:"10px 12px",background:"#fff",borderRadius:8,border:"1px solid #ddd6fe"}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"#5b21b6",marginBottom:6}}>👁 APERÇU VISUEL DE LA TRAME (à l'échelle)</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
+                        <div><label style={{...S.label,fontSize:9}}>Largeurs des travées (mm, virgules)</label><input type="text" value={el.travees_larg||""} placeholder={"vide = uniforme ("+(travees>0?Math.round(L/travees):"?")+" × "+travees+")"} onChange={e=>updEl(i,"travees_larg",e.target.value)} style={S.input}/></div>
+                        <div><label style={{...S.label,fontSize:9}}>Hauteurs des rangées (mm, virgules)</label><input type="text" value={el.rangees_haut||""} placeholder={"ex : 2000,1000 — vide = uniforme"} onChange={e=>updEl(i,"rangees_haut",e.target.value)} style={S.input}/></div>
+                      </div>
+                      <div style={{fontSize:10,marginBottom:6}}>
+                        <span style={{color:okL?"#059669":"#991b1b",fontWeight:600}}>Σ largeurs {Math.round(sumL)} / {L} mm {okL?"✓":"✗"}</span>
+                        <span style={{margin:"0 10px",color:"#d1d5db"}}>|</span>
+                        <span style={{color:okH?"#059669":"#991b1b",fontWeight:600}}>Σ hauteurs {Math.round(sumH)} / {H} mm {okH?"✓":"✗"}</span>
+                        <span style={{marginLeft:10,color:"#6b7280"}}>{cols.length}×{rows.length} = {cols.length*rows.length} zones</span>
+                      </div>
+                      <svg viewBox={"0 0 "+W+" "+Hpx} style={{width:"100%",maxWidth:W,display:"block",border:"1px solid #e5e7eb",borderRadius:6,background:"#f8fafc"}}>
+                        {cols.map((c,ci)=>rows.map((r,ri)=>(
+                          <g key={ci+"-"+ri}>
+                            <rect x={c.x*scale+1.5} y={r.y*scale+1.5} width={Math.max(2,c.w*scale-3)} height={Math.max(2,r.h*scale-3)} fill="#dbeafe" stroke="#5b21b6" strokeWidth="1.4"/>
+                            {c.w*scale>52&&r.h*scale>16&&<text x={(c.x+c.w/2)*scale} y={(r.y+r.h/2)*scale} textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="#1e3a8a" fontFamily="monospace">{Math.round(c.w)}×{Math.round(r.h)}</text>}
+                          </g>
+                        )))}
+                      </svg>
+                      <button onClick={genererDepuisSchema} disabled={!okL||!okH} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:8,opacity:(!okL||!okH)?0.5:1,cursor:(!okL||!okH)?"not-allowed":"pointer"}}>✓ Valider ce schéma → générer les panneaux</button>
+                      {(!okL||!okH)&&<div style={{fontSize:10,color:"#991b1b",marginTop:4}}>Les sommes doivent correspondre aux dimensions de la façade pour générer.</div>}
+                    </div>;
+                  })()}
+                  {panneaux.length===0&&<div style={{padding:"8px 12px",background:"#fff1f2",border:"1px solid #fca5a5",borderRadius:8,fontSize:11,color:"#991b1b",marginBottom:8}}>
+                    ⚠ Aucun panneau saisi — tant que la liste est vide, le récap ci-dessous est calculé en <strong>trame régulière par défaut (1350mm)</strong>, qui ne correspond PAS à ta saisie. Utilise "⚡ Générer la grille" ou ajoute les panneaux manuellement.
+                  </div>}
                   {panneaux.map((p,pi)=>(
                     <div key={pi} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:6,marginBottom:6,alignItems:"end"}}>
                       <div><label style={{...S.label,fontSize:9}}>Largeur (mm)</label><input type="number" value={p.largeur} onChange={e=>updPanneau(pi,"largeur",e.target.value)} style={S.input}/></div>
@@ -1368,10 +1453,6 @@ function PageProjet({projet,setProjet,setPage}){
                     </div>
                   ))}
                   <button onClick={addPanneau} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:4}}>＋ Ajouter un panneau</button>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
-                    <div><label style={{...S.label,fontSize:10}}>Nombre de montants (total, info)</label><input type="number" value={el.nb_montants||""} placeholder="ex: 4" onChange={e=>updEl(i,"nb_montants",e.target.value)} style={S.input}/></div>
-                    <div><label style={{...S.label,fontSize:10}}>Nombre de traverses (total, info)</label><input type="number" value={el.nb_traverses_total||""} placeholder="ex: 8" onChange={e=>updEl(i,"nb_traverses_total",e.target.value)} style={S.input}/></div>
-                  </div>
                   {/* Sécurité allège — nécessaire aussi en mode personnalisé (sinon la
                       vérification chute tourne avec allège=0 sans contrôle possible) */}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:8}}>
@@ -1486,7 +1567,7 @@ function PageProjet({projet,setProjet,setPage}){
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 3fr",gap:12,marginTop:12}}>
         <div><label style={S.label}>Type de verre (ε3, Art.8 DTU 39)</label><select value={projet.type_verre||"recuit"} onChange={e=>upd("type_verre",e.target.value)} style={S.input}>{Object.entries(EPS3_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
-        <div style={{fontSize:11,color:"#9ca3af",alignSelf:"center"}}>Détermine ε3 (coefficient de résistance selon le type de verre) — même type appliqué à toute la composition. Pour un mélange de types dans un même vitrage, vérifier manuellement.</div>
+        <div style={{fontSize:11,color:"#9ca3af",alignSelf:"center"}}>Détermine ε3 (coefficient de résistance). <strong style={{color:"#991b1b"}}>Composition MIXTE (ex. 44.2 recuit + monolithe trempé) : sélectionner le type le PLUS DÉFAVORABLE présent (ici recuit)</strong> — la méthode DTU 39 applique le ε3 du composant le moins résistant à toute la composition (cf. exemples officiels "ε3max"). Sélectionner "trempé" alors qu'une seule face l'est surestime la résistance.</div>
       </div>
       {pression&&<div style={{marginTop:12,padding:"10px 16px",background:"#1a1a2e",borderRadius:10,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.55)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m</div></div>}
     </div>
