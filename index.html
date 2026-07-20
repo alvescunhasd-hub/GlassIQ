@@ -1361,6 +1361,12 @@ function PageProjet({projet,setProjet,setPage}){
                     <div><label style={{...S.label,fontSize:10}}>Nombre de montants (total, info)</label><input type="number" value={el.nb_montants||""} placeholder="ex: 4" onChange={e=>updEl(i,"nb_montants",e.target.value)} style={S.input}/></div>
                     <div><label style={{...S.label,fontSize:10}}>Nombre de traverses (total, info)</label><input type="number" value={el.nb_traverses_total||""} placeholder="ex: 8" onChange={e=>updEl(i,"nb_traverses_total",e.target.value)} style={S.input}/></div>
                   </div>
+                  {/* Sécurité allège — nécessaire aussi en mode personnalisé (sinon la
+                      vérification chute tourne avec allège=0 sans contrôle possible) */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:8}}>
+                    <div><label style={{...S.label,fontSize:10}}>Hauteur d'allège (mm)</label><input type="number" value={el.allege_h||""} placeholder="0 si vitré au sol" onChange={e=>updEl(i,"allege_h",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Bas du vitrage / sol fini — pilote la sécurité chute</div></div>
+                    <div><label style={{...S.label,fontSize:10}}>Allège opaque ?</label><select value={el.allege_opaque?"oui":"non"} onChange={e=>updEl(i,"allege_opaque",e.target.value==="oui")} style={S.input}><option value="non">Non — vitré bas</option><option value="oui">Oui — panneau opaque</option></select></div>
+                  </div>
                 </div>;
               })():null}
               {el.mode_trame!=="personnalisee"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10}}>
@@ -1724,7 +1730,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
                   <div style={{fontSize:10,color:"#9ca3af"}}>{v.nb_verres} verre{v.nb_verres>1?"s":""}{v.lames_air.length?" · lame "+v.lames_air.join("+")+"mm":""}</div>
                 </div>
                 <div>
-                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>{v.isFacade?"POIDS / PANNEAU":"POIDS VANTAIL"} ({v.surface} m²)</div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>{v.isFacade?"POIDS / PANNEAU":(v.nb_vantaux===0?"POIDS / CARREAU":"POIDS VANTAIL")} ({v.surface} m²)</div>
                   <div style={{fontSize:13,fontWeight:700,color:v.poids_ok===false?"#991b1b":v.poids_ok?"#059669":"#1a1a2e"}}>{v.poids_vantail} kg {v.poids_ok===false?"✗":v.poids_ok?"✓":""}</div>
                   <div style={{fontSize:10,color:"#9ca3af"}}>{v.base_label} · max {v.isFacade?"appui":"ferrure"} : {v.poids_max?v.poids_max+" kg":"non renseigné"}</div>
                 </div>
@@ -1928,11 +1934,13 @@ function PagePrescription({projet,setProjet,setPage}){
         {/* Métré façade + sécurité allège + RC3 */}
         {(ty._facade||ty._allege.protection_requise||ty._rc3)&&<div style={{padding:"8px 12px",background:"#fafafa",borderTop:"1px solid #e5e7eb",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
           {ty._facade&&<div style={{display:"flex",gap:14,fontSize:11,color:"#374151"}}>
-            <span>🏢 <strong>{ty._facade.nb_meneaux}</strong> meneaux ({ty._facade.nb_travees} travées)</span>
+            {ty._facade.mode==="personnalisee"
+              ? <span>🏢 <strong>{ty._facade.nb_panneaux_total}</strong> panneaux ({ty._facade.panneaux.length} tailles){ty._facade.nb_meneaux?` · ${ty._facade.nb_meneaux} montants`:""}</span>
+              : <span>🏢 <strong>{ty._facade.nb_meneaux}</strong> meneaux ({ty._facade.nb_travees} travées)</span>}
             <span>Vitré fixe <strong>{ty._facade.surf_vitree_fixe} m²</strong></span>
             <span>Ouvrants <strong>{ty._facade.nb_ouvrants}</strong> ({ty._facade.surf_ouvrants} m²)</span>
             {ty._facade.surf_allege>0&&<span>Allège opaque <strong>{ty._facade.surf_allege} m²</strong></span>}
-            <span>ML meneaux <strong>{ty._facade.ml_meneaux} m</strong></span>
+            {ty._facade.ml_meneaux!=null&&<span>ML meneaux <strong>{ty._facade.ml_meneaux} m</strong></span>}
           </div>}
           {ty._allege.protection_requise&&<div style={{fontSize:11,fontWeight:600,color:ty._allege_opaque?"#92400e":"#991b1b",padding:"3px 10px",background:"#fff",borderRadius:6,border:"1px solid #fde68a"}}>
             🛡 {ty._allege_opaque?"Allège opaque — garde-corps panneau":"Feuilleté 1B1 obligatoire (allège "+ty._allege.allege_m+"m)"}
