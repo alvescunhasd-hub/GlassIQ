@@ -1382,32 +1382,61 @@ function PageProjet({projet,setProjet,setPage}){
                     return <div style={{fontSize:10,color:"#7c3aed",marginBottom:8}}>→ {(+el.nb_montants)} montants = {travees} travées{nt>0?` · ${nt} traverses = ${rangees} rangée${rangees>1?"s":""} → ${travees*rangees} zones vitrées de ${el.largeur&&Math.round((+el.largeur)/travees)}×${el.hauteur&&Math.round((+el.hauteur)/rangees)}mm`:""}</div>;
                   })()}
                   {/* Aperçu VISUEL de la trame — schéma à l'échelle, vérifiable avant de générer.
-                      Largeurs de travées et hauteurs de rangées personnalisables (ex. 2000,1000)
-                      pour les trames non uniformes ; uniforme par défaut depuis montants/traverses. */}
-                  {(+el.nb_montants>=2||el.travees_larg||el.rangees_haut)&&(()=>{
+                      Deux modes : GRILLE UNIFORME (mêmes rangées sur toutes les travées) ou
+                      PAR TRAVÉE (chaque colonne définit ses propres hauteurs de zones — pour
+                      les trames asymétriques : une colonne 2000+1000 à côté d'une pleine hauteur). */}
+                  {(+el.nb_montants>=2||el.travees_larg||el.rangees_haut||el.trame_mode_visuel==="par_travee")&&(()=>{
                     const L=+el.largeur||0, H=+el.hauteur||0;
                     if(!L||!H)return null;
-                    const nm=+el.nb_montants||0, nt=+el.nb_traverses_total||0;
-                    const travees=Math.max(1,nm-1);
-                    const rangees=travees>0?Math.max(1,Math.round((nt||travees)/travees)-1):1;
-                    const parseList=(s,n,total)=>{
-                      if(!s)return Array(n).fill(total/n);
-                      const vals=String(s).split(/[,;\s]+/).map(Number).filter(v=>v>0);
-                      if(vals.length===0)return Array(n).fill(total/n);
-                      if(vals.length===1)return Array(n).fill(vals[0]);
-                      return vals;
-                    };
-                    const largs=parseList(el.travees_larg,travees,L);
-                    const hauts=parseList(el.rangees_haut,rangees,H);
-                    const sumL=largs.reduce((a,b)=>a+b,0), sumH=hauts.reduce((a,b)=>a+b,0);
-                    const okL=Math.abs(sumL-L)<=5, okH=Math.abs(sumH-H)<=5;
-                    const W=460, scale=W/Math.max(sumL,1), Hpx=Math.max(60,sumH*scale)+14;
-                    let cx=0; const cols=largs.map(w=>{const c={x:cx,w};cx+=w;return c;});
-                    let cy=0; const rows=hauts.map(h=>{const r={y:cy,h};cy+=h;return r;});
+                    const parTravee=el.trame_mode_visuel==="par_travee";
+                    const parseNums=(s)=>String(s||"").split(/[,;\s]+/).map(Number).filter(v=>v>0);
+                    let cols=[], sumL=0, okL=false, allOkH=false, okHs=[];
+                    if(parTravee){
+                      const det=el.travees_detail||[];
+                      let x=0;
+                      det.forEach(t=>{
+                        const w=+t.larg||0;
+                        const hs=parseNums(t.hauts);
+                        let y=0;
+                        const zones=hs.map(h=>{const z={y,h};y+=h;return z;});
+                        cols.push({x,w,zones,sumH:y});
+                        x+=w;
+                      });
+                      sumL=x;
+                      okL=Math.abs(sumL-L)<=5&&cols.length>0;
+                      okHs=cols.map(c=>Math.abs(c.sumH-H)<=5&&c.zones.length>0);
+                      allOkH=okHs.length>0&&okHs.every(Boolean);
+                    } else {
+                      const nm=+el.nb_montants||0, nt=+el.nb_traverses_total||0;
+                      const travees=Math.max(1,nm-1);
+                      const rangees=travees>0?Math.max(1,Math.round((nt||travees)/travees)-1):1;
+                      const parseList=(s,n,total)=>{
+                        const vals=parseNums(s);
+                        if(vals.length===0)return Array(n).fill(total/n);
+                        if(vals.length===1)return Array(n).fill(vals[0]);
+                        return vals;
+                      };
+                      const largs=parseList(el.travees_larg,travees,L);
+                      const hauts=parseList(el.rangees_haut,rangees,H);
+                      let x=0;
+                      largs.forEach(w=>{
+                        let y=0;
+                        const zones=hauts.map(h=>{const z={y,h};y+=h;return z;});
+                        cols.push({x,w,zones,sumH:y});
+                        x+=w;
+                      });
+                      sumL=x;
+                      okL=Math.abs(sumL-L)<=5;
+                      allOkH=cols.length>0&&Math.abs(cols[0].sumH-H)<=5;
+                      okHs=cols.map(()=>allOkH);
+                    }
+                    const nbZones=cols.reduce((a,c)=>a+c.zones.length,0);
+                    const W=460, scale=W/Math.max(sumL||L,1);
+                    const Hpx=Math.max(60,H*scale)+4;
                     const genererDepuisSchema=()=>{
                       const groupes={};
-                      cols.forEach(c=>rows.forEach(r=>{
-                        const key=Math.round(c.w)+"x"+Math.round(r.h);
+                      cols.forEach(c=>c.zones.forEach(z=>{
+                        const key=Math.round(c.w)+"x"+Math.round(z.h);
                         groupes[key]=(groupes[key]||0)+1;
                       }));
                       updEl(i,"panneaux",Object.entries(groupes).map(([k,q])=>{
@@ -1415,28 +1444,48 @@ function PageProjet({projet,setProjet,setPage}){
                         return {largeur:parts[0],hauteur:parts[1],type:"fixe",qte:String(q),label:"schéma"};
                       }));
                     };
+                    const updTravee=(ti,k,v)=>{const arr=(el.travees_detail||[]).map((t,x2)=>x2===ti?{...t,[k]:v}:t);updEl(i,"travees_detail",arr);};
+                    const addTravee=()=>updEl(i,"travees_detail",[...(el.travees_detail||[]),{larg:"",hauts:""}]);
+                    const delTravee=(ti)=>updEl(i,"travees_detail",(el.travees_detail||[]).filter((_,x2)=>x2!==ti));
+                    const genOk=okL&&allOkH&&nbZones>0;
                     return <div style={{marginBottom:8,padding:"10px 12px",background:"#fff",borderRadius:8,border:"1px solid #ddd6fe"}}>
-                      <div style={{fontSize:10,fontWeight:700,color:"#5b21b6",marginBottom:6}}>👁 APERÇU VISUEL DE LA TRAME (à l'échelle)</div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
-                        <div><label style={{...S.label,fontSize:9}}>Largeurs des travées (mm, virgules)</label><input type="text" value={el.travees_larg||""} placeholder={"vide = uniforme ("+(travees>0?Math.round(L/travees):"?")+" × "+travees+")"} onChange={e=>updEl(i,"travees_larg",e.target.value)} style={S.input}/></div>
-                        <div><label style={{...S.label,fontSize:9}}>Hauteurs des rangées (mm, virgules)</label><input type="text" value={el.rangees_haut||""} placeholder={"ex : 2000,1000 — vide = uniforme"} onChange={e=>updEl(i,"rangees_haut",e.target.value)} style={S.input}/></div>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                        <div style={{fontSize:10,fontWeight:700,color:"#5b21b6"}}>👁 APERÇU VISUEL DE LA TRAME (à l'échelle)</div>
+                        <button onClick={()=>updEl(i,"trame_mode_visuel","uniforme")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:!parTravee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:!parTravee?"#ede9fe":"#fff",color:!parTravee?"#5b21b6":"#6b7280"}}>Grille uniforme</button>
+                        <button onClick={()=>updEl(i,"trame_mode_visuel","par_travee")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:parTravee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:parTravee?"#ede9fe":"#fff",color:parTravee?"#5b21b6":"#6b7280"}}>Par travée (zones différentes)</button>
                       </div>
+                      {!parTravee&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
+                        <div><label style={{...S.label,fontSize:9}}>Largeurs des travées (mm, virgules)</label><input type="text" value={el.travees_larg||""} placeholder={"vide = uniforme"} onChange={e=>updEl(i,"travees_larg",e.target.value)} style={S.input}/></div>
+                        <div><label style={{...S.label,fontSize:9}}>Hauteurs des rangées (mm, virgules)</label><input type="text" value={el.rangees_haut||""} placeholder={"ex : 2000,1000 — vide = uniforme"} onChange={e=>updEl(i,"rangees_haut",e.target.value)} style={S.input}/></div>
+                      </div>}
+                      {parTravee&&<div style={{marginBottom:8}}>
+                        <div style={{fontSize:10,color:"#6b7280",marginBottom:6}}>Chaque travée (colonne) définit sa largeur ET ses propres hauteurs de zones (de haut en bas). Ex. : travée 1 → largeur 2000, hauteurs "2000,1000" ; travée 2 → largeur 2000, hauteurs "3000" (pleine hauteur). La somme des hauteurs de CHAQUE travée doit faire {H} mm.</div>
+                        {(el.travees_detail||[]).map((t,ti)=>(
+                          <div key={ti} style={{display:"grid",gridTemplateColumns:"70px 1fr 1.6fr auto",gap:6,marginBottom:5,alignItems:"end"}}>
+                            <div style={{fontSize:10,color:"#5b21b6",fontWeight:700,paddingBottom:9}}>Travée {ti+1}</div>
+                            <div><label style={{...S.label,fontSize:9}}>Largeur (mm)</label><input type="number" value={t.larg} onChange={e=>updTravee(ti,"larg",e.target.value)} style={S.input}/></div>
+                            <div><label style={{...S.label,fontSize:9}}>Hauteurs des zones (mm, haut→bas)</label><input type="text" value={t.hauts} placeholder="ex : 2000,1000" onChange={e=>updTravee(ti,"hauts",e.target.value)} style={{...S.input,border:okHs[ti]===false?"1px solid #fca5a5":S.input.border}}/></div>
+                            <button onClick={()=>delTravee(ti)} style={{padding:"7px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:12}}>✕</button>
+                          </div>
+                        ))}
+                        <button onClick={addTravee} style={{...S.btnSecondary,fontSize:11,padding:"5px 12px"}}>＋ Ajouter une travée</button>
+                      </div>}
                       <div style={{fontSize:10,marginBottom:6}}>
                         <span style={{color:okL?"#059669":"#991b1b",fontWeight:600}}>Σ largeurs {Math.round(sumL)} / {L} mm {okL?"✓":"✗"}</span>
                         <span style={{margin:"0 10px",color:"#d1d5db"}}>|</span>
-                        <span style={{color:okH?"#059669":"#991b1b",fontWeight:600}}>Σ hauteurs {Math.round(sumH)} / {H} mm {okH?"✓":"✗"}</span>
-                        <span style={{marginLeft:10,color:"#6b7280"}}>{cols.length}×{rows.length} = {cols.length*rows.length} zones</span>
+                        <span style={{color:allOkH?"#059669":"#991b1b",fontWeight:600}}>{parTravee?"Hauteurs par travée "+(allOkH?"✓":"✗ (travées en rouge)"):"Σ hauteurs "+(cols[0]?Math.round(cols[0].sumH):0)+" / "+H+" mm "+(allOkH?"✓":"✗")}</span>
+                        <span style={{marginLeft:10,color:"#6b7280"}}>{nbZones} zones</span>
                       </div>
-                      <svg viewBox={"0 0 "+W+" "+Hpx} style={{width:"100%",maxWidth:W,display:"block",border:"1px solid #e5e7eb",borderRadius:6,background:"#f8fafc"}}>
-                        {cols.map((c,ci)=>rows.map((r,ri)=>(
-                          <g key={ci+"-"+ri}>
-                            <rect x={c.x*scale+1.5} y={r.y*scale+1.5} width={Math.max(2,c.w*scale-3)} height={Math.max(2,r.h*scale-3)} fill="#dbeafe" stroke="#5b21b6" strokeWidth="1.4"/>
-                            {c.w*scale>52&&r.h*scale>16&&<text x={(c.x+c.w/2)*scale} y={(r.y+r.h/2)*scale} textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="#1e3a8a" fontFamily="monospace">{Math.round(c.w)}×{Math.round(r.h)}</text>}
+                      {nbZones>0&&<svg viewBox={"0 0 "+W+" "+Hpx} style={{width:"100%",maxWidth:W,display:"block",border:"1px solid #e5e7eb",borderRadius:6,background:"#f8fafc"}}>
+                        {cols.map((c,ci)=>c.zones.map((z,zi)=>(
+                          <g key={ci+"-"+zi}>
+                            <rect x={c.x*scale+1.5} y={z.y*scale+1.5} width={Math.max(2,c.w*scale-3)} height={Math.max(2,z.h*scale-3)} fill="#dbeafe" stroke="#5b21b6" strokeWidth="1.4"/>
+                            {c.w*scale>52&&z.h*scale>16&&<text x={(c.x+c.w/2)*scale} y={(z.y+z.h/2)*scale} textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="#1e3a8a" fontFamily="monospace">{Math.round(c.w)}×{Math.round(z.h)}</text>}
                           </g>
                         )))}
-                      </svg>
-                      <button onClick={genererDepuisSchema} disabled={!okL||!okH} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:8,opacity:(!okL||!okH)?0.5:1,cursor:(!okL||!okH)?"not-allowed":"pointer"}}>✓ Valider ce schéma → générer les panneaux</button>
-                      {(!okL||!okH)&&<div style={{fontSize:10,color:"#991b1b",marginTop:4}}>Les sommes doivent correspondre aux dimensions de la façade pour générer.</div>}
+                      </svg>}
+                      <button onClick={genererDepuisSchema} disabled={!genOk} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:8,opacity:!genOk?0.5:1,cursor:!genOk?"not-allowed":"pointer"}}>✓ Valider ce schéma → générer les panneaux</button>
+                      {!genOk&&<div style={{fontSize:10,color:"#991b1b",marginTop:4}}>{parTravee?"Ajoute des travées ; chaque colonne doit totaliser "+H+" mm de hauteur et l'ensemble "+L+" mm de largeur.":"Les sommes doivent correspondre aux dimensions de la façade pour générer."}</div>}
                     </div>;
                   })()}
                   {panneaux.length===0&&<div style={{padding:"8px 12px",background:"#fff1f2",border:"1px solid #fca5a5",borderRadius:8,fontSize:11,color:"#991b1b",marginBottom:8}}>
