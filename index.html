@@ -1459,7 +1459,7 @@ function PageProjet({projet,setProjet,setPage}){
                         <div><label style={{...S.label,fontSize:9}}>Hauteurs des rangées (mm, virgules)</label><input type="text" value={el.rangees_haut||""} placeholder={"ex : 2000,1000 — vide = uniforme"} onChange={e=>updEl(i,"rangees_haut",e.target.value)} style={S.input}/></div>
                       </div>}
                       {parTravee&&<div style={{marginBottom:8}}>
-                        <div style={{fontSize:10,color:"#6b7280",marginBottom:6}}>Chaque travée (colonne) définit sa largeur ET ses propres hauteurs de zones (de haut en bas). Ex. : travée 1 → largeur 2000, hauteurs "2000,1000" ; travée 2 → largeur 2000, hauteurs "3000" (pleine hauteur). La somme des hauteurs de CHAQUE travée doit faire {H} mm.</div>
+                        <div style={{fontSize:10,color:"#6b7280",marginBottom:6}}><strong style={{color:"#991b1b"}}>1 travée = 1 COLONNE verticale — n'ajoute PAS une travée par zone !</strong> Les largeurs des travées s'additionnent côte à côte (elles doivent totaliser {L} mm). Pour empiler plusieurs zones dans la MÊME colonne, saisis leurs hauteurs séparées par des virgules dans le champ "Hauteurs" de cette travée. Ex. : travée 1 → largeur 2000, hauteurs "2000,1000" (= 2 zones empilées) ; travée 2 → largeur 2000, hauteurs "3000" (pleine hauteur). La somme des hauteurs de CHAQUE travée doit faire {H} mm.</div>
                         {(el.travees_detail||[]).map((t,ti)=>(
                           <div key={ti} style={{display:"grid",gridTemplateColumns:"70px 1fr 1.6fr auto",gap:6,marginBottom:5,alignItems:"end"}}>
                             <div style={{fontSize:10,color:"#5b21b6",fontWeight:700,paddingBottom:9}}>Travée {ti+1}</div>
