@@ -1385,12 +1385,13 @@ function PageProjet({projet,setProjet,setPage}){
                       Deux modes : GRILLE UNIFORME (mêmes rangées sur toutes les travées) ou
                       PAR TRAVÉE (chaque colonne définit ses propres hauteurs de zones — pour
                       les trames asymétriques : une colonne 2000+1000 à côté d'une pleine hauteur). */}
-                  {(+el.nb_montants>=2||el.travees_larg||el.rangees_haut||el.trame_mode_visuel==="par_travee")&&(()=>{
+                  {(+el.nb_montants>=2||el.travees_larg||el.rangees_haut||el.trame_mode_visuel==="par_travee"||el.trame_mode_visuel==="par_rangee")&&(()=>{
                     const L=+el.largeur||0, H=+el.hauteur||0;
                     if(!L||!H)return null;
                     const parTravee=el.trame_mode_visuel==="par_travee";
+                    const parRangee=el.trame_mode_visuel==="par_rangee";
                     const parseNums=(s)=>String(s||"").split(/[,;\s]+/).map(Number).filter(v=>v>0);
-                    let cols=[], sumL=0, okL=false, allOkH=false, okHs=[];
+                    let cols=[], sumL=0, okL=false, allOkH=false, okHs=[], sumHAff=null;
                     if(parTravee){
                       const det=el.travees_detail||[];
                       let x=0;
@@ -1406,6 +1407,25 @@ function PageProjet({projet,setProjet,setPage}){
                       okL=Math.abs(sumL-L)<=5&&cols.length>0;
                       okHs=cols.map(c=>Math.abs(c.sumH-H)<=5&&c.zones.length>0);
                       allOkH=okHs.length>0&&okHs.every(Boolean);
+                    } else if(parRangee){
+                      // Mode PAR RANGÉE : chaque bande horizontale (trame sup → inf) définit
+                      // sa hauteur ET les largeurs de ses zones — les montants peuvent donc
+                      // différer d'une rangée à l'autre (non alignés) si souhaité.
+                      const det=el.rangees_detail||[];
+                      let y=0; const rowSums=[];
+                      det.forEach(r=>{
+                        const h=+r.haut||0;
+                        const ws=parseNums(r.largs);
+                        let x=0;
+                        ws.forEach(w=>{cols.push({x,w,zones:[{y,h}]});x+=w;});
+                        rowSums.push({sumW:x,n:ws.length});
+                        y+=h;
+                      });
+                      sumL=rowSums.length?Math.max(...rowSums.map(r=>r.sumW)):0;
+                      okHs=rowSums.map(r=>Math.abs(r.sumW-L)<=5&&r.n>0);
+                      okL=okHs.length>0&&okHs.every(Boolean);
+                      allOkH=Math.abs(y-H)<=5&&rowSums.length>0;
+                      sumHAff=y;
                     } else {
                       const nm=+el.nb_montants||0, nt=+el.nb_traverses_total||0;
                       const travees=Math.max(1,nm-1);
@@ -1447,12 +1467,16 @@ function PageProjet({projet,setProjet,setPage}){
                     const updTravee=(ti,k,v)=>{const arr=(el.travees_detail||[]).map((t,x2)=>x2===ti?{...t,[k]:v}:t);updEl(i,"travees_detail",arr);};
                     const addTravee=()=>updEl(i,"travees_detail",[...(el.travees_detail||[]),{larg:"",hauts:""}]);
                     const delTravee=(ti)=>updEl(i,"travees_detail",(el.travees_detail||[]).filter((_,x2)=>x2!==ti));
+                    const updRangee=(ri,k,v)=>{const arr=(el.rangees_detail||[]).map((r,x2)=>x2===ri?{...r,[k]:v}:r);updEl(i,"rangees_detail",arr);};
+                    const addRangee=()=>updEl(i,"rangees_detail",[...(el.rangees_detail||[]),{haut:"",largs:""}]);
+                    const delRangee=(ri)=>updEl(i,"rangees_detail",(el.rangees_detail||[]).filter((_,x2)=>x2!==ri));
                     const genOk=okL&&allOkH&&nbZones>0;
                     return <div style={{marginBottom:8,padding:"10px 12px",background:"#fff",borderRadius:8,border:"1px solid #ddd6fe"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
                         <div style={{fontSize:10,fontWeight:700,color:"#5b21b6"}}>👁 APERÇU VISUEL DE LA TRAME (à l'échelle)</div>
                         <button onClick={()=>updEl(i,"trame_mode_visuel","uniforme")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:!parTravee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:!parTravee?"#ede9fe":"#fff",color:!parTravee?"#5b21b6":"#6b7280"}}>Grille uniforme</button>
-                        <button onClick={()=>updEl(i,"trame_mode_visuel","par_travee")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:parTravee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:parTravee?"#ede9fe":"#fff",color:parTravee?"#5b21b6":"#6b7280"}}>Par travée (zones différentes)</button>
+                        <button onClick={()=>updEl(i,"trame_mode_visuel","par_travee")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:parTravee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:parTravee?"#ede9fe":"#fff",color:parTravee?"#5b21b6":"#6b7280"}}>Par travée (colonnes)</button>
+                        <button onClick={()=>updEl(i,"trame_mode_visuel","par_rangee")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:parRangee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:parRangee?"#ede9fe":"#fff",color:parRangee?"#5b21b6":"#6b7280"}}>Par rangée (sup/inf)</button>
                       </div>
                       {!parTravee&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
                         <div><label style={{...S.label,fontSize:9}}>Largeurs des travées (mm, virgules)</label><input type="text" value={el.travees_larg||""} placeholder={"vide = uniforme"} onChange={e=>updEl(i,"travees_larg",e.target.value)} style={S.input}/></div>
@@ -1470,10 +1494,22 @@ function PageProjet({projet,setProjet,setPage}){
                         ))}
                         <button onClick={addTravee} style={{...S.btnSecondary,fontSize:11,padding:"5px 12px"}}>＋ Ajouter une travée</button>
                       </div>}
+                      {parRangee&&<div style={{marginBottom:8}}>
+                        <div style={{fontSize:10,color:"#6b7280",marginBottom:6}}><strong style={{color:"#5b21b6"}}>1 rangée = 1 bande horizontale, saisie du HAUT vers le BAS.</strong> Chaque rangée définit sa hauteur ET les largeurs de ses zones (virgules) — les montants peuvent donc être alignés OU décalés entre rangées. Ex. : rangée 1 (sup) → hauteur 2000, largeurs "2000,2000,2000" ; rangée 2 (inf) → hauteur 1000, largeurs "3000,3000" (montants décalés). Chaque rangée doit totaliser {L} mm de large ; les hauteurs cumulées doivent faire {H} mm.</div>
+                        {(el.rangees_detail||[]).map((r,ri)=>(
+                          <div key={ri} style={{display:"grid",gridTemplateColumns:"96px 1fr 1.6fr auto",gap:6,marginBottom:5,alignItems:"end"}}>
+                            <div style={{fontSize:10,color:"#5b21b6",fontWeight:700,paddingBottom:9}}>Rangée {ri+1}{ri===0?" (sup)":ri===(el.rangees_detail||[]).length-1?" (inf)":""}</div>
+                            <div><label style={{...S.label,fontSize:9}}>Hauteur (mm)</label><input type="number" value={r.haut} onChange={e=>updRangee(ri,"haut",e.target.value)} style={S.input}/></div>
+                            <div><label style={{...S.label,fontSize:9}}>Largeurs des zones (mm, gauche→droite)</label><input type="text" value={r.largs} placeholder="ex : 2000,2000,2000" onChange={e=>updRangee(ri,"largs",e.target.value)} style={{...S.input,border:okHs[ri]===false?"1px solid #fca5a5":S.input.border}}/></div>
+                            <button onClick={()=>delRangee(ri)} style={{padding:"7px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:12}}>✕</button>
+                          </div>
+                        ))}
+                        <button onClick={addRangee} style={{...S.btnSecondary,fontSize:11,padding:"5px 12px"}}>＋ Ajouter une rangée</button>
+                      </div>}
                       <div style={{fontSize:10,marginBottom:6}}>
-                        <span style={{color:okL?"#059669":"#991b1b",fontWeight:600}}>Σ largeurs {Math.round(sumL)} / {L} mm {okL?"✓":"✗"}</span>
+                        <span style={{color:okL?"#059669":"#991b1b",fontWeight:600}}>{parRangee?"Largeurs par rangée "+(okL?"✓":"✗ (rangées en rouge)"):"Σ largeurs "+Math.round(sumL)+" / "+L+" mm "+(okL?"✓":"✗")}</span>
                         <span style={{margin:"0 10px",color:"#d1d5db"}}>|</span>
-                        <span style={{color:allOkH?"#059669":"#991b1b",fontWeight:600}}>{parTravee?"Hauteurs par travée "+(allOkH?"✓":"✗ (travées en rouge)"):"Σ hauteurs "+(cols[0]?Math.round(cols[0].sumH):0)+" / "+H+" mm "+(allOkH?"✓":"✗")}</span>
+                        <span style={{color:allOkH?"#059669":"#991b1b",fontWeight:600}}>{parTravee?"Hauteurs par travée "+(allOkH?"✓":"✗ (travées en rouge)"):"Σ hauteurs "+(parRangee?Math.round(sumHAff||0):(cols[0]?Math.round(cols[0].sumH):0))+" / "+H+" mm "+(allOkH?"✓":"✗")}</span>
                         <span style={{marginLeft:10,color:"#6b7280"}}>{nbZones} zones</span>
                       </div>
                       {nbZones>0&&<svg viewBox={"0 0 "+W+" "+Hpx} style={{width:"100%",maxWidth:W,display:"block",border:"1px solid #e5e7eb",borderRadius:6,background:"#f8fafc"}}>
@@ -1485,7 +1521,7 @@ function PageProjet({projet,setProjet,setPage}){
                         )))}
                       </svg>}
                       <button onClick={genererDepuisSchema} disabled={!genOk} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:8,opacity:!genOk?0.5:1,cursor:!genOk?"not-allowed":"pointer"}}>✓ Valider ce schéma → générer les panneaux</button>
-                      {!genOk&&<div style={{fontSize:10,color:"#991b1b",marginTop:4}}>{parTravee?"Ajoute des travées ; chaque colonne doit totaliser "+H+" mm de hauteur et l'ensemble "+L+" mm de largeur.":"Les sommes doivent correspondre aux dimensions de la façade pour générer."}</div>}
+                      {!genOk&&<div style={{fontSize:10,color:"#991b1b",marginTop:4}}>{parTravee?"Ajoute des travées ; chaque colonne doit totaliser "+H+" mm de hauteur et l'ensemble "+L+" mm de largeur.":parRangee?"Ajoute des rangées ; chaque rangée doit totaliser "+L+" mm de largeur et les hauteurs cumulées "+H+" mm.":"Les sommes doivent correspondre aux dimensions de la façade pour générer."}</div>}
                     </div>;
                   })()}
                   {panneaux.length===0&&<div style={{padding:"8px 12px",background:"#fff1f2",border:"1px solid #fca5a5",borderRadius:8,fontSize:11,color:"#991b1b",marginBottom:8}}>
