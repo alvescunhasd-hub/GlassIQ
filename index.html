@@ -1370,158 +1370,82 @@ function PageProjet({projet,setProjet,setPage}){
                 };
                 return <div>
                   <div style={{fontSize:10,color:"#6b7280",marginBottom:8}}>Liste chaque panneau réel (dimensions différentes possibles) — porte, fixes de tailles variées, etc. La résistance/flèche sera vérifiée sur le panneau le plus défavorable.</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,marginBottom:10,alignItems:"end"}}>
-                    <div><label style={{...S.label,fontSize:10}}>Nombre de montants (total, rives incluses)</label><input type="number" value={el.nb_montants||""} placeholder="ex: 4" onChange={e=>updEl(i,"nb_montants",e.target.value)} style={S.input}/></div>
-                    <div><label style={{...S.label,fontSize:10}}>Nombre de traverses (total)</label><input type="number" value={el.nb_traverses_total||""} placeholder="ex: 9" onChange={e=>updEl(i,"nb_traverses_total",e.target.value)} style={S.input}/></div>
-                    <button onClick={genererGrille} style={{...S.btnSecondary,fontSize:11,padding:"8px 14px",whiteSpace:"nowrap"}}>⚡ Générer la grille</button>
-                  </div>
-                  {(+el.nb_montants>=2)&&(()=>{
-                    const travees=(+el.nb_montants)-1;
-                    const nt=+el.nb_traverses_total||0;
-                    const rangees=travees>0?Math.max(1,Math.round(nt/travees)-1):1;
-                    return <div style={{fontSize:10,color:"#7c3aed",marginBottom:8}}>→ {(+el.nb_montants)} montants = {travees} travées{nt>0?` · ${nt} traverses = ${rangees} rangée${rangees>1?"s":""} → ${travees*rangees} zones vitrées de ${el.largeur&&Math.round((+el.largeur)/travees)}×${el.hauteur&&Math.round((+el.hauteur)/rangees)}mm`:""}</div>;
-                  })()}
-                  {/* Aperçu VISUEL de la trame — schéma à l'échelle, vérifiable avant de générer.
-                      Deux modes : GRILLE UNIFORME (mêmes rangées sur toutes les travées) ou
-                      PAR TRAVÉE (chaque colonne définit ses propres hauteurs de zones — pour
-                      les trames asymétriques : une colonne 2000+1000 à côté d'une pleine hauteur). */}
-                  {(+el.nb_montants>=2||el.travees_larg||el.rangees_haut||el.trame_mode_visuel==="par_travee"||el.trame_mode_visuel==="par_rangee")&&(()=>{
+                  {/* CONCEPTEUR DE TRAME — flux simple : nb de trames en largeur et en
+                      hauteur, puis dimensions de chaque colonne/rangée, puis type de
+                      chaque case en cliquant sur le dessin (fixe → ouvrant → porte). */}
+                  {(()=>{
                     const L=+el.largeur||0, H=+el.hauteur||0;
                     if(!L||!H)return null;
-                    const parTravee=el.trame_mode_visuel==="par_travee";
-                    const parRangee=el.trame_mode_visuel==="par_rangee";
-                    const parseNums=(s)=>String(s||"").split(/[,;\s]+/).map(Number).filter(v=>v>0);
-                    let cols=[], sumL=0, okL=false, allOkH=false, okHs=[], sumHAff=null;
-                    if(parTravee){
-                      const det=el.travees_detail||[];
-                      let x=0;
-                      det.forEach(t=>{
-                        const w=+t.larg||0;
-                        const hs=parseNums(t.hauts);
-                        let y=0;
-                        const zones=hs.map(h=>{const z={y,h};y+=h;return z;});
-                        cols.push({x,w,zones,sumH:y});
-                        x+=w;
-                      });
-                      sumL=x;
-                      okL=Math.abs(sumL-L)<=5&&cols.length>0;
-                      okHs=cols.map(c=>Math.abs(c.sumH-H)<=5&&c.zones.length>0);
-                      allOkH=okHs.length>0&&okHs.every(Boolean);
-                    } else if(parRangee){
-                      // Mode PAR RANGÉE : chaque bande horizontale (trame sup → inf) définit
-                      // sa hauteur ET les largeurs de ses zones — les montants peuvent donc
-                      // différer d'une rangée à l'autre (non alignés) si souhaité.
-                      const det=el.rangees_detail||[];
-                      let y=0; const rowSums=[];
-                      det.forEach(r=>{
-                        const h=+r.haut||0;
-                        const ws=parseNums(r.largs);
-                        let x=0;
-                        ws.forEach(w=>{cols.push({x,w,zones:[{y,h}]});x+=w;});
-                        rowSums.push({sumW:x,n:ws.length});
-                        y+=h;
-                      });
-                      sumL=rowSums.length?Math.max(...rowSums.map(r=>r.sumW)):0;
-                      okHs=rowSums.map(r=>Math.abs(r.sumW-L)<=5&&r.n>0);
-                      okL=okHs.length>0&&okHs.every(Boolean);
-                      allOkH=Math.abs(y-H)<=5&&rowSums.length>0;
-                      sumHAff=y;
-                    } else {
-                      const nm=+el.nb_montants||0, nt=+el.nb_traverses_total||0;
-                      const travees=Math.max(1,nm-1);
-                      const rangees=travees>0?Math.max(1,Math.round((nt||travees)/travees)-1):1;
-                      const parseList=(s,n,total)=>{
-                        const vals=parseNums(s);
-                        if(vals.length===0)return Array(n).fill(total/n);
-                        if(vals.length===1)return Array(n).fill(vals[0]);
-                        return vals;
-                      };
-                      const largs=parseList(el.travees_larg,travees,L);
-                      const hauts=parseList(el.rangees_haut,rangees,H);
-                      let x=0;
-                      largs.forEach(w=>{
-                        let y=0;
-                        const zones=hauts.map(h=>{const z={y,h};y+=h;return z;});
-                        cols.push({x,w,zones,sumH:y});
-                        x+=w;
-                      });
-                      sumL=x;
-                      okL=Math.abs(sumL-L)<=5;
-                      allOkH=cols.length>0&&Math.abs(cols[0].sumH-H)<=5;
-                      okHs=cols.map(()=>allOkH);
-                    }
-                    const nbZones=cols.reduce((a,c)=>a+c.zones.length,0);
-                    const W=460, scale=W/Math.max(sumL||L,1);
-                    const Hpx=Math.max(60,H*scale)+4;
-                    const genererDepuisSchema=()=>{
+                    const nCols=Math.max(0,Math.min(12,+el.grid_cols||0));
+                    const nRows=Math.max(0,Math.min(12,+el.grid_rows||0));
+                    const widths=(el.grid_widths&&el.grid_widths.length===nCols)?el.grid_widths:Array(nCols).fill(nCols>0?String(Math.round(L/nCols)):"");
+                    const heights=(el.grid_heights&&el.grid_heights.length===nRows)?el.grid_heights:Array(nRows).fill(nRows>0?String(Math.round(H/nRows)):"");
+                    const types=el.grid_types||{};
+                    const setCols=(v)=>{const n=Math.max(0,Math.min(12,+v||0));updEl(i,"grid_cols",v);updEl(i,"grid_widths",Array(n).fill(n>0?String(Math.round(L/n)):""));};
+                    const setRows=(v)=>{const n=Math.max(0,Math.min(12,+v||0));updEl(i,"grid_rows",v);updEl(i,"grid_heights",Array(n).fill(n>0?String(Math.round(H/n)):""));};
+                    const setW=(ci,v)=>{const arr=widths.slice();arr[ci]=v;updEl(i,"grid_widths",arr);};
+                    const setHt=(ri,v)=>{const arr=heights.slice();arr[ri]=v;updEl(i,"grid_heights",arr);};
+                    const cycleType=(ci,ri)=>{const k=ci+"-"+ri;const cur=types[k]||"fixe";const next=cur==="fixe"?"ouvrant":cur==="ouvrant"?"porte":"fixe";updEl(i,"grid_types",{...types,[k]:next});};
+                    const sumW=widths.reduce((a,b)=>a+(+b||0),0);
+                    const sumH2=heights.reduce((a,b)=>a+(+b||0),0);
+                    const okW=nCols>0&&Math.abs(sumW-L)<=5;
+                    const okH2=nRows>0&&Math.abs(sumH2-H)<=5;
+                    const genOk=okW&&okH2;
+                    const FILL={fixe:"#dbeafe",ouvrant:"#d1fae5",porte:"#fed7aa"};
+                    const Wsvg=460, scale=Wsvg/Math.max(sumW||L,1), Hpx=Math.max(60,(sumH2||H)*scale)+4;
+                    let xs=[0];widths.forEach(w=>xs.push(xs[xs.length-1]+(+w||0)));
+                    let ys=[0];heights.forEach(h=>ys.push(ys[ys.length-1]+(+h||0)));
+                    const generer=()=>{
                       const groupes={};
-                      cols.forEach(c=>c.zones.forEach(z=>{
-                        const key=Math.round(c.w)+"x"+Math.round(z.h);
+                      for(let ci=0;ci<nCols;ci++)for(let ri=0;ri<nRows;ri++){
+                        const t=types[ci+"-"+ri]||"fixe";
+                        const key=Math.round(+widths[ci]||0)+"x"+Math.round(+heights[ri]||0)+"_"+t;
                         groupes[key]=(groupes[key]||0)+1;
-                      }));
+                      }
+                      updEl(i,"nb_montants",String(nCols+1));
+                      updEl(i,"nb_traverses_total",String(nCols*(nRows+1)));
                       updEl(i,"panneaux",Object.entries(groupes).map(([k,q])=>{
-                        const parts=k.split("x");
-                        return {largeur:parts[0],hauteur:parts[1],type:"fixe",qte:String(q),label:"schéma"};
+                        const kk=k.split("_");
+                        const parts=kk[0].split("x");
+                        return {largeur:parts[0],hauteur:parts[1],type:kk[1],qte:String(q),label:"grille"};
                       }));
                     };
-                    const updTravee=(ti,k,v)=>{const arr=(el.travees_detail||[]).map((t,x2)=>x2===ti?{...t,[k]:v}:t);updEl(i,"travees_detail",arr);};
-                    const addTravee=()=>updEl(i,"travees_detail",[...(el.travees_detail||[]),{larg:"",hauts:""}]);
-                    const delTravee=(ti)=>updEl(i,"travees_detail",(el.travees_detail||[]).filter((_,x2)=>x2!==ti));
-                    const updRangee=(ri,k,v)=>{const arr=(el.rangees_detail||[]).map((r,x2)=>x2===ri?{...r,[k]:v}:r);updEl(i,"rangees_detail",arr);};
-                    const addRangee=()=>updEl(i,"rangees_detail",[...(el.rangees_detail||[]),{haut:"",largs:""}]);
-                    const delRangee=(ri)=>updEl(i,"rangees_detail",(el.rangees_detail||[]).filter((_,x2)=>x2!==ri));
-                    const genOk=okL&&allOkH&&nbZones>0;
                     return <div style={{marginBottom:8,padding:"10px 12px",background:"#fff",borderRadius:8,border:"1px solid #ddd6fe"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-                        <div style={{fontSize:10,fontWeight:700,color:"#5b21b6"}}>👁 APERÇU VISUEL DE LA TRAME (à l'échelle)</div>
-                        <button onClick={()=>updEl(i,"trame_mode_visuel","uniforme")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:!parTravee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:!parTravee?"#ede9fe":"#fff",color:!parTravee?"#5b21b6":"#6b7280"}}>Grille uniforme</button>
-                        <button onClick={()=>updEl(i,"trame_mode_visuel","par_travee")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:parTravee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:parTravee?"#ede9fe":"#fff",color:parTravee?"#5b21b6":"#6b7280"}}>Par travée (colonnes)</button>
-                        <button onClick={()=>updEl(i,"trame_mode_visuel","par_rangee")} style={{padding:"3px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",border:parRangee?"1.5px solid #7c3aed":"1px solid #d1d5db",background:parRangee?"#ede9fe":"#fff",color:parRangee?"#5b21b6":"#6b7280"}}>Par rangée (sup/inf)</button>
+                      <div style={{fontSize:10,fontWeight:700,color:"#5b21b6",marginBottom:8}}>📐 CONCEPTEUR DE TRAME</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
+                        <div><label style={{...S.label,fontSize:9}}>Trames en LARGEUR (colonnes)</label><input type="number" min="1" max="12" value={el.grid_cols||""} placeholder="ex : 3" onChange={e=>setCols(e.target.value)} style={S.input}/></div>
+                        <div><label style={{...S.label,fontSize:9}}>Trames en HAUTEUR (rangées)</label><input type="number" min="1" max="12" value={el.grid_rows||""} placeholder="ex : 2" onChange={e=>setRows(e.target.value)} style={S.input}/></div>
                       </div>
-                      {!parTravee&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
-                        <div><label style={{...S.label,fontSize:9}}>Largeurs des travées (mm, virgules)</label><input type="text" value={el.travees_larg||""} placeholder={"vide = uniforme"} onChange={e=>updEl(i,"travees_larg",e.target.value)} style={S.input}/></div>
-                        <div><label style={{...S.label,fontSize:9}}>Hauteurs des rangées (mm, virgules)</label><input type="text" value={el.rangees_haut||""} placeholder={"ex : 2000,1000 — vide = uniforme"} onChange={e=>updEl(i,"rangees_haut",e.target.value)} style={S.input}/></div>
+                      {nCols>0&&<div style={{marginBottom:6}}>
+                        <label style={{...S.label,fontSize:9}}>Largeur de chaque colonne (mm, gauche→droite)</label>
+                        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{widths.map((w,ci)=><input key={ci} type="number" value={w} onChange={e=>setW(ci,e.target.value)} style={{...S.input,width:78}}/>)}</div>
                       </div>}
-                      {parTravee&&<div style={{marginBottom:8}}>
-                        <div style={{fontSize:10,color:"#6b7280",marginBottom:6}}><strong style={{color:"#991b1b"}}>1 travée = 1 COLONNE verticale — n'ajoute PAS une travée par zone !</strong> Les largeurs des travées s'additionnent côte à côte (elles doivent totaliser {L} mm). Pour empiler plusieurs zones dans la MÊME colonne, saisis leurs hauteurs séparées par des virgules dans le champ "Hauteurs" de cette travée. Ex. : travée 1 → largeur 2000, hauteurs "2000,1000" (= 2 zones empilées) ; travée 2 → largeur 2000, hauteurs "3000" (pleine hauteur). La somme des hauteurs de CHAQUE travée doit faire {H} mm.</div>
-                        {(el.travees_detail||[]).map((t,ti)=>(
-                          <div key={ti} style={{display:"grid",gridTemplateColumns:"70px 1fr 1.6fr auto",gap:6,marginBottom:5,alignItems:"end"}}>
-                            <div style={{fontSize:10,color:"#5b21b6",fontWeight:700,paddingBottom:9}}>Travée {ti+1}</div>
-                            <div><label style={{...S.label,fontSize:9}}>Largeur (mm)</label><input type="number" value={t.larg} onChange={e=>updTravee(ti,"larg",e.target.value)} style={S.input}/></div>
-                            <div><label style={{...S.label,fontSize:9}}>Hauteurs des zones (mm, haut→bas)</label><input type="text" value={t.hauts} placeholder="ex : 2000,1000" onChange={e=>updTravee(ti,"hauts",e.target.value)} style={{...S.input,border:okHs[ti]===false?"1px solid #fca5a5":S.input.border}}/></div>
-                            <button onClick={()=>delTravee(ti)} style={{padding:"7px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:12}}>✕</button>
-                          </div>
-                        ))}
-                        <button onClick={addTravee} style={{...S.btnSecondary,fontSize:11,padding:"5px 12px"}}>＋ Ajouter une travée</button>
+                      {nRows>0&&<div style={{marginBottom:6}}>
+                        <label style={{...S.label,fontSize:9}}>Hauteur de chaque rangée (mm, haut→bas)</label>
+                        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{heights.map((h,ri)=><input key={ri} type="number" value={h} onChange={e=>setHt(ri,e.target.value)} style={{...S.input,width:78}}/>)}</div>
                       </div>}
-                      {parRangee&&<div style={{marginBottom:8}}>
-                        <div style={{fontSize:10,color:"#6b7280",marginBottom:6}}><strong style={{color:"#5b21b6"}}>1 rangée = 1 bande horizontale, saisie du HAUT vers le BAS.</strong> Chaque rangée définit sa hauteur ET les largeurs de ses zones (virgules) — les montants peuvent donc être alignés OU décalés entre rangées. Ex. : rangée 1 (sup) → hauteur 2000, largeurs "2000,2000,2000" ; rangée 2 (inf) → hauteur 1000, largeurs "3000,3000" (montants décalés). Chaque rangée doit totaliser {L} mm de large ; les hauteurs cumulées doivent faire {H} mm.</div>
-                        {(el.rangees_detail||[]).map((r,ri)=>(
-                          <div key={ri} style={{display:"grid",gridTemplateColumns:"96px 1fr 1.6fr auto",gap:6,marginBottom:5,alignItems:"end"}}>
-                            <div style={{fontSize:10,color:"#5b21b6",fontWeight:700,paddingBottom:9}}>Rangée {ri+1}{ri===0?" (sup)":ri===(el.rangees_detail||[]).length-1?" (inf)":""}</div>
-                            <div><label style={{...S.label,fontSize:9}}>Hauteur (mm)</label><input type="number" value={r.haut} onChange={e=>updRangee(ri,"haut",e.target.value)} style={S.input}/></div>
-                            <div><label style={{...S.label,fontSize:9}}>Largeurs des zones (mm, gauche→droite)</label><input type="text" value={r.largs} placeholder="ex : 2000,2000,2000" onChange={e=>updRangee(ri,"largs",e.target.value)} style={{...S.input,border:okHs[ri]===false?"1px solid #fca5a5":S.input.border}}/></div>
-                            <button onClick={()=>delRangee(ri)} style={{padding:"7px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:12}}>✕</button>
-                          </div>
-                        ))}
-                        <button onClick={addRangee} style={{...S.btnSecondary,fontSize:11,padding:"5px 12px"}}>＋ Ajouter une rangée</button>
-                      </div>}
-                      <div style={{fontSize:10,marginBottom:6}}>
-                        <span style={{color:okL?"#059669":"#991b1b",fontWeight:600}}>{parRangee?"Largeurs par rangée "+(okL?"✓":"✗ (rangées en rouge)"):"Σ largeurs "+Math.round(sumL)+" / "+L+" mm "+(okL?"✓":"✗")}</span>
+                      {(nCols>0||nRows>0)&&<div style={{fontSize:10,marginBottom:6}}>
+                        <span style={{color:okW?"#059669":"#991b1b",fontWeight:600}}>Σ largeurs {Math.round(sumW)} / {L} mm {okW?"✓":"✗"}</span>
                         <span style={{margin:"0 10px",color:"#d1d5db"}}>|</span>
-                        <span style={{color:allOkH?"#059669":"#991b1b",fontWeight:600}}>{parTravee?"Hauteurs par travée "+(allOkH?"✓":"✗ (travées en rouge)"):"Σ hauteurs "+(parRangee?Math.round(sumHAff||0):(cols[0]?Math.round(cols[0].sumH):0))+" / "+H+" mm "+(allOkH?"✓":"✗")}</span>
-                        <span style={{marginLeft:10,color:"#6b7280"}}>{nbZones} zones</span>
-                      </div>
-                      {nbZones>0&&<svg viewBox={"0 0 "+W+" "+Hpx} style={{width:"100%",maxWidth:W,display:"block",border:"1px solid #e5e7eb",borderRadius:6,background:"#f8fafc"}}>
-                        {cols.map((c,ci)=>c.zones.map((z,zi)=>(
-                          <g key={ci+"-"+zi}>
-                            <rect x={c.x*scale+1.5} y={z.y*scale+1.5} width={Math.max(2,c.w*scale-3)} height={Math.max(2,z.h*scale-3)} fill="#dbeafe" stroke="#5b21b6" strokeWidth="1.4"/>
-                            {c.w*scale>52&&z.h*scale>16&&<text x={(c.x+c.w/2)*scale} y={(z.y+z.h/2)*scale} textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="#1e3a8a" fontFamily="monospace">{Math.round(c.w)}×{Math.round(z.h)}</text>}
-                          </g>
-                        )))}
-                      </svg>}
-                      <button onClick={genererDepuisSchema} disabled={!genOk} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:8,opacity:!genOk?0.5:1,cursor:!genOk?"not-allowed":"pointer"}}>✓ Valider ce schéma → générer les panneaux</button>
-                      {!genOk&&<div style={{fontSize:10,color:"#991b1b",marginTop:4}}>{parTravee?"Ajoute des travées ; chaque colonne doit totaliser "+H+" mm de hauteur et l'ensemble "+L+" mm de largeur.":parRangee?"Ajoute des rangées ; chaque rangée doit totaliser "+L+" mm de largeur et les hauteurs cumulées "+H+" mm.":"Les sommes doivent correspondre aux dimensions de la façade pour générer."}</div>}
+                        <span style={{color:okH2?"#059669":"#991b1b",fontWeight:600}}>Σ hauteurs {Math.round(sumH2)} / {H} mm {okH2?"✓":"✗"}</span>
+                        <span style={{marginLeft:10,color:"#6b7280"}}>{nCols*nRows} zones</span>
+                      </div>}
+                      {nCols>0&&nRows>0&&<div>
+                        <div style={{fontSize:10,color:"#6b7280",marginBottom:4}}>👆 Clique sur une case du dessin pour changer son type : <span style={{background:"#dbeafe",padding:"1px 8px",borderRadius:4,border:"1px solid #93c5fd"}}>fixe</span> → <span style={{background:"#d1fae5",padding:"1px 8px",borderRadius:4,border:"1px solid #6ee7b7"}}>ouvrant</span> → <span style={{background:"#fed7aa",padding:"1px 8px",borderRadius:4,border:"1px solid #fdba74"}}>porte</span></div>
+                        <svg viewBox={"0 0 "+Wsvg+" "+Hpx} style={{width:"100%",maxWidth:Wsvg,display:"block",border:"1px solid #e5e7eb",borderRadius:6,background:"#f8fafc"}}>
+                          {Array.from({length:nCols}).map((_,ci)=>Array.from({length:nRows}).map((_,ri)=>{
+                            const t=types[ci+"-"+ri]||"fixe";
+                            const w=(+widths[ci]||0)*scale, h=(+heights[ri]||0)*scale;
+                            return <g key={ci+"-"+ri} onClick={()=>cycleType(ci,ri)} style={{cursor:"pointer"}}>
+                              <rect x={xs[ci]*scale+1.5} y={ys[ri]*scale+1.5} width={Math.max(2,w-3)} height={Math.max(2,h-3)} fill={FILL[t]} stroke="#5b21b6" strokeWidth="1.4"/>
+                              {w>56&&h>26&&<text x={xs[ci]*scale+w/2} y={ys[ri]*scale+h/2-5} textAnchor="middle" fontSize="10" fill="#1e3a8a" fontFamily="monospace">{Math.round(+widths[ci]||0)}×{Math.round(+heights[ri]||0)}</text>}
+                              {w>56&&h>26&&<text x={xs[ci]*scale+w/2} y={ys[ri]*scale+h/2+8} textAnchor="middle" fontSize="9" fill="#374151">{t}</text>}
+                            </g>;
+                          }))}
+                        </svg>
+                        <button onClick={generer} disabled={!genOk} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:8,opacity:!genOk?0.5:1,cursor:!genOk?"not-allowed":"pointer"}}>✓ Valider → générer les panneaux</button>
+                        {!genOk&&<div style={{fontSize:10,color:"#991b1b",marginTop:4}}>Ajuste les largeurs/hauteurs pour totaliser {L} × {H} mm.</div>}
+                      </div>}
                     </div>;
                   })()}
                   {panneaux.length===0&&<div style={{padding:"8px 12px",background:"#fff1f2",border:"1px solid #fca5a5",borderRadius:8,fontSize:11,color:"#991b1b",marginBottom:8}}>
