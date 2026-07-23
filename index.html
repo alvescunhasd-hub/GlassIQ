@@ -1376,13 +1376,13 @@ function PageProjet({projet,setProjet,setPage}){
                   {(()=>{
                     const L=+el.largeur||0, H=+el.hauteur||0;
                     if(!L||!H)return null;
-                    const nCols=Math.max(0,Math.min(12,+el.grid_cols||0));
-                    const nRows=Math.max(0,Math.min(12,+el.grid_rows||0));
+                    const nCols=Math.max(0,Math.min(30,+el.grid_cols||0));
+                    const nRows=Math.max(0,Math.min(20,+el.grid_rows||0));
                     const widths=(el.grid_widths&&el.grid_widths.length===nCols)?el.grid_widths:Array(nCols).fill(nCols>0?String(Math.round(L/nCols)):"");
                     const heights=(el.grid_heights&&el.grid_heights.length===nRows)?el.grid_heights:Array(nRows).fill(nRows>0?String(Math.round(H/nRows)):"");
                     const types=el.grid_types||{};
-                    const setCols=(v)=>{const n=Math.max(0,Math.min(12,+v||0));updEl(i,"grid_cols",v);updEl(i,"grid_widths",Array(n).fill(n>0?String(Math.round(L/n)):""));};
-                    const setRows=(v)=>{const n=Math.max(0,Math.min(12,+v||0));updEl(i,"grid_rows",v);updEl(i,"grid_heights",Array(n).fill(n>0?String(Math.round(H/n)):""));};
+                    const setCols=(v)=>{const n=Math.max(0,Math.min(30,+v||0));updEl(i,"grid_cols",v);updEl(i,"grid_widths",Array(n).fill(n>0?String(Math.round(L/n)):""));};
+                    const setRows=(v)=>{const n=Math.max(0,Math.min(20,+v||0));updEl(i,"grid_rows",v);updEl(i,"grid_heights",Array(n).fill(n>0?String(Math.round(H/n)):""));};
                     const setW=(ci,v)=>{const arr=widths.slice();arr[ci]=v;updEl(i,"grid_widths",arr);};
                     const setHt=(ri,v)=>{const arr=heights.slice();arr[ri]=v;updEl(i,"grid_heights",arr);};
                     const cycleType=(ci,ri)=>{const k=ci+"-"+ri;const cur=types[k]||"fixe";const next=cur==="fixe"?"ouvrant":cur==="ouvrant"?"porte":"fixe";updEl(i,"grid_types",{...types,[k]:next});};
@@ -1413,8 +1413,8 @@ function PageProjet({projet,setProjet,setPage}){
                     return <div style={{marginBottom:8,padding:"10px 12px",background:"#fff",borderRadius:8,border:"1px solid #ddd6fe"}}>
                       <div style={{fontSize:10,fontWeight:700,color:"#5b21b6",marginBottom:8}}>📐 CONCEPTEUR DE TRAME</div>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
-                        <div><label style={{...S.label,fontSize:9}}>Trames en LARGEUR (colonnes)</label><input type="number" min="1" max="12" value={el.grid_cols||""} placeholder="ex : 3" onChange={e=>setCols(e.target.value)} style={S.input}/></div>
-                        <div><label style={{...S.label,fontSize:9}}>Trames en HAUTEUR (rangées)</label><input type="number" min="1" max="12" value={el.grid_rows||""} placeholder="ex : 2" onChange={e=>setRows(e.target.value)} style={S.input}/></div>
+                        <div><label style={{...S.label,fontSize:9}}>Trames en LARGEUR (colonnes)</label><input type="number" min="1" max="30" value={el.grid_cols||""} placeholder="ex : 3" onChange={e=>setCols(e.target.value)} style={S.input}/></div>
+                        <div><label style={{...S.label,fontSize:9}}>Trames en HAUTEUR (rangées)</label><input type="number" min="1" max="20" value={el.grid_rows||""} placeholder="ex : 2" onChange={e=>setRows(e.target.value)} style={S.input}/></div>
                       </div>
                       {nCols>0&&<div style={{marginBottom:6}}>
                         <label style={{...S.label,fontSize:9}}>Largeur de chaque colonne (mm, gauche→droite)</label>
