@@ -293,8 +293,13 @@ function interp(t,x){if(x<=t[0][0])return t[0][1];if(x>=t[t.length-1][0])return 
 function calcDTU39(P,larg,haut,aL,aH,tv,hSol){
   const Lmm=Math.max(larg,haut),lmm=Math.min(larg,haut),L=Lmm/1000,l=lmm/1000,aT=aL+aH,c=parseFloat(hSol)<=6?0.9:1.0;
   let e1;
-  if(aT>=4)e1=(L/l)<=2.5?Math.sqrt(L*l*10000*P/10)/100:l*Math.sqrt(P)/6.3;
-  else if(aT===3)e1=(L/l)<=7.5?Math.sqrt(L*100*3*l*100*P/10)/100:3*l*Math.sqrt(P)/6.3;
+  // FORMULES CORRIGÉES le 22/07 d'après feuille de référence validée (CVidro DTU39).
+  // BUG : l'ancienne version avait un facteur √10 de trop sur le cas "4 appuis L/l≤2,5"
+  // (sqrt(L·l·10000·P/10)/100 au lieu de sqrt(L·l·P/100)), surestimant la résistance
+  // requise d'un facteur ~3,16. Formule officielle 4 appuis quasi-carré :
+  // e1 = √(L_m · l_m · P / 100). Bord libre / 2 appuis : l_m·√P/6,3 (inchangé, validé).
+  if(aT>=4)e1=(L/l)<=2.5?Math.sqrt(L*l*P/100):l*Math.sqrt(P)/6.3;
+  else if(aT===3)e1=(L/l)<=7.5?Math.sqrt(3*L*l*P/100):3*l*Math.sqrt(P)/6.3;
   else e1=L*Math.sqrt(P)/6.3;
   const alpha=aT>=4?interp(A4T,l/L):aT===3?interp(A3T,L/l):2.1143;
   const bmm=aT>=4?lmm:Lmm,b=bmm/1000;
