@@ -1706,6 +1706,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
   const [loading,setLoading]=useState(false);
   const [selEl,setSelEl]=useState(0);
   const [confirmed,setConfirmed]=useState({});// {elId: {sys,best}}
+  const [vlibre,setVlibre]=useState({compo:"",sysId:"",verre:"recuit"});// vérificateur de vitrage libre
   const el=projet.elements[selEl]||projet.elements[0];
   const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
 
@@ -1816,6 +1817,51 @@ function PageComparateur({db,projet,setProjet,setPage}){
     </div>}
 
     <button onClick={chercher} disabled={loading||!el} style={S.btnPrimary}>{loading?"Analyse…":"⚖ Analyser les systèmes compatibles"}</button>
+
+    {/* ── VÉRIFICATEUR DE VITRAGE LIBRE ─────────────────────────────────────
+        Teste N'IMPORTE QUELLE composition (même non testée en base) sur l'élément
+        courant : eR (résistance), eF (flèche), poids, feuillure. Le contrôle
+        acoustique n'est PAS inclus ici (il exige un PV d'essai réel, non calculable). */}
+    {el&&(()=>{
+      const sysV=db.systemes.find(s=>s.id===vlibre.sysId)||null;
+      let res=null;
+      if(vlibre.compo.trim()){
+        res=verifVitrage(vlibre.compo.trim(),+el.largeur||1230,+el.hauteur||1480,sysV,el,{...projet,type_verre:vlibre.verre});
+      }
+      const sysList=db.systemes.filter(s=>{
+        if(el.type==="facade")return s.famille==="Façade";
+        if(s.famille==="Façade")return false;
+        const estC=/coulissant/i.test(el.soustype||"");
+        return estC?s.famille==="Coulissant":s.famille!=="Coulissant";
+      });
+      return <div style={{...S.card,marginTop:14,background:"#fffbeb",border:"1px solid #fde68a"}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:8}}>🔬 Vérificateur de vitrage libre</div>
+        <div style={{fontSize:11,color:"#92400e",marginBottom:10}}>Teste une composition de ton choix (même non testée en base) sur <strong>{el.nom||"l'élément courant"}</strong> — résistance, flèche, poids, feuillure. L'acoustique n'est pas vérifiée ici (elle exige un PV d'essai réel).</div>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1.5fr 1fr",gap:10,marginBottom:10}}>
+          <div><label style={{...S.label,fontSize:10}}>Composition (ex: 55.2/16/44.2s)</label><input type="text" value={vlibre.compo} placeholder="55.2/16/44.2s" onChange={e=>setVlibre(v=>({...v,compo:e.target.value}))} style={S.input}/></div>
+          <div><label style={{...S.label,fontSize:10}}>Système (feuillure)</label><select value={vlibre.sysId} onChange={e=>setVlibre(v=>({...v,sysId:e.target.value}))} style={S.input}><option value="">— choisir —</option>{sysList.map(s=><option key={s.id} value={s.id}>{s.marque} {s.nom}</option>)}</select></div>
+          <div><label style={{...S.label,fontSize:10}}>Type de verre</label><select value={vlibre.verre} onChange={e=>setVlibre(v=>({...v,verre:e.target.value}))} style={S.input}>{Object.entries(EPS3_TYPES).map(([k,val])=><option key={k} value={k}>{val.label}</option>)}</select></div>
+        </div>
+        {res&&<div style={{padding:"12px 14px",background:"#fff",borderRadius:8,border:"1px solid #e5e7eb"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:8}}>
+            <div><div style={{fontSize:10,color:"#6b7280"}}>Épaisseur totale</div><div style={{fontSize:15,fontWeight:700,color:res.feuillure_ok===false?"#991b1b":"#1a1a2e"}}>{res.epaisseur_totale} mm {sysV?(res.feuillure_ok===false?"✗":"✓"):""}</div>{sysV&&<div style={{fontSize:9,color:"#9ca3af"}}>feuillure {sysV.epaisseur_min}–{sysV.epaisseur_max}mm</div>}</div>
+            <div><div style={{fontSize:10,color:"#6b7280"}}>Poids {res.isFacade?"/panneau":res.nb_vantaux===0?"/carreau":"/vantail"}</div><div style={{fontSize:15,fontWeight:700,color:res.poids_ok===false?"#991b1b":"#1a1a2e"}}>{res.poids_vantail} kg {sysV?(res.poids_ok===false?"✗":"✓"):""}</div>{res.poids_max&&<div style={{fontSize:9,color:"#9ca3af"}}>max {res.poids_max} kg</div>}</div>
+            <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (Art.8)</div><div style={{fontSize:15,fontWeight:700,color:res.resistance_ok===false?"#991b1b":"#059669"}}>{res.eR_reel!=null?"eR "+res.eR_reel+" mm":"—"} {res.resistance_ok===false?"✗":res.resistance_ok?"✓":""}</div>{res.dtu_verre&&<div style={{fontSize:9,color:"#9ca3af"}}>requis ≥ {(res.dtu_verre.e1*res.dtu_verre.c).toFixed(2)} mm</div>}</div>
+            <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (Art.9)</div><div style={{fontSize:15,fontWeight:700,color:res.fleche_verre_ok===false?"#991b1b":"#059669"}}>{res.eF_reel!=null?"eF "+res.eF_reel+" mm":"—"} {res.fleche_verre_ok===false?"✗":res.fleche_verre_ok?"✓":""}</div>{res.dtu_verre&&<div style={{fontSize:9,color:"#9ca3af"}}>requis ≥ {res.dtu_verre.eF_requis} mm</div>}</div>
+          </div>
+          {res.base_label&&<div style={{fontSize:10,color:"#6b7280",marginBottom:6}}>Calcul sur : {res.base_label}</div>}
+          {(()=>{
+            const checks=[res.feuillure_ok,res.poids_ok,res.resistance_ok,res.fleche_verre_ok];
+            const anyFail=checks.some(c=>c===false);
+            const allEval=res.dtu_verre&&sysV;
+            return <div style={{padding:"8px 12px",borderRadius:6,fontWeight:700,fontSize:13,background:anyFail?"#fef2f2":allEval?"#f0fdf4":"#f9fafb",color:anyFail?"#991b1b":allEval?"#065f46":"#6b7280"}}>
+              {!sysV?"⚠ Choisis un système pour vérifier la feuillure et le poids":anyFail?"✗ Cette composition NE convient PAS (voir critères en rouge)":allEval?"✓ Composition compatible (résistance, flèche, poids, feuillure)":"Renseigne la pression de vent (étape vent) pour la vérif résistance/flèche"}
+            </div>;
+          })()}
+        </div>}
+        {vlibre.compo.trim()&&!res&&<div style={{fontSize:12,color:"#991b1b"}}>Composition non reconnue — format attendu : ex. 44.2, 6/16/44.2s, 55.2/16/44.2, 10/20/66.2</div>}
+      </div>;
+    })()}
 
     {results&&<div style={{marginTop:20}}>
       <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}><strong>{results.length}</strong> système{results.length>1?"s":""} conforme{results.length>1?"s":""} acoustiquement — triés par conformité globale</div>
