@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GlassIQ v2.4</title>
+  <title>GlassIQ v2.4 - Fenêtrage</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
@@ -11,358 +11,228 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9fb; }
     select, input, textarea, button { font-family: inherit; }
-    @media print { nav, .no-print { display: none !important; } body { background: white !important; } }
   </style>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-presets="react">
+<script type="text/babel">
 const { useState, useEffect } = React;
 
 const S = {
   label: { display:"block", fontSize:12, fontWeight:700, color:"#374151", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:6 },
-  input: { width:"100%", padding:"9px 12px", borderRadius:8, fontSize:13, border:"1.5px solid #e5e7eb", outline:"none", background:"#fff", color:"#1a1a2e", boxSizing:"border-box", fontFamily:"inherit" },
+  input: { width:"100%", padding:"9px 12px", borderRadius:8, fontSize:13, border:"1.5px solid #e5e7eb", outline:"none", background:"#fff", color:"#1a1a2e", boxSizing:"border-box" },
   btnPrimary: { padding:"10px 22px", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer", background:"#1a1a2e", color:"#fff", border:"none" },
   btnSecondary: { padding:"8px 16px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", background:"#f3f4f6", color:"#374151", border:"1.5px solid #e5e7eb" },
   btnDanger: { padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", background:"#fee2e2", color:"#991b1b", border:"1.5px solid #fca5a5" },
   card: { background:"#fff", borderRadius:12, border:"1px solid #e5e7eb", padding:"16px 18px", marginBottom:14 },
 };
 
-const PRESSIONS_DTU39 = {
-  "1":{"IV":{H9:850,H18:950,H28:1150,H50:1400,H100:1800},"IIIb":{H9:900,H18:1200,H28:1400,H50:1700,H100:2050},"IIIa":{H9:1200,H18:1500,H28:1700,H50:2000,H100:2350},"II":{H9:1500,H18:1800,H28:2050,H50:2300,H100:2650},"0":{H9:1900,H18:2150,H28:2350,H50:2600,H100:2900}},
-  "2":{"IV":{H9:1050,H18:1100,H28:1350,H50:1700,H100:2100},"IIIb":{H9:1050,H18:1400,H28:1650,H50:2000,H100:2450},"IIIa":{H9:1400,H18:1750,H28:2000,H50:2350,H100:2800},"II":{H9:1800,H18:2150,H28:2400,H50:2750,H100:3150},"0":{H9:2250,H18:2600,H28:2800,H50:3100,H100:3500}},
-  "3":{"IV":{H9:1200,H18:1300,H28:1600,H50:2000,H100:2500},"IIIb":{H9:1250,H18:1650,H28:1950,H50:2350,H100:2900},"IIIa":{H9:1650,H18:2050,H28:2350,H50:2800,H100:3300},"II":{H9:2100,H18:2550,H28:2850,H50:3200,H100:3700},"0":{H9:2650,H18:3050,H28:3300,H50:3650,H100:4100}},
-  "4":{"IV":{H9:1400,H18:1500,H28:1850,H50:2300,H100:2900},"IIIb":{H9:1450,H18:1950,H28:2250,H50:2750,H100:3350},"IIIa":{H9:1900,H18:2400,H28:2750,H50:3200,H100:3850},"II":{H9:2450,H18:2950,H28:3300,H50:3750,H100:4300},"0":{H9:3050,H18:3500,H28:3800,H50:4200,H100:4750}}
-};
+function PageFenetrage(){
+  const [cadreL, setCadreL] = useState(4800);
+  const [cadreH, setCadreH] = useState(2650);
+  const [colonnes, setColonnes] = useState([1200, 2400, 3600]);
+  const [traverses, setTraverses] = useState([2100]);
+  const [sections, setSections] = useState([]);
+  const [vitrages, setVitrages] = useState({});
+  const [pression, setPression] = useState(800);
 
-// ── CALCUL FLÈCHE CHÂSSIS (NF DTU 39) ───────────────────────────────────────
-// Flèche admissible : L/150, max 15mm sous 800 Pa (NF DTU 39 P1-1 pour fenêtres/portes)
-const E_ALU = 70000; // N/mm²
-function flecheChassisSection(pression_Pa, largeur_m, hauteur_m, Ix_cm4){
-  // Portée : la plus grande dimension (généralement hauteur pour montants)
-  const portee_m = Math.max(largeur_m, hauteur_m);
-  const q = pression_Pa * largeur_m / 1000; // N/mm (charge répartie)
-  const L = portee_m * 1000; // mm
-  const I = Ix_cm4 * 1e4; // mm^4
-  const f = (5 * q * Math.pow(L,4)) / (384 * E_ALU * I); // mm
-  const fAdm_150 = L / 150;
-  const fAdm_175 = L / 175;
-  const fAdm_max = 15; // mm max DTU
-  return {
-    fleche: +f.toFixed(1),
-    adm_150: +(fAdm_150).toFixed(1),
-    adm_175: +(fAdm_175).toFixed(1),
-    adm_max: fAdm_max,
-    ok_150: f <= Math.min(fAdm_150, fAdm_max),
-    ok_175: f <= Math.min(fAdm_175, fAdm_max),
-    ratio: +(f/fAdm_150).toFixed(2),
-  };
-}
-
-// ── STOCKAGE LOCAL ────────────────────────────────────────────────────────
-function getDB(){
-  const stored=localStorage.getItem("glassiq_db_v2");
-  return stored ? JSON.parse(stored) : { systemes: [], projets: [], fenetrage: {} };
-}
-function saveDB(db){
-  localStorage.setItem("glassiq_db_v2",JSON.stringify(db));
-}
-
-// ── PAGE FENÊTRAGE CHÂSSIS ───────────────────────────────────────────────
-function PageFenetrage({ projet, setProjet }){
-  const [fenetrage, setFenetrage] = useState(() => projet.fenetrage || {
-    cadre: { L: 4800, H: 2650 },
-    colonnes: [1200, 2400, 3600],
-    traverses: [2100],
-    sections: [],
-    vitrages: {},
-    pression_Pa: 800,
-  });
-
-  // Générer les sections automatiquement
+  // Générer les sections quand cadre/colonnes/traverses changent
   useEffect(() => {
-    const { cadre, colonnes, traverses } = fenetrage;
-    if (!cadre.L || !cadre.H) return;
+    if (!cadreL || !cadreH) return;
 
-    // Trier colonnes et traverses
-    const cols = [0, ...colonnes.filter(c => c > 0 && c < cadre.L), cadre.L].sort((a, b) => a - b);
-    const trav = [0, ...traverses.filter(t => t > 0 && t < cadre.H), cadre.H].sort((a, b) => a - b);
+    const cols = [0, ...colonnes.filter(c => c > 0 && c < cadreL), cadreL].sort((a, b) => a - b);
+    const trav = [0, ...traverses.filter(t => t > 0 && t < cadreH), cadreH].sort((a, b) => a - b);
 
-    const sections = [];
+    const newSections = [];
     for (let i = 0; i < cols.length - 1; i++) {
       for (let j = 0; j < trav.length - 1; j++) {
         const id = `${i}-${j}`;
         const x1 = cols[i], x2 = cols[i + 1];
         const y1 = trav[j], y2 = trav[j + 1];
-        sections.push({
+        newSections.push({
           id,
           x1, x2, y1, y2,
           L: x2 - x1,
           H: y2 - y1,
-          type: "fixe", // par défaut
-          vitrage: "",
+          type: "fixe",
           surface: ((x2 - x1) * (y2 - y1)) / 1e6,
         });
       }
     }
-    setFenetrage(f => ({ ...f, sections }));
-  }, [fenetrage.cadre, fenetrage.colonnes, fenetrage.traverses]);
+    setSections(newSections);
+  }, [cadreL, cadreH, colonnes, traverses]);
 
   const handleAddColonne = () => {
-    const newCol = parseInt(prompt("Position colonne (mm) :") || "0");
-    if (newCol > 0 && newCol < fenetrage.cadre.L) {
-      setFenetrage(f => ({
-        ...f,
-        colonnes: [...f.colonnes, newCol].sort((a, b) => a - b),
-      }));
+    const val = prompt("Position colonne (mm) :");
+    if (val) {
+      const newVal = parseInt(val);
+      if (newVal > 0 && newVal < cadreL && !colonnes.includes(newVal)) {
+        setColonnes([...colonnes, newVal].sort((a, b) => a - b));
+      }
     }
   };
 
   const handleAddTraverse = () => {
-    const newTrav = parseInt(prompt("Position traverse (mm) :") || "0");
-    if (newTrav > 0 && newTrav < fenetrage.cadre.H) {
-      setFenetrage(f => ({
-        ...f,
-        traverses: [...f.traverses, newTrav].sort((a, b) => a - b),
-      }));
+    const val = prompt("Position traverse (mm) :");
+    if (val) {
+      const newVal = parseInt(val);
+      if (newVal > 0 && newVal < cadreH && !traverses.includes(newVal)) {
+        setTraverses([...traverses, newVal].sort((a, b) => a - b));
+      }
     }
   };
 
   const handleUpdateSection = (id, field, value) => {
-    setFenetrage(f => ({
-      ...f,
-      sections: f.sections.map(s => s.id === id ? { ...s, [field]: value } : s),
-    }));
+    setSections(sections.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
   const handleUpdateVitrage = (id, vitrage) => {
-    setFenetrage(f => ({
-      ...f,
-      vitrages: { ...f.vitrages, [id]: vitrage },
-    }));
+    setVitrages({ ...vitrages, [id]: vitrage });
   };
 
-  // Sauvegarder dans le projet
-  const handleSave = () => {
-    setProjet(p => ({ ...p, fenetrage }));
+  const handleDeleteColonne = (idx) => {
+    setColonnes(colonnes.filter((_, i) => i !== idx));
+  };
+
+  const handleDeleteTraverse = (idx) => {
+    setTraverses(traverses.filter((_, i) => i !== idx));
   };
 
   // Visualisation 2D
-  const scale = 0.15; // mm vers px
-  const width = (fenetrage.cadre.L * scale) + 40;
-  const height = (fenetrage.cadre.H * scale) + 40;
+  const scale = 0.15;
+  const svgWidth = cadreL * scale + 40;
+  const svgHeight = cadreH * scale + 40;
+
+  const surfaceFixe = sections.filter(s => s.type === "fixe").reduce((a, s) => a + s.surface, 0);
+  const surfaceOuvrant = sections.filter(s => s.type === "ouvrant").reduce((a, s) => a + s.surface, 0);
+  const surfaceFixeHaute = sections.filter(s => s.type === "fixe_haute").reduce((a, s) => a + s.surface, 0);
 
   return (
-    <div style={{ maxWidth: "1200px" }}>
+    <div>
       <div style={S.card}>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 14, color: "#1a1a2e" }}>
-          📐 Fenêtrage Châssis (Fenêtre/Porte avec traverses)
+          📐 Fenêtrage Châssis avec Traverses
+        </div>
+        <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
+          Définissez les dimensions, colonnes et traverses, puis attribuez le type et le vitrage à chaque section.
         </div>
 
-        {/* Cadre global */}
+        {/* Dimensions globales */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <div>
             <label style={S.label}>Largeur cadre (mm)</label>
-            <input
-              type="number"
-              value={fenetrage.cadre.L}
-              onChange={e => setFenetrage(f => ({ ...f, cadre: { ...f.cadre, L: parseInt(e.target.value) } }))}
-              style={S.input}
-            />
+            <input type="number" value={cadreL} onChange={e => setCadreL(parseInt(e.target.value))} style={S.input} />
           </div>
           <div>
             <label style={S.label}>Hauteur cadre (mm)</label>
-            <input
-              type="number"
-              value={fenetrage.cadre.H}
-              onChange={e => setFenetrage(f => ({ ...f, cadre: { ...f.cadre, H: parseInt(e.target.value) } }))}
-              style={S.input}
-            />
+            <input type="number" value={cadreH} onChange={e => setCadreH(parseInt(e.target.value))} style={S.input} />
           </div>
         </div>
 
         {/* Colonnes et traverses */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8 }}>
-              🔽 Colonnes (positions X en mm)
-            </div>
-            {fenetrage.colonnes.map((col, idx) => (
-              <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8 }}>🔽 Colonnes (X mm)</div>
+            {colonnes.map((col, idx) => (
+              <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                 <input
                   type="number"
                   value={col}
                   onChange={e => {
-                    const newCols = [...fenetrage.colonnes];
+                    const newCols = [...colonnes];
                     newCols[idx] = parseInt(e.target.value);
-                    setFenetrage(f => ({ ...f, colonnes: newCols }));
+                    setColonnes(newCols.sort((a, b) => a - b));
                   }}
                   style={{ ...S.input, flex: 1 }}
                 />
-                <button
-                  onClick={() => setFenetrage(f => ({ ...f, colonnes: f.colonnes.filter((_, i) => i !== idx) }))}
-                  style={S.btnDanger}
-                >
-                  ✕
-                </button>
+                <button onClick={() => handleDeleteColonne(idx)} style={S.btnDanger}>✕</button>
               </div>
             ))}
-            <button onClick={handleAddColonne} style={{ ...S.btnSecondary, width: "100%", marginTop: 8 }}>
-              ➕ Ajouter colonne
-            </button>
+            <button onClick={handleAddColonne} style={{ ...S.btnSecondary, width: "100%", marginTop: 8 }}>➕ Ajouter</button>
           </div>
 
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8 }}>
-              ➡️ Traverses (positions Y en mm)
-            </div>
-            {fenetrage.traverses.map((trav, idx) => (
-              <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8 }}>➡️ Traverses (Y mm)</div>
+            {traverses.map((trav, idx) => (
+              <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                 <input
                   type="number"
                   value={trav}
                   onChange={e => {
-                    const newTravs = [...fenetrage.traverses];
+                    const newTravs = [...traverses];
                     newTravs[idx] = parseInt(e.target.value);
-                    setFenetrage(f => ({ ...f, traverses: newTravs }));
+                    setTraverses(newTravs.sort((a, b) => a - b));
                   }}
                   style={{ ...S.input, flex: 1 }}
                 />
-                <button
-                  onClick={() => setFenetrage(f => ({ ...f, traverses: f.traverses.filter((_, i) => i !== idx) }))}
-                  style={S.btnDanger}
-                >
-                  ✕
-                </button>
+                <button onClick={() => handleDeleteTraverse(idx)} style={S.btnDanger}>✕</button>
               </div>
             ))}
-            <button onClick={handleAddTraverse} style={{ ...S.btnSecondary, width: "100%", marginTop: 8 }}>
-              ➕ Ajouter traverse
-            </button>
+            <button onClick={handleAddTraverse} style={{ ...S.btnSecondary, width: "100%", marginTop: 8 }}>➕ Ajouter</button>
           </div>
         </div>
 
-        {/* Pression vent */}
+        {/* Pression */}
         <div style={{ marginBottom: 16 }}>
           <label style={S.label}>Pression vent (Pa)</label>
-          <input
-            type="number"
-            value={fenetrage.pression_Pa}
-            onChange={e => setFenetrage(f => ({ ...f, pression_Pa: parseInt(e.target.value) }))}
-            style={S.input}
-          />
+          <input type="number" value={pression} onChange={e => setPression(parseInt(e.target.value))} style={S.input} />
         </div>
-
-        {/* Sauvegarder */}
-        <button onClick={handleSave} style={{ ...S.btnPrimary, width: "100%", marginBottom: 16 }}>
-          💾 Sauvegarder fenêtrage
-        </button>
       </div>
 
       {/* Visualisation 2D */}
-      {fenetrage.sections.length > 0 && (
+      {sections.length > 0 && (
         <div style={S.card}>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>📊 Vue 2D du châssis</div>
-          <svg
-            viewBox={`0 0 ${width} ${height}`}
-            style={{ border: "1px solid #e5e7eb", borderRadius: 8, background: "#fafafa", width: "100%", maxWidth: 600 }}
-          >
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>📊 Vue 2D</div>
+          <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ border: "1px solid #e5e7eb", borderRadius: 8, background: "#fafafa", width: "100%", maxWidth: 600 }}>
             {/* Colonnes */}
-            {[0, ...fenetrage.colonnes, fenetrage.cadre.L].map((x, i) => (
-              <line
-                key={`col-${i}`}
-                x1={20 + x * scale}
-                y1={20}
-                x2={20 + x * scale}
-                y2={20 + fenetrage.cadre.H * scale}
-                stroke="#d1d5db"
-                strokeWidth="1"
-              />
+            {[0, ...colonnes, cadreL].map((x, i) => (
+              <line key={`col-${i}`} x1={20 + x * scale} y1={20} x2={20 + x * scale} y2={20 + cadreH * scale} stroke="#d1d5db" strokeWidth="1" />
             ))}
-
             {/* Traverses */}
-            {[0, ...fenetrage.traverses, fenetrage.cadre.H].map((y, i) => (
-              <line
-                key={`trav-${i}`}
-                x1={20}
-                y1={20 + y * scale}
-                x2={20 + fenetrage.cadre.L * scale}
-                y2={20 + y * scale}
-                stroke="#d1d5db"
-                strokeWidth="1"
-              />
+            {[0, ...traverses, cadreH].map((y, i) => (
+              <line key={`trav-${i}`} x1={20} y1={20 + y * scale} x2={20 + cadreL * scale} y2={20 + y * scale} stroke="#d1d5db" strokeWidth="1" />
             ))}
-
-            {/* Sections avec labels */}
-            {fenetrage.sections.map(sec => (
+            {/* Sections */}
+            {sections.map(sec => (
               <g key={sec.id}>
-                <rect
-                  x={20 + sec.x1 * scale}
-                  y={20 + sec.y1 * scale}
-                  width={(sec.x2 - sec.x1) * scale}
-                  height={(sec.y2 - sec.y1) * scale}
-                  fill={sec.type === "fixe" ? "#e0f2fe" : "#fef08a"}
-                  stroke="#64748b"
-                  strokeWidth="1"
-                  opacity="0.6"
-                />
-                <text
-                  x={20 + (sec.x1 + sec.x2) / 2 * scale}
-                  y={20 + (sec.y1 + sec.y2) / 2 * scale}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize="10"
-                  fill="#1a1a2e"
-                  fontWeight="600"
-                >
-                  {sec.L}×{sec.H}
-                </text>
+                <rect x={20 + sec.x1 * scale} y={20 + sec.y1 * scale} width={(sec.x2 - sec.x1) * scale} height={(sec.y2 - sec.y1) * scale} fill={sec.type === "ouvrant" ? "#fef08a" : "#e0f2fe"} stroke="#64748b" strokeWidth="1" opacity="0.6" />
+                <text x={20 + (sec.x1 + sec.x2) / 2 * scale} y={20 + (sec.y1 + sec.y2) / 2 * scale} textAnchor="middle" dominantBaseline="middle" fontSize="9" fill="#1a1a2e" fontWeight="600">{sec.L}×{sec.H}</text>
               </g>
             ))}
           </svg>
         </div>
       )}
 
-      {/* Tableau des sections */}
-      {fenetrage.sections.length > 0 && (
+      {/* Tableau sections */}
+      {sections.length > 0 && (
         <div style={S.card}>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>📋 Sections</div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>📋 Sections détail</div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f3f4f6", borderBottom: "2px solid #e5e7eb" }}>
-                  <th style={{ padding: 8, textAlign: "left", fontWeight: 700 }}>Section</th>
-                  <th style={{ padding: 8, textAlign: "left", fontWeight: 700 }}>L × H (mm)</th>
+                  <th style={{ padding: 8, textAlign: "left", fontWeight: 700 }}>ID</th>
+                  <th style={{ padding: 8, textAlign: "left", fontWeight: 700 }}>L×H (mm)</th>
                   <th style={{ padding: 8, textAlign: "left", fontWeight: 700 }}>Surface (m²)</th>
                   <th style={{ padding: 8, textAlign: "left", fontWeight: 700 }}>Type</th>
                   <th style={{ padding: 8, textAlign: "left", fontWeight: 700 }}>Vitrage</th>
                 </tr>
               </thead>
               <tbody>
-                {fenetrage.sections.map(sec => (
+                {sections.map(sec => (
                   <tr key={sec.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                    <td style={{ padding: 8 }}><strong>{sec.id}</strong></td>
-                    <td style={{ padding: 8 }}>{sec.L} × {sec.H}</td>
+                    <td style={{ padding: 8, fontWeight: 600 }}>{sec.id}</td>
+                    <td style={{ padding: 8 }}>{sec.L}×{sec.H}</td>
                     <td style={{ padding: 8 }}>{sec.surface.toFixed(4)}</td>
                     <td style={{ padding: 8 }}>
-                      <select
-                        value={sec.type}
-                        onChange={e => handleUpdateSection(sec.id, "type", e.target.value)}
-                        style={{ ...S.input, padding: 4, fontSize: 11 }}
-                      >
+                      <select value={sec.type} onChange={e => handleUpdateSection(sec.id, "type", e.target.value)} style={{ ...S.input, padding: 4, fontSize: 11 }}>
                         <option value="fixe">Fixe</option>
                         <option value="ouvrant">Ouvrant (Porte)</option>
-                        <option value="fixe_haute">Fixe haute (transom)</option>
+                        <option value="fixe_haute">Fixe haute</option>
                       </select>
                     </td>
                     <td style={{ padding: 8 }}>
-                      <input
-                        type="text"
-                        placeholder="Ex: 44.2S/16/4"
-                        value={fenetrage.vitrages[sec.id] || ""}
-                        onChange={e => handleUpdateVitrage(sec.id, e.target.value)}
-                        style={{ ...S.input, padding: 4, fontSize: 11 }}
-                      />
+                      <input type="text" placeholder="Ex: 44.2S/16/4" value={vitrages[sec.id] || ""} onChange={e => handleUpdateVitrage(sec.id, e.target.value)} style={{ ...S.input, padding: 4, fontSize: 11 }} />
                     </td>
                   </tr>
                 ))}
@@ -370,37 +240,28 @@ function PageFenetrage({ projet, setProjet }){
             </table>
           </div>
 
-          {/* Résumé par type */}
+          {/* Résumé */}
           <div style={{ marginTop: 16, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>📊 Résumé</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, fontSize: 12 }}>
               <div>
-                <div style={{ color: "#6b7280" }}>Fixe</div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  {fenetrage.sections
-                    .filter(s => s.type === "fixe")
-                    .reduce((a, s) => a + s.surface, 0)
-                    .toFixed(2)} m²
-                </div>
+                <div style={{ color: "#6b7280", fontSize: 11 }}>FIXE</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a2e" }}>{surfaceFixe.toFixed(2)}</div>
+                <div style={{ color: "#9ca3af", fontSize: 11 }}>m²</div>
               </div>
               <div>
-                <div style={{ color: "#6b7280" }}>Ouvrants</div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  {fenetrage.sections
-                    .filter(s => s.type === "ouvrant")
-                    .reduce((a, s) => a + s.surface, 0)
-                    .toFixed(2)} m²
-                </div>
+                <div style={{ color: "#6b7280", fontSize: 11 }}>OUVRANT</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a2e" }}>{surfaceOuvrant.toFixed(2)}</div>
+                <div style={{ color: "#9ca3af", fontSize: 11 }}>m²</div>
               </div>
               <div>
-                <div style={{ color: "#6b7280" }}>Fixe haute</div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  {fenetrage.sections
-                    .filter(s => s.type === "fixe_haute")
-                    .reduce((a, s) => a + s.surface, 0)
-                    .toFixed(2)} m²
-                </div>
+                <div style={{ color: "#6b7280", fontSize: 11 }}>FIXE HAUTE</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a2e" }}>{surfaceFixeHaute.toFixed(2)}</div>
+                <div style={{ color: "#9ca3af", fontSize: 11 }}>m²</div>
               </div>
+            </div>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb", fontSize: 14, fontWeight: 700, color: "#1a1a2e" }}>
+              TOTAL : {(surfaceFixe + surfaceOuvrant + surfaceFixeHaute).toFixed(2)} m²
             </div>
           </div>
         </div>
@@ -409,54 +270,27 @@ function PageFenetrage({ projet, setProjet }){
   );
 }
 
-// ── APP PRINCIPALE ────────────────────────────────────────────────────────
 function App(){
-  const [page, setPage] = useState("fenetrage");
-  const [projet, setProjet] = useState({ nom: "Nouveau projet", fenetrage: {} });
-
-  const pages = [
-    { id: "fenetrage", label: "Fenêtrage Châssis", icon: "📐" },
-  ];
-
   return (
     <div style={{ fontFamily: "'Segoe UI',system-ui,sans-serif", minHeight: "100vh", background: "#f8f9fb" }}>
-      <div style={{ background: "#1a1a2e", color: "#fff", padding: "0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0" }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#4ade80,#22c55e)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🪟</div>
-          <div><div style={{ fontWeight: 800, fontSize: 15 }}>GlassIQ v2.4</div><div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>Fenêtrage + Façade Rideau</div></div>
+      <div style={{ background: "#1a1a2e", color: "#fff", padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#4ade80,#22c55e)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🪟</div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>GlassIQ v2.4</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>Fenêtrage Châssis</div>
+          </div>
         </div>
-        <nav style={{ display: "flex", gap: 2 }}>
-          {pages.map(p => (
-            <button
-              key={p.id}
-              onClick={() => setPage(p.id)}
-              style={{
-                padding: "7px 11px",
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                border: "none",
-                background: page === p.id ? "rgba(255,255,255,0.12)" : "transparent",
-                color: page === p.id ? "#fff" : "rgba(255,255,255,0.5)",
-              }}
-            >
-              {p.icon} {p.label}
-            </button>
-          ))}
-        </nav>
       </div>
-
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "22px 16px" }}>
-        {page === "fenetrage" && <PageFenetrage projet={projet} setProjet={setProjet} />}
+        <PageFenetrage />
       </div>
     </div>
   );
 }
 
-const container = document.getElementById('root');
-const root = ReactDOM.createRoot(container);
-root.render(React.createElement(App));
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
 </script>
 </body>
 </html>
