@@ -1242,7 +1242,7 @@ const defaultProjet={
 };
 
 function StepBar({current,setPage}){
-  const steps=[{id:"projet",n:1,label:"Projet CCTP"},{id:"vent",n:2,label:"Calcul vent"},{id:"comparateur",n:3,label:"Comparateur"},{id:"controle",n:4,label:"Solaire"},{id:"prescription",n:5,label:"Prescription"}];
+  const steps=[{id:"projet",n:1,label:"Projet CCTP"},{id:"vent",n:2,label:"Calcul vent"},{id:"fenetrage_chassis",n:2.5,label:"Fenêtrage"},{id:"comparateur",n:3,label:"Comparateur"},{id:"controle",n:4,label:"Solaire"},{id:"prescription",n:5,label:"Prescription"}];
   return <div style={{display:"flex",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:4}}>
     {steps.map((s,i)=><React.Fragment key={s.id}>
       <div onClick={()=>setPage(s.id)} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",opacity:current===s.n?1:0.6}}>
@@ -1665,6 +1665,137 @@ function PageVent({projet,setProjet,setPage}){
         </div>}
       </div>)}
       <div style={{display:"flex",gap:12,marginTop:14}}><button onClick={()=>setPage("comparateur")} style={{...S.btnPrimary,background:"#4f46e5"}}>⚖ Étape 3 — Choisir le système →</button></div>
+    </div>}
+  </div>;
+}
+// ── PAGE 2.5 : FENÊTRAGE CHÂSSIS AVEC TRAVERSES ──────────────────────────────────────────────────
+function PageFenetrageChassis({projet,setProjet,setPage}){
+  const upd=(k,v)=>setProjet(p=>({...p,[k]:v}));
+  const [results,setResults]=useState(null);
+  const [chassis_liste,setChassis]=useState(projet.chassis_calcul||[]);
+  const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  
+  const addChassis=()=>{
+    const cid=Date.now();
+    const new_chassis={
+      id:cid,
+      label:`Châssis ${chassis_liste.length+1}`,
+      largeur:+document.getElementById("chs_l")?.value||1200,
+      hauteur:+document.getElementById("chs_h")?.value||1480,
+      traverses:[]
+    };
+    setChassis([...chassis_liste,new_chassis]);
+    setProjet(p=>({...p,chassis_calcul:[...chassis_liste,new_chassis]}));
+  };
+  
+  const updChassis=(id,k,v)=>{
+    const lst=chassis_liste.map(c=>c.id===id?{...c,[k]:v}:c);
+    setChassis(lst);
+    setProjet(p=>({...p,chassis_calcul:lst}));
+  };
+  
+  const addTraverse=(id)=>{
+    const y=+prompt("Hauteur de la traverse (mm):");
+    if(isNaN(y)||y<=0)return;
+    updChassis(id,"traverses",[...chassis_liste.find(c=>c.id===id)?.traverses||[],y].sort((a,b)=>a-b));
+  };
+  
+  const delChassis=(id)=>{
+    const lst=chassis_liste.filter(c=>c.id!==id);
+    setChassis(lst);
+    setProjet(p=>({...p,chassis_calcul:lst}));
+  };
+  
+  const calculer=()=>{
+    if(!pression||!chassis_liste.length)return;
+    const res=chassis_liste.map(chs=>{
+      if(!chs.largeur||!chs.hauteur)return{chs,sections:null};
+      // Découper en sections si traverses
+      const traverses=[0,...chs.traverses,chs.hauteur].sort((a,b)=>a-b);
+      const sections=[];
+      for(let j=0;j<traverses.length-1;j++){
+        const h_sec=traverses[j+1]-traverses[j];
+        const dtu=calcDTU39(pression,chs.largeur,h_sec,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
+        sections.push({id:j,y1:traverses[j],y2:traverses[j+1],hauteur:h_sec,dtu});
+      }
+      return{chs,sections};
+    });
+    setResults(res);
+  };
+  
+  return <div>
+    <StepBar current={2} setPage={setPage}/>
+    <div style={{...S.card,background:"#f0f9ff",border:"1px solid #bae6fd",marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:600,color:"#0369a1",marginBottom:4}}>🪟 Fenêtrage Châssis — DTU 39 par section</div>
+      <div style={{fontSize:12,color:"#0369a1"}}>Définissez vos châssis avec traverses horizontales — le calcul se fera sur chaque section séparément.</div>
+    </div>
+    
+    {/* Paramètres vent */}
+    <div style={{...S.card,marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#1a1a2e",marginBottom:12}}>💨 Paramètres DTU 39 (repris depuis étape 1)</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+        <div><label style={S.label}>Zone de vent</label><select value={projet.zone_vent} onChange={e=>upd("zone_vent",e.target.value)} style={S.input}><option value="">—</option>{Object.entries(ZONES_VENT).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
+        <div><label style={S.label}>Catégorie terrain</label><select value={projet.cat_terrain} onChange={e=>upd("cat_terrain",e.target.value)} style={S.input}>{Object.entries(TERRAINS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
+        <div><label style={S.label}>Hauteur bâtiment (m)</label><input type="number" value={projet.hauteur_bat} onChange={e=>upd("hauteur_bat",e.target.value)} placeholder="18" style={S.input}/></div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div><label style={S.label}>Type de vitrage</label><select value={projet.type_vitrage} onChange={e=>upd("type_vitrage",e.target.value)} style={S.input}><option value="isolant_2lam">Double — 2 feuilletés</option><option value="isolant_lamine">Double — 1 mono + 1 feuilleté</option><option value="isolant_mono">Double — 2 monolithiques</option><option value="simple_lamine">Simple feuilleté</option></select></div>
+        <div><label style={S.label}>Hauteur vitrage/sol (m)</label><input type="number" value={projet.hauteur_sol} onChange={e=>upd("hauteur_sol",e.target.value)} placeholder="3" step="0.5" style={S.input}/></div>
+      </div>
+      {pression&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginTop:12,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m</div></div>}
+    </div>
+    
+    {/* Ajouter châssis */}
+    <div style={{...S.card,marginBottom:14,background:"#f0fdf4",border:"1px solid #6ee7b7"}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#065f46",marginBottom:12}}>➕ Ajouter un châssis</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        <div><label style={S.label}>Largeur (mm)</label><input id="chs_l" type="number" placeholder="4800" style={S.input}/></div>
+        <div><label style={S.label}>Hauteur (mm)</label><input id="chs_h" type="number" placeholder="2650" style={S.input}/></div>
+      </div>
+      <button onClick={addChassis} style={{...S.btnPrimary,width:"100%"}}>✓ Ajouter ce châssis</button>
+    </div>
+    
+    {/* Liste châssis */}
+    {chassis_liste.length>0&&<div style={{...S.card,marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#1a1a2e",marginBottom:12}}>📋 Châssis saisis ({chassis_liste.length})</div>
+      {chassis_liste.map(chs=><div key={chs.id} style={{borderRadius:10,border:"1px solid #e5e7eb",borderLeft:"3px solid #0d9488",padding:"12px 14px",marginBottom:10,background:"#fafafa"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div><div style={{fontWeight:700}}>{chs.label} — {chs.largeur}×{chs.hauteur}mm</div><div style={{fontSize:12,color:"#6b7280",marginTop:3}}>{chs.traverses.length>0?`Traverses @ ${chs.traverses.join(", ")}mm (${chs.traverses.length+1} section(s))`:"Pas de traverse (1 section)"}</div></div>
+          <button onClick={()=>delChassis(chs.id)} style={{padding:"7px 10px",borderRadius:6,border:"1px solid #fca5a5",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:12}}>✕</button>
+        </div>
+        <button onClick={()=>addTraverse(chs.id)} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:6}}>➕ Ajouter une traverse</button>
+      </div>)}
+    </div>}
+    
+    {/* Calculer */}
+    <button onClick={calculer} disabled={!pression||!chassis_liste.length} style={{...S.btnPrimary,width:"100%",marginBottom:14}}>🔧 Calculer l'épaisseur DTU 39 par section</button>
+    
+    {/* Résultats */}
+    {results&&<div>
+      <div style={{padding:"16px 20px",background:"linear-gradient(135deg,#1a1a2e,#2d2d52)",borderRadius:12,marginBottom:16}}>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Pression de vent</div>
+        <div style={{display:"flex",alignItems:"baseline",gap:12,flexWrap:"wrap"}}>
+          <div style={{fontSize:38,fontWeight:800,color:"#fff",lineHeight:1}}>{pression} <span style={{fontSize:20,fontWeight:600,color:"rgba(255,255,255,0.7)"}}>Pa</span></div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>soit {(pression/100).toFixed(0)} daN/m²</div>
+        </div>
+      </div>
+      
+      <div style={{fontSize:12,fontWeight:700,color:"#1a1a2e",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.06em"}}>Épaisseur de vitrage minimale par châssis</div>
+      {results.map(({chs,sections},i)=><div key={i} style={{...S.card,borderLeft:"3px solid #0d9488",marginBottom:14}}>
+        <div style={{fontSize:14,fontWeight:700,color:"#0f766e",marginBottom:12}}>📐 {chs.label} ({chs.largeur}×{chs.hauteur}mm) — {sections.length} section(s)</div>
+        {sections&&sections.map(sec=><div key={sec.id} style={{borderRadius:8,border:"1px solid #d1fae5",background:"#f0fdf4",padding:"12px",marginBottom:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div><strong>Section {sec.id+1}</strong> · Hauteur: {sec.hauteur}mm</div>
+            <div style={{textAlign:"right",fontSize:16,fontWeight:800,color:"#059669"}}>≥ {sec.dtu.eRequired} mm</div>
+          </div>
+          <div style={{fontSize:11,color:"#0c4a6e",paddingTop:6,borderTop:"1px solid #bae6fd"}}>
+            ✓ Résistance: {sec.dtu.e_resistance}mm · Flèche: {sec.dtu.e_fleche}mm · Retenu: <strong>{sec.dtu.eRequired}mm</strong>
+          </div>
+        </div>)}
+        {sections&&<div style={{padding:10,background:"#ccfbf1",borderRadius:8,marginTop:8,border:"1px solid #5eead4",color:"#0f766e",fontSize:12}}>
+          🎯 <strong>Épaisseur max pour ce châssis : {Math.max(...sections.map(s=>s.dtu.eRequired))} mm</strong>
+        </div>}
+      </div>)}
     </div>}
   </div>;
 }
@@ -2620,183 +2751,6 @@ Texte: ${prompt}`}]})});
   </div>;
 }
 
-// ── PAGE FENÊTRAGE CHÂSSIS AVEC TRAVERSES ────────────────────────────────
-function PageFenetrageChassis({projet,setProjet,setPage}){
-  const upd=(k,v)=>setProjet(p=>({...p,[k]:v}));
-  const [chassisID,setChassisID]=useState(1);
-  const [results,setResults]=useState(null);
-  const [selChassisId,setSelChassisId]=useState(null);
-
-  // État local : chassisTemp = {L, H, traverses: []}
-  const [chassisTemp,setChassisTemp]=useState({L:"",H:"",traverses:[]});
-  const [addingTraverse,setAddingTraverse]=useState(false);
-  const [traverseVal,setTraverseVal]=useState("");
-
-  const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
-
-  // Ajouter un nouveau châssis à la liste
-  const ajouterChassis=()=>{
-    if(!chassisTemp.L||!chassisTemp.H){alert("Saisir L et H");return;}
-    const newChassis={
-      id:chassisID,
-      label:`Châssis ${chassisID}`,
-      L:parseInt(chassisTemp.L),
-      H:parseInt(chassisTemp.H),
-      traverses:[],
-      type:"chassis"
-    };
-    setProjet(p=>({...p,elements:[...p.elements,newChassis]}));
-    setChassisID(chassisID+1);
-    setChassisTemp({L:"",H:"",traverses:[]});
-  };
-
-  // Ajouter traverse au châssis temp
-  const ajouterTraverse=()=>{
-    const val=parseInt(traverseVal);
-    if(isNaN(val)||val<=0||val>=(chassisTemp.H||0)){alert("Traversé invalide");return;}
-    setChassisTemp(c=>({...c,traverses:[...c.traverses,val].sort((a,b)=>a-b)}));
-    setTraverseVal("");
-  };
-
-  // Ajouter traverse à un châssis existant
-  const ajouterTraverseExistant=(elId)=>{
-    const el=projet.elements.find(e=>e.id===elId);
-    if(!el)return;
-    const val=parseInt(traverseVal);
-    if(isNaN(val)||val<=0||val>=el.H){alert("Traversé invalide");return;}
-    setProjet(p=>({...p,elements:p.elements.map(e=>e.id===elId?{...e,traverses:[...e.traverses,val].sort((a,b)=>a-b)}:e)}));
-    setTraverseVal("");
-  };
-
-  // Générer sections pour un châssis et calculer DTU
-  const calculer=()=>{
-    if(!pression||!projet.elements.filter(e=>e.type==="chassis").length)return;
-
-    const resultatsChasis=[];
-    for(const chassis of projet.elements.filter(e=>e.type==="chassis")){
-      if(!chassis.L||!chassis.H)continue;
-
-      // Grille colonnes (par défaut 1 seule colonne = L totale)
-      const colonnes=[0,chassis.L];
-      // Grille traverses
-      const traverses=[0,...chassis.traverses,chassis.H].sort((a,b)=>a-b);
-
-      const sections=[];
-      for(let i=0;i<colonnes.length-1;i++){
-        for(let j=0;j<traverses.length-1;j++){
-          const x1=colonnes[i],x2=colonnes[i+1];
-          const y1=traverses[j],y2=traverses[j+1];
-          const secId=`${chassis.id}-${i}-${j}`;
-          const largeur=x2-x1;
-          const hauteur=y2-y1;
-          
-          // Calcul DTU 39 pour cette section uniquement
-          const dtu=calcDTU39(pression,largeur,hauteur,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
-          
-          sections.push({
-            id:secId,
-            chassis_id:chassis.id,
-            label:`Section ${i+1}/${j+1}`,
-            largeur,
-            hauteur,
-            surface:(largeur*hauteur)/1e6,
-            dtu
-          });
-        }
-      }
-
-      resultatsChasis.push({
-        chassis,
-        sections
-      });
-    }
-    setResults(resultatsChasis);
-  };
-
-  const chassisAffiche=projet.elements.filter(e=>e.type==="chassis");
-
-  return <div>
-    <StepBar current={2} setPage={setPage}/>
-    <div style={{...S.card,background:"#f0fdf4",border:"1px solid #6ee7b7",marginBottom:14}}>
-      <div style={{fontSize:13,fontWeight:600,color:"#065f46",marginBottom:4}}>🪟 Fenêtrage Châssis avec Traverses — NF DTU 39 P4</div>
-      <div style={{fontSize:12,color:"#065f46"}}>Définissez chaque châssis, ses traverses horizontales, puis lancez le calcul pour obtenir l'épaisseur de verre requise par section.</div>
-    </div>
-
-    {/* Paramètres vent */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
-      <div><label style={S.label}>Zone de vent</label><select value={projet.zone_vent} onChange={e=>upd("zone_vent",e.target.value)} style={S.input}><option value="">—</option>{Object.entries(ZONES_VENT).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
-      <div><label style={S.label}>Catégorie terrain</label><select value={projet.cat_terrain} onChange={e=>upd("cat_terrain",e.target.value)} style={S.input}>{Object.entries(TERRAINS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
-      <div><label style={S.label}>Hauteur bâtiment (m)</label><input type="number" value={projet.hauteur_bat} onChange={e=>upd("hauteur_bat",e.target.value)} placeholder="18" style={S.input}/></div>
-    </div>
-
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-      <div><label style={S.label}>Hauteur vitrage/sol (m)</label><input type="number" value={projet.hauteur_sol} onChange={e=>upd("hauteur_sol",e.target.value)} placeholder="3" step="0.5" style={S.input}/></div>
-      <div><label style={S.label}>Type de vitrage</label><select value={projet.type_vitrage} onChange={e=>upd("type_vitrage",e.target.value)} style={S.input}><option value="isolant_2lam">Double — 2 feuilletés</option><option value="isolant_lamine">Double — 1 mono + 1 feuilleté</option><option value="isolant_mono">Double — 2 monolithiques</option><option value="simple_lamine">Simple feuilleté</option></select></div>
-    </div>
-
-    {pression&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div></div>}
-
-    {/* Ajout châssis */}
-    <div style={S.card}>
-      <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>➕ Ajouter un châssis</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-        <div><label style={S.label}>Largeur (mm)</label><input type="number" value={chassisTemp.L} onChange={e=>setChassisTemp({...chassisTemp,L:e.target.value})} placeholder="4800" style={S.input}/></div>
-        <div><label style={S.label}>Hauteur (mm)</label><input type="number" value={chassisTemp.H} onChange={e=>setChassisTemp({...chassisTemp,H:e.target.value})} placeholder="2650" style={S.input}/></div>
-      </div>
-      <div style={{marginBottom:12}}><label style={S.label}>Traverses (mm) — optionnel</label><div style={{display:"flex",gap:8,marginBottom:8}}><input type="number" value={traverseVal} onChange={e=>setTraverseVal(e.target.value)} placeholder="Ex: 2100" style={{...S.input,flex:1}}/><button onClick={ajouterTraverse} style={{...S.btnSecondary,whiteSpace:"nowrap"}}>Ajouter trav.</button></div>{chassisTemp.traverses.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{chassisTemp.traverses.map((t,i)=><span key={i} style={{background:"#e0e7ff",color:"#3730a3",padding:"4px 8px",borderRadius:6,fontSize:12,fontWeight:600}}>@ {t} mm <button onClick={()=>setChassisTemp(c=>({...c,traverses:c.traverses.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#3730a3",cursor:"pointer",marginLeft:4}}>✕</button></span>)}</div>}</div>
-      <button onClick={ajouterChassis} style={{...S.btnPrimary,width:"100%"}}>✓ Ajouter ce châssis</button>
-    </div>
-
-    {/* Liste châssis existants */}
-    {chassisAffiche.length>0&&<div style={S.card}>
-      <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>📋 Châssis saisis ({chassisAffiche.length})</div>
-      {chassisAffiche.map(c=><div key={c.id} style={{padding:12,background:"#f9fafb",borderRadius:8,marginBottom:8,borderLeft:`3px solid #0d9488`}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <div><strong>{c.label}</strong> — {c.L}×{c.H} mm</div>
-          <button onClick={()=>setProjet(p=>({...p,elements:p.elements.filter(e=>e.id!==c.id)}))} style={{...S.btnDanger,padding:"6px 10px"}}>Supprimer</button>
-        </div>
-        {c.traverses.length>0?<div style={{fontSize:12,color:"#666"}}>Traverses @ {c.traverses.join(", ")} mm</div>:<div style={{fontSize:12,color:"#999",fontStyle:"italic"}}>Pas de traverse</div>}
-      </div>)}
-    </div>}
-
-    <button onClick={calculer} disabled={!pression||!chassisAffiche.length} style={{...S.btnPrimary,width:"100%",marginBottom:14}}>🔧 Calculer l'épaisseur DTU 39 par section</button>
-
-    {/* Résultats */}
-    {results&&<div>
-      <div style={{padding:"16px 20px",background:"linear-gradient(135deg,#1a1a2e,#2d2d52)",borderRadius:12,marginBottom:16}}>
-        <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Pression de vent</div>
-        <div style={{display:"flex",alignItems:"baseline",gap:12,flexWrap:"wrap"}}>
-          <div style={{fontSize:38,fontWeight:800,color:"#fff",lineHeight:1}}>{pression} <span style={{fontSize:20,fontWeight:600,color:"rgba(255,255,255,0.7)"}}>Pa</span></div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>soit {(pression/100).toFixed(0)} daN/m² · {(pression/1000).toFixed(2)} kN/m²</div>
-        </div>
-      </div>
-
-      {results.map(({chassis,sections})=><div key={chassis.id}>
-        <div style={{fontSize:14,fontWeight:700,color:"#1a1a2e",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>📐 {chassis.label} ({chassis.L}×{chassis.H} mm) — {sections.length} section(s)</div>
-        {sections.map((sec,i)=><div key={sec.id} style={{...S.card,borderLeft:`3px solid #0d9488`,marginBottom:12}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:sec.dtu?12:0}}>
-            <div><div style={{fontWeight:700,marginBottom:4}}>{sec.label}</div><span style={{fontSize:12,color:"#6b7280"}}>{sec.largeur}×{sec.hauteur}mm · {sec.surface.toFixed(4)}m²</span></div>
-            {sec.dtu?<div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#6b7280"}}>Épaisseur verre mini</div><div style={{fontSize:20,fontWeight:800,color:"#059669"}}>≥ {sec.dtu.eRequired} mm</div></div>:<Badge color="gray">Dimensions invalides</Badge>}
-          </div>
-          {sec.dtu&&<div>
-            <div style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:8,marginBottom:8,fontSize:13,color:"#065f46"}}>
-              ✓ Sous <strong>{pression} Pa</strong>, cette section requiert <strong>≥ {sec.dtu.eRequired} mm</strong> d'épaisseur de verre.
-            </div>
-            <details style={{marginBottom:8}}>
-              <summary style={{fontSize:11,color:"#9ca3af",cursor:"pointer",userSelect:"none"}}>Voir le détail DTU 39</summary>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginTop:8,padding:"10px 12px",background:"#f9fafb",borderRadius:8}}>
-                <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{(sec.dtu.e1*sec.dtu.c).toFixed(2)} mm</div></div>
-                <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (≤{sec.dtu.flecheMax}mm)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{sec.dtu.eF_requis} mm</div></div>
-                <div><div style={{fontSize:10,color:"#6b7280"}}>Retenu</div><div style={{fontSize:14,fontWeight:700,color:"#059669"}}>{sec.dtu.eRequired} mm</div></div>
-              </div>
-            </details>
-          </div>}
-        </div>)}
-      </div>)}
-    </div>}
-  </div>;
-}
-
 // ── APP PRINCIPALE ────────────────────────────────────────────────────────
 function App(){
   const [db,setDB]=useState(()=>getDB());
@@ -2815,7 +2769,6 @@ function App(){
   const pages=[
     {id:"projet",label:"Projet & CCTP",icon:"📋"},
     {id:"vent",label:"Calcul vent",icon:"💨"},
-    {id:"fenetrage",label:"Fenêtrage châssis",icon:"🪟"},
     {id:"comparateur",label:"Comparateur",icon:"⚖"},
     {id:"controle",label:"Contrôle solaire",icon:"☀"},
     {id:"prescription",label:"Prescription",icon:"📄"},
@@ -2846,7 +2799,7 @@ function App(){
     <div style={{maxWidth:960,margin:"0 auto",padding:"22px 16px"}}>
       {page==="projet"&&<PageProjet projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="vent"&&<PageVent projet={projet} setProjet={setProjet} setPage={setPage}/>}
-      {page==="fenetrage"&&<PageFenetrageChassis projet={projet} setProjet={setProjet} setPage={setPage}/>}
+      {page==="fenetrage_chassis"&&<PageFenetrageChassis projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="comparateur"&&<PageComparateur db={db} projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="controle"&&<PageControleSolaire projet={projet} setProjet={setProjet}/>}
       {page==="prescription"&&<PagePrescription projet={projet} setProjet={setProjet} setPage={setPage}/>}
