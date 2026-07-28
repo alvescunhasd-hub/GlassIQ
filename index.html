@@ -1340,8 +1340,8 @@ function PageProjet({projet,setProjet,setPage}){
             <div><label style={{...S.label,fontSize:10}}>Usage</label><select value={el.usage} onChange={e=>updEl(i,"usage",e.target.value)} style={S.input}>{USAGES.map(u=><option key={u}>{u}</option>)}</select></div>
             <div><label style={{...S.label,fontSize:10}}>Type {iF?"façade":"châssis"}</label><select value={el.soustype} onChange={e=>updEl(i,"soustype",e.target.value)} style={S.input}>{sT.map(s=><option key={s}>{s}</option>)}</select></div>
             <div><label style={{...S.label,fontSize:10}}>L × H (mm)</label><div style={{display:"flex",gap:4}}><input type="number" value={el.largeur} placeholder="L" onChange={e=>updEl(i,"largeur",e.target.value)} style={{...S.input,width:"50%"}}/><input type="number" value={el.hauteur} placeholder="H" onChange={e=>updEl(i,"hauteur",e.target.value)} style={{...S.input,width:"50%"}}/></div></div>
+            <div style={{marginTop:10,padding:10,background:"#dcfce7",border:"2px solid #22c55e",borderRadius:8}}><label style={{fontSize:11,fontWeight:700,color:"#15803d",marginBottom:6,display:"block"}}>Traverses (mm)</label><input type="text" placeholder="2100, 550" value={el.traverses_str||""} onChange={e=>updEl(i,"traverses_str",e.target.value)} style={{width:"100%",padding:8,border:"1px solid #22c55e",borderRadius:6,fontSize:11,marginBottom:6}}/><button onClick={()=>{const arr=(el.traverses_str||"").split(",").map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>0);updEl(i,"traverses",arr);}} style={{width:"100%",padding:8,background:"#059669",color:"white",border:"none",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:11}}>Valider</button></div>
           </div>
-          {!iF&&<div style={{marginTop:10,padding:10,background:"#dcfce7",border:"2px solid #22c55e",borderRadius:8}}><label style={{fontSize:11,fontWeight:700,color:"#15803d",marginBottom:6,display:"block"}}>Traverses (mm)</label><input type="text" placeholder="2100, 550" value={el.traverses_str||""} onChange={e=>updEl(i,"traverses_str",e.target.value)} style={{width:"100%",padding:8,border:"1px solid #22c55e",borderRadius:6,fontSize:11,marginBottom:6}}/><button onClick={()=>{const t=(el.traverses_str||"").split(",").map(x=>parseInt(x.trim())).filter(x=>!isNaN(x)&&x>0);updEl(i,"traverses",t);}} style={{width:"100%",padding:8,background:"#059669",color:"white",border:"none",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:11}}>Valider</button></div>}
           {/* Trame façade — uniquement pour les façades rideau */}
           {iF&&(()=>{
             const af=analyseFacade(el);
@@ -1608,14 +1608,14 @@ function PageVent({projet,setProjet,setPage}){
     const res=projet.elements.map(el=>{
       if(!el.largeur||!el.hauteur)return{el,dtu:null,sections:null};
       if(el.type==="chassis"&&el.traverses&&el.traverses.length>0){
-        const trav=[0,...el.traverses,+el.hauteur].sort((a,b)=>a-b);
-        const sec=[];
-        for(let i=0;i<trav.length-1;i++){
-          const h=trav[i+1]-trav[i];
+        const pts=[0,...el.traverses,+el.hauteur].sort((a,b)=>a-b);
+        const secs=[];
+        for(let j=0;j<pts.length-1;j++){
+          const h=pts[j+1]-pts[j];
           const d=calcDTU39(pression,+el.largeur,h,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
-          sec.push({id:i,h:h,d:d});
+          secs.push({id:j,h:h,d:d});
         }
-        return{el,sections:sec};
+        return{el,sections:secs};
       }
       const dtu=calcDTU39(pression,+el.largeur,+el.hauteur,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
       return{el,dtu};
@@ -1655,9 +1655,30 @@ function PageVent({projet,setProjet,setPage}){
       <div style={{fontSize:12,fontWeight:700,color:"#1a1a2e",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.06em"}}>Épaisseur de vitrage minimale par élément</div>
       {results.map(({el,dtu,sections},i)=>{
         if(sections){
-          return <div key={i}><div style={{fontWeight:700,color:"#0f766e",marginBottom:8,fontSize:13}}>Châssis: {el.label}</div>{sections.map(s=><div key={s.id} style={{...S.card,background:"#f0fdf4",marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between"}}><div><strong>Section {s.id+1}</strong> ({s.h}mm)</div><div style={{fontSize:16,fontWeight:800,color:"#059669"}}>≥{s.d.eRequired}mm</div></div></div>)}</div>;
+          return <div key={i}><div style={{fontWeight:700,color:"#0f766e",marginBottom:8,fontSize:13}}>Châssis: {el.label}</div>{sections.map(s=><div key={s.id} style={{...S.card,background:"#f0fdf4",marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between"}}><div><strong>Sec {s.id+1}</strong> ({s.h}mm)</div><div style={{fontSize:16,fontWeight:800,color:"#059669"}}>≥{s.d.eRequired}mm</div></div></div>)}</div>;
         }
-        return <div key={i} style={{...S.card,borderLeft:`3px solid ${el.type==="facade"?"#7c3aed":"#0d9488"}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dtu?12:0}}><div style={{display:"flex",alignItems:"center",gap:8}}><Badge color={el.type==="facade"?"purple":"teal"}>{el.type==="facade"?"Façade rideau":"Châssis"}</Badge><span style={{fontWeight:700}}>{el.label}</span><span style={{fontSize:12,color:"#6b7280"}}>{el.largeur}×{el.hauteur}mm</span></div>{dtu?<div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#6b7280"}}>Épaisseur verre mini</div><div style={{fontSize:20,fontWeight:800,color:"#059669"}}>≥ {dtu.eRequired} mm</div></div>:<Badge color="gray">Dimensions non saisies</Badge>}</div>{dtu&&<div><div style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:8,marginBottom:8,fontSize:13,color:"#065f46"}}>✓ Sous <strong>{pression} Pa</strong>, le vitrage doit faire au minimum <strong>{dtu.eRequired} mm</strong> d'épaisseur de verre (le plus contraignant entre résistance et flèche).</div><details style={{marginBottom:8}}><summary style={{fontSize:11,color:"#9ca3af",cursor:"pointer",userSelect:"none"}}>Voir le détail du calcul DTU 39</summary><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginTop:8,padding:"10px 12px",background:"#f9fafb",borderRadius:8}}><div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (e1×c, Art.7-8)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{(dtu.e1*dtu.c).toFixed(2)} mm</div></div><div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (déformation ≤ {dtu.flecheMax}mm, Art.9)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{dtu.eF_requis} mm</div></div><div><div style={{fontSize:10,color:"#6b7280"}}>Retenu (le plus grand)</div><div style={{fontSize:14,fontWeight:700,color:"#059669"}}>{dtu.eRequired} mm</div></div></div><div style={{fontSize:10,color:"#9ca3af",marginTop:6}}>Valeurs exprimées en épaisseur de verre monolithique équivalente — la composition réelle (feuilleté/isolant) est ensuite vérifiée par ses propres coefficients d'équivalence (ε1/ε2/ε3, NF DTU 39 P4 Art.8-9) dans le comparateur.</div></details>{el.type==="facade"?<div style={{padding:"7px 12px",background:"#ede9fe",borderRadius:8,fontSize:12,color:"#5b21b6"}}>⚠ Façade rideau — l'essai AEV du système doit couvrir une pression ≥ <strong>{pression} Pa</strong></div>:<div style={{padding:"7px 12px",background:"#ccfbf1",borderRadius:8,fontSize:12,color:"#0f766e"}}>ℹ Châssis — vérifier que le classement V/C couvre <strong>{pression} Pa</strong> (V3 ≈ 1200 Pa, V4 ≈ 1600 Pa)</div>}</div>}</div>;
+        return <div key={i} style={{...S.card,borderLeft:`3px solid ${el.type==="facade"?"#7c3aed":"#0d9488"}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dtu?12:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><Badge color={el.type==="facade"?"purple":"teal"}>{el.type==="facade"?"Façade rideau":"Châssis"}</Badge><span style={{fontWeight:700}}>{el.label}</span><span style={{fontSize:12,color:"#6b7280"}}>{el.largeur}×{el.hauteur}mm</span></div>
+            {dtu?<div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#6b7280"}}>Épaisseur verre mini</div><div style={{fontSize:20,fontWeight:800,color:"#059669"}}>≥ {dtu.eRequired} mm</div></div>:<Badge color="gray">Dimensions non saisies</Badge>}
+          </div>
+          {dtu&&<div>
+            <div style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:8,marginBottom:8,fontSize:13,color:"#065f46"}}>
+              ✓ Sous <strong>{pression} Pa</strong>, le vitrage doit faire au minimum <strong>{dtu.eRequired} mm</strong> d'épaisseur de verre (le plus contraignant entre résistance et flèche).
+            </div>
+          {/* Détail technique repliable, en petit */}
+          <details style={{marginBottom:8}}>
+            <summary style={{fontSize:11,color:"#9ca3af",cursor:"pointer",userSelect:"none"}}>Voir le détail du calcul DTU 39</summary>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginTop:8,padding:"10px 12px",background:"#f9fafb",borderRadius:8}}>
+              <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (e1×c, Art.7-8)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{(dtu.e1*dtu.c).toFixed(2)} mm</div></div>
+              <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (déformation ≤ {dtu.flecheMax}mm, Art.9)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{dtu.eF_requis} mm</div></div>
+              <div><div style={{fontSize:10,color:"#6b7280"}}>Retenu (le plus grand)</div><div style={{fontSize:14,fontWeight:700,color:"#059669"}}>{dtu.eRequired} mm</div></div>
+            </div>
+            <div style={{fontSize:10,color:"#9ca3af",marginTop:6}}>Valeurs exprimées en épaisseur de verre monolithique équivalente — la composition réelle (feuilleté/isolant) est ensuite vérifiée par ses propres coefficients d'équivalence (ε1/ε2/ε3, NF DTU 39 P4 Art.8-9) dans le comparateur.</div>
+          </details>
+            {el.type==="facade"?<div style={{padding:"7px 12px",background:"#ede9fe",borderRadius:8,fontSize:12,color:"#5b21b6"}}>⚠ Façade rideau — l'essai AEV du système doit couvrir une pression ≥ <strong>{pression} Pa</strong></div>:<div style={{padding:"7px 12px",background:"#ccfbf1",borderRadius:8,fontSize:12,color:"#0f766e"}}>ℹ Châssis — vérifier que le classement V/C couvre <strong>{pression} Pa</strong> (V3 ≈ 1200 Pa, V4 ≈ 1600 Pa)</div>}
+          </div>}
+        </div>;
       })}
       <div style={{display:"flex",gap:12,marginTop:14}}><button onClick={()=>setPage("comparateur")} style={{...S.btnPrimary,background:"#4f46e5"}}>⚖ Étape 3 — Choisir le système →</button></div>
     </div>}
