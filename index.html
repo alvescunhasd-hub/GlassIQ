@@ -290,6 +290,21 @@ function calcPression(zone,terrain,h){if(!zone||!terrain||!h||parseFloat(h)<=0)r
 const A3T=[[0.3,0.686],[0.5,1.143],[0.667,1.514],[1.0,2.0],[1.5,2.286],[2.0,2.357],[5.0,2.386]];
 const A4T=[[0.0,2.1143],[0.1,2.1143],[0.2,2.1000],[0.3,2.1000],[0.4,1.8714],[0.5,1.6429],[0.6,1.4143],[0.7,1.1857],[0.8,0.9714],[0.9,0.8000],[1.0,0.6571]];
 function interp(t,x){if(x<=t[0][0])return t[0][1];if(x>=t[t.length-1][0])return t[t.length-1][1];for(let i=0;i<t.length-1;i++){if(x>=t[i][0]&&x<=t[i+1][0]){const f=(x-t[i][0])/(t[i+1][0]-t[i][0]);return t[i][1]+f*(t[i+1][1]-t[i][1]);}}return t[t.length-1][1];}
+// Statut de validité d'un DTA à partir de sa date "JJ/MM/AAAA".
+// Retourne {statut:'expire'|'bientot'|'ok'|'inconnu', jours, texte, couleur, bg}.
+// 'bientot' = expire dans moins de 90 jours (à anticiper pour un chantier à venir).
+function statutDTA(validiteStr){
+  if(!validiteStr||!/^\d{2}\/\d{2}\/\d{4}$/.test(validiteStr))
+    return {statut:"inconnu",jours:null,texte:"validité non renseignée",couleur:"#92400e",bg:"#fffbeb"};
+  const [j,m,a]=validiteStr.split("/").map(Number);
+  const dExp=new Date(a,m-1,j);
+  const auj=new Date(); auj.setHours(0,0,0,0);
+  const jours=Math.round((dExp-auj)/86400000);
+  if(jours<0)   return {statut:"expire", jours,texte:`DTA EXPIRÉ depuis le ${validiteStr}`,couleur:"#991b1b",bg:"#fef2f2"};
+  if(jours<=90) return {statut:"bientot",jours,texte:`DTA expire bientôt (${validiteStr}, dans ${jours} j)`,couleur:"#9a3412",bg:"#fff7ed"};
+  return {statut:"ok",jours,texte:`DTA valide jusqu'au ${validiteStr}`,couleur:"#065f46",bg:"#f0fdf4"};
+}
+
 function calcDTU39(P,larg,haut,aL,aH,tv,hSol){
   const Lmm=Math.max(larg,haut),lmm=Math.min(larg,haut),L=Lmm/1000,l=lmm/1000,aT=aL+aH,c=parseFloat(hSol)<=6?0.9:1.0;
   let e1;
@@ -1883,7 +1898,8 @@ function PageComparateur({db,projet,setProjet,setPage}){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:8}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <span style={{width:26,height:26,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:isRetenu?"#059669":allOk?"#d1fae5":ko>=2?"#fee2e2":"#fef3c7",color:isRetenu?"#fff":undefined}}>{isRetenu?"★":allOk?"✓":ko>=2?"✗":"⚠"}</span>
-              <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>{sys.marque} {sys.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{sys.famille} · DTA: {sys.dta||"—"} · Validité: {sys.validite||"—"} · Feuillure: {sys.epaisseur_min}–{sys.epaisseur_max}mm</div></div>
+              <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>{sys.marque} {sys.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{sys.famille} · DTA: {sys.dta||"—"} · Feuillure: {sys.epaisseur_min}–{sys.epaisseur_max}mm</div>
+              {(()=>{const st=statutDTA(sys.validite);return <div style={{display:"inline-block",marginTop:4,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:st.couleur,background:st.bg,border:`1px solid ${st.couleur}33`}}>{st.statut==="expire"?"⛔ ":st.statut==="bientot"?"⚠ ":st.statut==="inconnu"?"? ":"✓ "}{st.texte}</div>;})()}</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
               <div style={{textAlign:"right"}}><div style={{fontFamily:"monospace",fontWeight:700,fontSize:13,color:"#374151"}}>{best.composition}</div><div style={{fontSize:12,color:"#059669"}}>RA,tr {best.rc} dB{best.corr!==0?` (corrigé ${best.corr} dB)`:""}</div><div style={{fontSize:11,color:"#6b7280"}}>Rapport {best.test.rapport}</div></div>
@@ -2642,7 +2658,9 @@ function PageBase({db,onUpdate}){
     </div>
     <div style={{marginBottom:16}}><select value={sel} onChange={e=>setSel(e.target.value)} style={{...S.input,fontWeight:600,color:"#4f46e5",borderColor:"#c7d2fe",background:"#f1f0ff"}}>{normalSystems.filter(s=>s.marque===ma).map(s=><option key={s.id} value={s.id}>{s.nom} — {s.famille}</option>)}</select></div>
     {sys&&<div>
-      <div style={{...S.card,background:"#f9fafb"}}><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}><Stat label="Marque" value={sys.marque}/><Stat label="Famille" value={sys.famille}/><Stat label="DTA" value={sys.dta||"—"} mono/><Stat label="Validité" value={sys.validite||"—"}/></div></div>
+      <div style={{...S.card,background:"#f9fafb"}}><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}><Stat label="Marque" value={sys.marque}/><Stat label="Famille" value={sys.famille}/><Stat label="DTA" value={sys.dta||"—"} mono/><Stat label="Validité" value={sys.validite||"—"}/></div>
+        {(()=>{const st=statutDTA(sys.validite);if(st.statut==="ok")return null;return <div style={{marginTop:10,padding:"10px 14px",borderRadius:8,fontSize:12,fontWeight:600,color:st.couleur,background:st.bg,border:`1px solid ${st.couleur}44`}}>{st.statut==="expire"?"⛔ ":st.statut==="bientot"?"⚠ ":"? "}{st.texte}{st.statut==="expire"?" — ne pas prescrire sans vérifier le renouvellement du DTA auprès du fabricant.":st.statut==="bientot"?" — vérifier la date de pose ; le DTA doit être valide à la signature du marché.":" — impossible de vérifier la validité, à confirmer auprès du fabricant."}</div>;})()}
+      </div>
       {sys.tests.map((test,ti)=><div key={ti} style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
           <div><div style={{fontWeight:700,color:"#1a1a2e",fontSize:14}}>{test.type_chassis}</div><div style={{fontSize:12,color:"#6b7280"}}>Rapport {test.rapport} · {test.labo} {test.date} · {test.dim_L}×{test.dim_H}mm</div></div>
