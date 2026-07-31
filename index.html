@@ -582,7 +582,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
   // ── Vérification résistance & flèche du vitrage — NF DTU 39 P4 Art.7-9 ──
   // Comparaison de la composition RÉELLE (via calcEquivalences) aux exigences
   // physiques pures (e1×c pour la résistance, eF_requis pour la flèche).
-  let resistance_ok=null, fleche_verre_ok=null, eR_reel=null, eF_reel=null, dtu_verre=null;
+  let resistance_ok=null, fleche_verre_ok=null, eR_reel=null, eF_reel=null, dtu_verre=null, fleche_obtenue=null;
   if(projet){
     const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
     if(pression&&a.panes&&a.panes.length>0){
@@ -615,6 +615,13 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
       eR_reel=equiv.eR; eF_reel=equiv.eF;
       resistance_ok=eR_reel>=(dtu_verre.e1*dtu_verre.c);
       fleche_verre_ok=eF_reel>=dtu_verre.eF_requis;
+      // Flèche RÉELLE obtenue en mm (formule feuille réf. validée) :
+      // f = alpha × (P/1.5) × (petit_côté_m⁴ / eF_reel³). Comparable directement
+      // à la flèche admissible (dtu_verre.flecheMax) pour un verdict parlant sur le terrain.
+      if(eF_reel>0&&dtu_verre.alpha){
+        const petit_cote_m=Math.min(panel_L_mm,panel_H_mm)/1000;
+        fleche_obtenue=+(dtu_verre.alpha*(pression/1.5)*(Math.pow(petit_cote_m,4)/Math.pow(eF_reel,3))).toFixed(2);
+      }
     }
   }
 
@@ -627,7 +634,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
     poids_max:poids_max_ref,
     poids_ok,
     poids_decoupage,
-    resistance_ok, fleche_verre_ok, eR_reel, eF_reel, dtu_verre,
+    resistance_ok, fleche_verre_ok, eR_reel, eF_reel, dtu_verre, fleche_obtenue,
     nb_vantaux:isFacade?null:nb_vantaux,
     feuillure_min:sys?sys.epaisseur_min:null,
     feuillure_max:sys?sys.epaisseur_max:null,
@@ -1847,7 +1854,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
             <div><div style={{fontSize:10,color:"#6b7280"}}>Épaisseur totale</div><div style={{fontSize:15,fontWeight:700,color:res.feuillure_ok===false?"#991b1b":"#1a1a2e"}}>{res.epaisseur_totale} mm {sysV?(res.feuillure_ok===false?"✗":"✓"):""}</div>{sysV&&<div style={{fontSize:9,color:"#9ca3af"}}>feuillure {sysV.epaisseur_min}–{sysV.epaisseur_max}mm</div>}</div>
             <div><div style={{fontSize:10,color:"#6b7280"}}>Poids {res.isFacade?"/panneau":res.nb_vantaux===0?"/carreau":"/vantail"}</div><div style={{fontSize:15,fontWeight:700,color:res.poids_ok===false?"#991b1b":"#1a1a2e"}}>{res.poids_vantail} kg {sysV?(res.poids_ok===false?"✗":"✓"):""}</div>{res.poids_max&&<div style={{fontSize:9,color:"#9ca3af"}}>max {res.poids_max} kg</div>}</div>
             <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (Art.8)</div><div style={{fontSize:15,fontWeight:700,color:res.resistance_ok===false?"#991b1b":"#059669"}}>{res.eR_reel!=null?"eR "+res.eR_reel+" mm":"—"} {res.resistance_ok===false?"✗":res.resistance_ok?"✓":""}</div>{res.dtu_verre&&<div style={{fontSize:9,color:"#9ca3af"}}>requis ≥ {(res.dtu_verre.e1*res.dtu_verre.c).toFixed(2)} mm</div>}</div>
-            <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (Art.9)</div><div style={{fontSize:15,fontWeight:700,color:res.fleche_verre_ok===false?"#991b1b":"#059669"}}>{res.eF_reel!=null?"eF "+res.eF_reel+" mm":"—"} {res.fleche_verre_ok===false?"✗":res.fleche_verre_ok?"✓":""}</div>{res.dtu_verre&&<div style={{fontSize:9,color:"#9ca3af"}}>requis ≥ {res.dtu_verre.eF_requis} mm</div>}</div>
+            <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (Art.9)</div><div style={{fontSize:15,fontWeight:700,color:res.fleche_verre_ok===false?"#991b1b":"#059669"}}>{res.eF_reel!=null?"eF "+res.eF_reel+" mm":"—"} {res.fleche_verre_ok===false?"✗":res.fleche_verre_ok?"✓":""}</div>{res.dtu_verre&&<div style={{fontSize:9,color:"#9ca3af"}}>requis ≥ {res.dtu_verre.eF_requis} mm</div>}{res.fleche_obtenue!=null&&<div style={{fontSize:9,color:res.fleche_obtenue>res.dtu_verre.flecheMax?"#991b1b":"#059669",fontWeight:600}}>flèche {res.fleche_obtenue} / {res.dtu_verre.flecheMax} mm {res.fleche_obtenue>res.dtu_verre.flecheMax?"✗":"✓"}</div>}</div>
           </div>
           {res.base_label&&<div style={{fontSize:10,color:"#6b7280",marginBottom:6}}>Calcul sur : {res.base_label}</div>}
           {(()=>{
@@ -1931,6 +1938,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
                   <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>FLÈCHE DU VITRAGE (Art.9)</div>
                   <div style={{fontSize:13,fontWeight:700,color:v.fleche_verre_ok===false?"#991b1b":"#059669"}}>eF = {v.eF_reel} mm {v.fleche_verre_ok===false?"✗":"✓"}</div>
                   <div style={{fontSize:10,color:"#9ca3af"}}>requis ≥ {v.dtu_verre.eF_requis} mm (déformation ≤ {v.dtu_verre.flecheMax}mm)</div>
+                  {v.fleche_obtenue!=null&&<div style={{fontSize:10,color:v.fleche_obtenue>v.dtu_verre.flecheMax?"#991b1b":"#059669",fontWeight:600,marginTop:2}}>↳ flèche obtenue : {v.fleche_obtenue} mm / {v.dtu_verre.flecheMax} mm {v.fleche_obtenue>v.dtu_verre.flecheMax?"✗":"✓"}</div>}
                 </div>
               </div>}
               {/* Suggestions de découpage si vantail trop lourd */}
