@@ -628,7 +628,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
   // ── Vérification résistance & flèche du vitrage — NF DTU 39 P4 Art.7-9 ──
   // Comparaison de la composition RÉELLE (via calcEquivalences) aux exigences
   // physiques pures (e1×c pour la résistance, eF_requis pour la flèche).
-  let resistance_ok=null, fleche_verre_ok=null, eR_reel=null, eF_reel=null, dtu_verre=null, fleche_obtenue=null;
+  let resistance_ok=null, fleche_verre_ok=null, eR_reel=null, eF_reel=null, dtu_verre=null, fleche_obtenue=null, detail_panneaux=null;
   if(projet){
     const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
     if(pression&&a.panes&&a.panes.length>0){
@@ -646,11 +646,25 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
       // et on retient le cas le plus défavorable pour la résistance/flèche.
       if(el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0){
         let pireDtu=null,pireReq=-1,pirePanneau=null;
+        detail_panneaux=[];
         el.panneaux.forEach(p=>{
           const pl=+p.largeur||0, ph=+p.hauteur||0;
           if(!pl||!ph)return;
           const d=calcDTU39(pression,pl,ph,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
           const req=d.e1*d.c;
+          // flèche réelle de CE panneau
+          let flP=null;
+          if(eF_reel>0&&d.alpha){
+            const pc=Math.min(pl,ph)/1000;
+            flP=+(d.alpha*(pression/1.5)*(Math.pow(pc,4)/Math.pow(eF_reel,3))).toFixed(2);
+          }
+          detail_panneaux.push({
+            largeur:pl, hauteur:ph, type:p.type||"fixe", label:p.label||"", qte:+p.qte||1,
+            requis:+req.toFixed(2), fleche_max:d.flecheMax,
+            fleche_obtenue:flP,
+            res_ok:eR_reel>=req,
+            fleche_ok:flP!=null?flP<=d.flecheMax:null,
+          });
           if(req>pireReq){pireReq=req;pireDtu=d;pirePanneau=p;}
         });
         dtu_verre=pireDtu;
@@ -680,7 +694,7 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
     poids_max:poids_max_ref,
     poids_ok,
     poids_decoupage,
-    resistance_ok, fleche_verre_ok, eR_reel, eF_reel, dtu_verre, fleche_obtenue,
+    resistance_ok, fleche_verre_ok, eR_reel, eF_reel, dtu_verre, fleche_obtenue, detail_panneaux,
     nb_vantaux:isFacade?null:nb_vantaux,
     feuillure_min:sys?sys.epaisseur_min:null,
     feuillure_max:sys?sys.epaisseur_max:null,
@@ -2007,6 +2021,33 @@ function PageComparateur({db,projet,setProjet,setPage}){
                   <div style={{fontSize:10,color:"#9ca3af"}}>requis ≥ {v.dtu_verre.eF_requis} mm (déformation ≤ {v.dtu_verre.flecheMax}mm)</div>
                   {v.fleche_obtenue!=null&&<div style={{fontSize:10,color:v.fleche_obtenue>v.dtu_verre.flecheMax?"#991b1b":"#059669",fontWeight:600,marginTop:2}}>↳ flèche obtenue : {v.fleche_obtenue} mm / {v.dtu_verre.flecheMax} mm {v.fleche_obtenue>v.dtu_verre.flecheMax?"✗":"✓"}</div>}
                 </div>
+              </div>}
+              {/* Détail partie par partie — châssis/façade composé */}
+              {v.detail_panneaux&&v.detail_panneaux.length>1&&<div style={{marginTop:8,padding:"8px 12px",background:"#faf5ff",borderRadius:8,border:"1px solid #e9d5ff"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#6b21a8",marginBottom:6}}>📋 Détail par partie ({v.detail_panneaux.length} types de panneaux)</div>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                    <thead><tr style={{color:"#6b7280",textAlign:"left"}}>
+                      <th style={{padding:"3px 6px"}}>Partie</th><th style={{padding:"3px 6px"}}>Dim.</th><th style={{padding:"3px 6px"}}>Qté</th>
+                      <th style={{padding:"3px 6px"}}>Requis</th><th style={{padding:"3px 6px"}}>eR={v.eR_reel}</th>
+                      <th style={{padding:"3px 6px"}}>Flèche</th><th style={{padding:"3px 6px"}}>/adm.</th>
+                    </tr></thead>
+                    <tbody>
+                      {v.detail_panneaux.map((d,di)=>(
+                        <tr key={di} style={{borderTop:"1px solid #f3e8ff"}}>
+                          <td style={{padding:"3px 6px"}}>{d.type==="ouvrant"?"🔓 ouvrant":d.type==="porte"?"🚪 porte":"▢ fixe"}{d.label?` ${d.label}`:""}</td>
+                          <td style={{padding:"3px 6px",fontFamily:"monospace"}}>{d.largeur}×{d.hauteur}</td>
+                          <td style={{padding:"3px 6px"}}>{d.qte}</td>
+                          <td style={{padding:"3px 6px"}}>≥{d.requis} mm</td>
+                          <td style={{padding:"3px 6px",fontWeight:700,color:d.res_ok?"#059669":"#991b1b"}}>{d.res_ok?"✓":"✗"}</td>
+                          <td style={{padding:"3px 6px"}}>{d.fleche_obtenue!=null?d.fleche_obtenue+" mm":"—"}</td>
+                          <td style={{padding:"3px 6px",fontWeight:700,color:d.fleche_ok===false?"#991b1b":d.fleche_ok?"#059669":"#9ca3af"}}>{d.fleche_ok===false?"✗":d.fleche_ok?"✓":"—"}/{d.fleche_max}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>Le verdict global de la carte est piloté par le panneau le plus défavorable. eR est fixe (propriété du vitrage), seul le "requis" change selon la taille de chaque partie.</div>
               </div>}
               {/* Suggestions de découpage si vantail trop lourd */}
               {v.poids_decoupage&&v.poids_decoupage.length>0&&<div style={{marginTop:8,padding:"8px 12px",background:"#eff6ff",borderRadius:8,border:"1px solid #bfdbfe"}}>
