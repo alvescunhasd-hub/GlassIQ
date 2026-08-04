@@ -1498,11 +1498,35 @@ function PageProjet({projet,setProjet,setPage}){
                     const widths=(el.grid_widths&&el.grid_widths.length===nCols)?el.grid_widths:Array(nCols).fill(nCols>0?String(Math.round(L/nCols)):"");
                     const heights=(el.grid_heights&&el.grid_heights.length===nRows)?el.grid_heights:Array(nRows).fill(nRows>0?String(Math.round(H/nRows)):"");
                     const types=el.grid_types||{};
+                    const subdiv=el.grid_subdiv||{};// {"ci-ri": {n:2, types:["fixe","porte"], widths:[750,750]}}
                     const setCols=(v)=>{const n=Math.max(0,Math.min(30,+v||0));updEl(i,"grid_cols",v);updEl(i,"grid_widths",Array(n).fill(n>0?String(Math.round(L/n)):""));};
                     const setRows=(v)=>{const n=Math.max(0,Math.min(20,+v||0));updEl(i,"grid_rows",v);updEl(i,"grid_heights",Array(n).fill(n>0?String(Math.round(H/n)):""));};
                     const setW=(ci,v)=>{const arr=widths.slice();arr[ci]=v;updEl(i,"grid_widths",arr);};
                     const setHt=(ri,v)=>{const arr=heights.slice();arr[ri]=v;updEl(i,"grid_heights",arr);};
                     const cycleType=(ci,ri)=>{const k=ci+"-"+ri;const cur=types[k]||"fixe";const next=cur==="fixe"?"ouvrant":cur==="ouvrant"?"porte":"fixe";updEl(i,"grid_types",{...types,[k]:next});};
+                    // Subdiviser une case en N sous-parties verticales (côte à côte).
+                    // Ex: une case 1500 large → 2 sous-parties de 750, l'une porte l'autre fixe.
+                    const setSubdivN=(ci,ri,n)=>{
+                      const k=ci+"-"+ri;
+                      if(n<=1){const cp={...subdiv};delete cp[k];updEl(i,"grid_subdiv",cp);return;}
+                      const wCol=+widths[ci]||0;
+                      const cur=subdiv[k];
+                      const wEach=String(Math.round(wCol/n));
+                      updEl(i,"grid_subdiv",{...subdiv,[k]:{n,
+                        types:Array.from({length:n},(_,x)=>cur&&cur.types&&cur.types[x]?cur.types[x]:"fixe"),
+                        widths:Array.from({length:n},(_,x)=>cur&&cur.widths&&cur.widths[x]?cur.widths[x]:wEach)}});
+                    };
+                    const cycleSubType=(ci,ri,si)=>{
+                      const k=ci+"-"+ri; const s=subdiv[k]; if(!s)return;
+                      const cur=s.types[si]||"fixe"; const next=cur==="fixe"?"ouvrant":cur==="ouvrant"?"porte":"fixe";
+                      const tps=s.types.slice(); tps[si]=next;
+                      updEl(i,"grid_subdiv",{...subdiv,[k]:{...s,types:tps}});
+                    };
+                    const setSubW=(ci,ri,si,v)=>{
+                      const k=ci+"-"+ri; const s=subdiv[k]; if(!s)return;
+                      const ws=s.widths.slice(); ws[si]=v;
+                      updEl(i,"grid_subdiv",{...subdiv,[k]:{...s,widths:ws}});
+                    };
                     const sumW=widths.reduce((a,b)=>a+(+b||0),0);
                     const sumH2=heights.reduce((a,b)=>a+(+b||0),0);
                     const okW=nCols>0&&Math.abs(sumW-L)<=5;
@@ -1515,9 +1539,21 @@ function PageProjet({projet,setProjet,setPage}){
                     const generer=()=>{
                       const groupes={};
                       for(let ci=0;ci<nCols;ci++)for(let ri=0;ri<nRows;ri++){
-                        const t=types[ci+"-"+ri]||"fixe";
-                        const key=Math.round(+widths[ci]||0)+"x"+Math.round(+heights[ri]||0)+"_"+t;
-                        groupes[key]=(groupes[key]||0)+1;
+                        const k=ci+"-"+ri; const s=subdiv[k];
+                        const hRow=Math.round(+heights[ri]||0);
+                        if(s&&s.n>1){
+                          // case subdivisée : chaque sous-partie devient un panneau
+                          for(let si=0;si<s.n;si++){
+                            const w=Math.round(+s.widths[si]||0);
+                            const t=s.types[si]||"fixe";
+                            const key=w+"x"+hRow+"_"+t;
+                            groupes[key]=(groupes[key]||0)+1;
+                          }
+                        } else {
+                          const t=types[k]||"fixe";
+                          const key=Math.round(+widths[ci]||0)+"x"+hRow+"_"+t;
+                          groupes[key]=(groupes[key]||0)+1;
+                        }
                       }
                       updEl(i,"nb_montants",String(nCols+1));
                       updEl(i,"nb_traverses_total",String(nCols*(nRows+1)));
@@ -1548,18 +1584,58 @@ function PageProjet({projet,setProjet,setPage}){
                         <span style={{marginLeft:10,color:"#6b7280"}}>{nCols*nRows} zones</span>
                       </div>}
                       {nCols>0&&nRows>0&&<div>
-                        <div style={{fontSize:10,color:"#6b7280",marginBottom:4}}>👆 Clique sur une case du dessin pour changer son type : <span style={{background:"#dbeafe",padding:"1px 8px",borderRadius:4,border:"1px solid #93c5fd"}}>fixe</span> → <span style={{background:"#d1fae5",padding:"1px 8px",borderRadius:4,border:"1px solid #6ee7b7"}}>ouvrant</span> → <span style={{background:"#fed7aa",padding:"1px 8px",borderRadius:4,border:"1px solid #fdba74"}}>porte</span></div>
+                        <div style={{fontSize:10,color:"#6b7280",marginBottom:4}}>👆 Clic sur une case = change son type : <span style={{background:"#dbeafe",padding:"1px 8px",borderRadius:4,border:"1px solid #93c5fd"}}>fixe</span> → <span style={{background:"#d1fae5",padding:"1px 8px",borderRadius:4,border:"1px solid #6ee7b7"}}>ouvrant</span> → <span style={{background:"#fed7aa",padding:"1px 8px",borderRadius:4,border:"1px solid #fdba74"}}>porte</span> · Pour diviser une case (ex. porte + fixe côte à côte), utilise les boutons ✂ ci-dessous.</div>
                         <svg viewBox={"0 0 "+Wsvg+" "+Hpx} style={{width:"100%",maxWidth:Wsvg,display:"block",border:"1px solid #e5e7eb",borderRadius:6,background:"#f8fafc"}}>
                           {Array.from({length:nCols}).map((_,ci)=>Array.from({length:nRows}).map((_,ri)=>{
-                            const t=types[ci+"-"+ri]||"fixe";
+                            const k=ci+"-"+ri; const s=subdiv[k];
                             const w=(+widths[ci]||0)*scale, h=(+heights[ri]||0)*scale;
-                            return <g key={ci+"-"+ri} onClick={()=>cycleType(ci,ri)} style={{cursor:"pointer"}}>
-                              <rect x={xs[ci]*scale+1.5} y={ys[ri]*scale+1.5} width={Math.max(2,w-3)} height={Math.max(2,h-3)} fill={FILL[t]} stroke="#5b21b6" strokeWidth="1.4"/>
-                              {w>56&&h>26&&<text x={xs[ci]*scale+w/2} y={ys[ri]*scale+h/2-5} textAnchor="middle" fontSize="10" fill="#1e3a8a" fontFamily="monospace">{Math.round(+widths[ci]||0)}×{Math.round(+heights[ri]||0)}</text>}
-                              {w>56&&h>26&&<text x={xs[ci]*scale+w/2} y={ys[ri]*scale+h/2+8} textAnchor="middle" fontSize="9" fill="#374151">{t}</text>}
+                            const x0=xs[ci]*scale, y0=ys[ri]*scale;
+                            if(s&&s.n>1){
+                              // dessiner les sous-parties côte à côte
+                              const totalSub=s.widths.reduce((a,b)=>a+(+b||0),0)||1;
+                              let subX=x0;
+                              return <g key={k}>{s.widths.map((sw,si)=>{
+                                const t=s.types[si]||"fixe";
+                                const wSub=((+sw||0)/totalSub)*w;
+                                const rectX=subX; subX+=wSub;
+                                return <g key={si} onClick={()=>cycleSubType(ci,ri,si)} style={{cursor:"pointer"}}>
+                                  <rect x={rectX+1.5} y={y0+1.5} width={Math.max(2,wSub-3)} height={Math.max(2,h-3)} fill={FILL[t]} stroke="#5b21b6" strokeWidth="1.4"/>
+                                  {wSub>44&&h>26&&<text x={rectX+wSub/2} y={y0+h/2-5} textAnchor="middle" fontSize="9" fill="#1e3a8a" fontFamily="monospace">{Math.round(+sw||0)}×{Math.round(+heights[ri]||0)}</text>}
+                                  {wSub>44&&h>26&&<text x={rectX+wSub/2} y={y0+h/2+8} textAnchor="middle" fontSize="8" fill="#374151">{t}</text>}
+                                </g>;
+                              })}</g>;
+                            }
+                            const t=types[k]||"fixe";
+                            return <g key={k} onClick={()=>cycleType(ci,ri)} style={{cursor:"pointer"}}>
+                              <rect x={x0+1.5} y={y0+1.5} width={Math.max(2,w-3)} height={Math.max(2,h-3)} fill={FILL[t]} stroke="#5b21b6" strokeWidth="1.4"/>
+                              {w>56&&h>26&&<text x={x0+w/2} y={y0+h/2-5} textAnchor="middle" fontSize="10" fill="#1e3a8a" fontFamily="monospace">{Math.round(+widths[ci]||0)}×{Math.round(+heights[ri]||0)}</text>}
+                              {w>56&&h>26&&<text x={x0+w/2} y={y0+h/2+8} textAnchor="middle" fontSize="9" fill="#374151">{t}</text>}
                             </g>;
                           }))}
                         </svg>
+                        {/* Contrôles de subdivision par case */}
+                        <div style={{marginTop:8,padding:"8px 10px",background:"#faf5ff",borderRadius:6,border:"1px solid #e9d5ff"}}>
+                          <div style={{fontSize:10,fontWeight:700,color:"#6b21a8",marginBottom:6}}>✂ Diviser une case en plusieurs parties (porte tiercée, imposte...)</div>
+                          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                            {Array.from({length:nCols}).map((_,ci)=>Array.from({length:nRows}).map((_,ri)=>{
+                              const k=ci+"-"+ri; const s=subdiv[k];
+                              return <div key={k} style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:10}}>
+                                <span style={{color:"#6b7280",minWidth:120}}>Case col{ci+1}·rang{ri+1} ({Math.round(+widths[ci]||0)}×{Math.round(+heights[ri]||0)})</span>
+                                <select value={s?s.n:1} onChange={e=>setSubdivN(ci,ri,+e.target.value)} style={{...S.input,width:110,fontSize:10,padding:"3px 6px"}}>
+                                  <option value={1}>entière</option><option value={2}>÷ 2 parties</option><option value={3}>÷ 3 parties</option><option value={4}>÷ 4 parties</option>
+                                </select>
+                                {s&&s.n>1&&s.widths.map((sw,si)=>(
+                                  <span key={si} style={{display:"flex",alignItems:"center",gap:2}}>
+                                    <input type="number" value={sw} onChange={e=>setSubW(ci,ri,si,e.target.value)} style={{...S.input,width:60,fontSize:10,padding:"3px 4px"}} title="largeur sous-partie"/>
+                                    <span style={{fontSize:9,color:"#9ca3af"}}>{s.types[si]}</span>
+                                  </span>
+                                ))}
+                                {s&&s.n>1&&<span style={{fontSize:9,color:Math.abs(s.widths.reduce((a,b)=>a+(+b||0),0)-(+widths[ci]||0))<=5?"#059669":"#991b1b"}}>Σ {s.widths.reduce((a,b)=>a+(+b||0),0)}/{Math.round(+widths[ci]||0)}</span>}
+                              </div>;
+                            }))}
+                          </div>
+                          <div style={{fontSize:9,color:"#9ca3af",marginTop:4}}>Après avoir divisé, clique sur les sous-parties du dessin pour changer leur type (fixe/ouvrant/porte).</div>
+                        </div>
                         <button onClick={generer} disabled={!genOk} style={{...S.btnSecondary,fontSize:11,padding:"6px 12px",marginTop:8,opacity:!genOk?0.5:1,cursor:!genOk?"not-allowed":"pointer"}}>✓ Valider → générer les panneaux</button>
                         {!genOk&&<div style={{fontSize:10,color:"#991b1b",marginTop:4}}>Ajuste les largeurs/hauteurs pour totaliser {L} × {H} mm.</div>}
                       </div>}
