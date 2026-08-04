@@ -542,19 +542,38 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
       // perso — poids vérifié sur le panneau le plus GRAND, résistance/flèche sur le
       // pire cas (calculé plus bas). Un ouvrant reste limité par sa ferrure ; un fixe
       // par la reprise. On prend la capacité système comme référence de poids.
-      let pire=null,pireSurf=-1;
+      // Poids : la limite de FERRURE (sys.poids_max) ne s'applique qu'aux OUVRANTS
+      // et PORTES (le poids pend sur la quincaillerie). Un FIXE ne repose sur aucune
+      // ferrure — son poids est repris par les traverses/parcloses, sans limite ferrure.
+      // On vérifie donc le poids ferrure sur l'ouvrant/porte le plus lourd uniquement,
+      // et on signale à part le fixe le plus lourd (pour info, sans blocage ferrure).
+      let pireOuv=null,pireOuvP=-1, pireFix=null,pireFixP=-1;
       el.panneaux.forEach(p=>{
         const l=(+p.largeur||0)/1000,h=(+p.hauteur||0)/1000,s=l*h;
-        if(s>pireSurf){pireSurf=s;pire={l,h,label:p.label||"",type:p.type};}
+        const poids=a.poids_m2*s;
+        const estOuvrant=(p.type==="ouvrant"||p.type==="porte");
+        if(estOuvrant){ if(poids>pireOuvP){pireOuvP=poids;pireOuv={l,h,label:p.label||"",type:p.type};} }
+        else { if(poids>pireFixP){pireFixP=poids;pireFix={l,h,label:p.label||"",type:p.type};} }
       });
-      if(pire){
-        panel_L_mm=+(pire.l*1000).toFixed(0); panel_H_mm=+(pire.h*1000).toFixed(0);
-        surf=+(pire.l*pire.h).toFixed(2);
+      // Le panneau retenu pour l'affichage poids : l'ouvrant le plus lourd s'il existe,
+      // sinon le fixe le plus lourd (mais sans contrôle ferrure dans ce cas).
+      const pirePoids = pireOuv || pireFix;
+      if(pirePoids){
+        panel_L_mm=+(pirePoids.l*1000).toFixed(0); panel_H_mm=+(pirePoids.h*1000).toFixed(0);
+        surf=+(pirePoids.l*pirePoids.h).toFixed(2);
         poids_unitaire=+(a.poids_m2*surf).toFixed(1);
-        base_label=`panneau le plus grand ${panel_L_mm}×${panel_H_mm}mm${pire.label?" ("+pire.label+")":""}`;
+        const estOuvrant=(pirePoids.type==="ouvrant"||pirePoids.type==="porte");
+        base_label=`${estOuvrant?"ouvrant":"fixe"} le plus lourd ${panel_L_mm}×${panel_H_mm}mm${pirePoids.label?" ("+pirePoids.label+")":""}`;
         nb_vantaux=el.panneaux.reduce((n,p)=>n+((p.type==="ouvrant"||p.type==="porte")?(+p.qte||1):0),0);
-        poids_max_ref=sys?sys.poids_max:null;
-        poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
+        // Contrôle ferrure UNIQUEMENT si le panneau retenu est un ouvrant/porte.
+        if(estOuvrant){
+          poids_max_ref=sys?sys.poids_max:null;
+          poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
+        } else {
+          // Que des fixes : pas de limite ferrure applicable.
+          poids_max_ref=null;
+          poids_ok=null;
+        }
       }
     } else if(el.soustype==="Fenêtre fixe"&&(nb_montants>0||nb_traverses>0)){
       // Châssis fixe divisé en grille de carreaux (montants/traverses) — comme une
