@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GlassIQ v2</title>
+  <title>GlassIQ v2.5</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
@@ -71,35 +71,34 @@ const PROFILES_FACADE=[
 // façades rideaux ; seule la flèche des châssis fenêtres/portes est fixée par le
 // NF DTU 39 P1-1 : L/150, max 15mm sous 800 Pa — cf. onglet dédié le cas échéant).
 const E_ALU = 70000;
-function flecheMeneau(pression_Pa, entraxe_m, portee_m, Ix_cm4){
+// Flèche admissible selon le critère : "200" → L/200 ; "175" → L/175 ;
+// "200_15" → L/200 plafonné à 15 mm (plafond souvent associé à L/200 —
+// à confirmer par le DTA du système / NF DTU 33.1).
+function flecheAdmissible(L_mm,critere){
+  if(critere==="200_15")return Math.min(L_mm/200,15);
+  return L_mm/(+critere||200);
+}
+function flecheMeneau(pression_Pa, entraxe_m, portee_m, Ix_cm4, critere){
   const q = pression_Pa * entraxe_m / 1000; // N/mm
   const L = portee_m * 1000; // mm
   const I = Ix_cm4 * 1e4; // mm^4
   const f = (5 * q * Math.pow(L,4)) / (384 * E_ALU * I); // mm
-  return {
-    fleche: +f.toFixed(1),
-    adm_200: +(L/200).toFixed(1),
-    adm_175: +(L/175).toFixed(1),
-    ok_200: f <= L/200,
-    ok_175: f <= L/175,
-    ratio: +(f/(L/200)).toFixed(2),
-  };
+  const adm = flecheAdmissible(L, critere||"200");
+  return { fleche:+f.toFixed(1), adm:+adm.toFixed(1), ok:f<=adm, ratio:+(f/adm).toFixed(2) };
 }
 // Trouve les profilés meneaux qui passent pour un système donné
-function profilesCompatibles(systeme, pression_Pa, entraxe_m, portee_m){
+function profilesCompatibles(systeme, pression_Pa, entraxe_m, portee_m, critere){
   return PROFILES_FACADE
     .filter(p=>p.systeme===systeme && (p.type==="meneau"||p.type==="meneau_angle"))
-    .map(p=>({...p, calc: flecheMeneau(pression_Pa, entraxe_m, portee_m, p.Ix)}))
+    .map(p=>({...p, calc: flecheMeneau(pression_Pa, entraxe_m, portee_m, p.Ix, critere)}))
     .sort((a,b)=>a.Ix-b.Ix);
 }
 // Calcul INVERSE : inertie minimale requise (cm⁴) pour respecter le critère de flèche.
-// Inversion directe de la formule de flècheMeneau : f = 5qL⁴/(384·E·I) ≤ L/critère
-// → I ≥ 5·q·L³·critère/(384·E). Universel : comparable à n'importe quel catalogue
-// fabricant (Schüco, Reynaers, Technal...), même si le profil n'est pas en base.
+// I ≥ 5·q·L⁴/(384·E·f_adm). Universel : comparable à n'importe quel catalogue fabricant.
 function inertieRequise(pression_Pa, entraxe_m, portee_m, critere){
   const q = pression_Pa * entraxe_m / 1000; // N/mm
   const L = portee_m * 1000; // mm
-  const fAdm = L / critere; // mm
+  const fAdm = flecheAdmissible(L, critere||"200"); // mm
   const I_mm4 = (5 * q * Math.pow(L,4)) / (384 * E_ALU * fAdm);
   return +(I_mm4 / 1e4).toFixed(1); // cm⁴
 }
@@ -166,12 +165,19 @@ function analyseFacade(el){
 }
 
 // ── MÉTRÉ GLOBAL PAR TYPOLOGIE ─────────────────────────────────────────────
-// Regroupe les éléments identiques (même type, dimensions, trame, RA,tr) et
-// calcule surfaces, linéaires profilés, comptages et poids estimé.
-function metreGlobal(elements, prescriptions, hauteur_sol_m){
+// Regroupe les éléments STRICTEMENT identiques (dimensions, composition, panneaux,
+// vitrage prescrit...) et calcule surfaces, linéaires, comptages et poids estimé.
+// CORRIGÉ v2.5 : un châssis n'est plus compté à la fois en "vitré fixe" ET en
+// "ouvrant" ; une fenêtre fixe n'est plus comptée comme ouvrant ; les châssis
+// composés sont ventilés selon leurs panneaux.
+function metreGlobal(elements, prescriptions){
   prescriptions=prescriptions||{};
-  // Clé de typologie : ce qui rend deux éléments "identiques"
-  const keyOf=(el)=>[el.type,el.largeur,el.hauteur,el.soustype,el.ratr,el.trame||"",el.nb_ouvrants||"",el.allege_opaque?"op":"vi"].join("|");
+  const keyOf=(el)=>{
+    const pr=prescriptions[el.id]||{};
+    return [el.type,el.largeur,el.hauteur,el.soustype,el.ratr,el.trame||"",el.nb_ouvrants||"",el.allege_opaque?"op":"vi",el.allege_h||"",el.haut_panneau||"",
+      el.mode_trame||"",el.chassis_compose?"cc":"",el.nb_vantaux||"",el.larg_fixe||"",el.nb_montants||"",el.nb_traverses||"",
+      JSON.stringify(el.panneaux||[]),pr.gamme||"",pr.vitrage||""].join("|");
+  };
   const groups={};
   elements.forEach(el=>{
     const k=keyOf(el);
@@ -183,26 +189,30 @@ function metreGlobal(elements, prescriptions, hauteur_sol_m){
   const typologies=Object.values(groups).map(g=>{
     const el=g.modele;
     const isFacade=el.type==="facade";
-    const af=isFacade?analyseFacade(el):null;
     const presc=prescriptions[el.id];
     const poids_m2=presc&&presc.poids_m2?parseFloat(presc.poids_m2):null;
-    let surf_unit, surf_vitree, surf_ouvrants, surf_allege, ml_meneaux, ml_traverses, nb_meneaux, nb_ouvrants, poids_unit;
+    const L=(+el.largeur||0)/1000, H=(+el.hauteur||0)/1000;
+    const modePerso=el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0;
+    let surf_unit=0,surf_vitree=0,surf_ouvrants=0,surf_allege=0,ml_meneaux=0,ml_traverses=0,nb_meneaux=0,nb_ouvrants=0;
+    const af=isFacade?analyseFacade(el):null;
     if(isFacade&&af){
-      surf_unit=af.surf_totale;
-      surf_vitree=af.surf_vitree_fixe;
-      surf_ouvrants=af.surf_ouvrants;
-      surf_allege=af.surf_allege;
-      ml_meneaux=af.ml_meneaux;
-      ml_traverses=af.ml_traverses;
-      nb_meneaux=af.nb_meneaux;
-      nb_ouvrants=af.nb_ouvrants;
-      poids_unit=poids_m2?+(poids_m2*surf_unit).toFixed(0):null;
-    } else {
-      surf_unit=+((+el.largeur/1000)*(+el.hauteur/1000)).toFixed(2);
-      surf_vitree=surf_unit; surf_ouvrants=surf_unit; surf_allege=0;
-      ml_meneaux=0; ml_traverses=0; nb_meneaux=0; nb_ouvrants=1;
-      poids_unit=poids_m2?+(poids_m2*surf_unit).toFixed(0):null;
+      surf_unit=af.surf_totale; surf_vitree=af.surf_vitree_fixe; surf_ouvrants=af.surf_ouvrants; surf_allege=af.surf_allege;
+      ml_meneaux=af.ml_meneaux||0; ml_traverses=af.ml_traverses||0; nb_meneaux=af.nb_meneaux||0; nb_ouvrants=af.nb_ouvrants||0;
+    } else if(!isFacade&&modePerso){
+      const ap=analyseFacade(el);
+      surf_unit=+(L*H).toFixed(2);
+      surf_vitree=ap?ap.surf_vitree_fixe:surf_unit; surf_ouvrants=ap?ap.surf_ouvrants:0; nb_ouvrants=ap?ap.nb_ouvrants:0;
+    } else if(!isFacade&&el.soustype==="Fenêtre fixe"){
+      surf_unit=+(L*H).toFixed(2); surf_vitree=surf_unit; surf_ouvrants=0; nb_ouvrants=0;
+    } else if(!isFacade){
+      surf_unit=+(L*H).toFixed(2);
+      const lf=Math.min(L,Math.max(0,(+el.larg_fixe||0)/1000));
+      surf_vitree=+(lf*H).toFixed(2); surf_ouvrants=+(surf_unit-surf_vitree).toFixed(2);
+      nb_ouvrants=nbVantauxElement(el,null);
     }
+    // Poids : vitrage uniquement (hors allège opaque, hors profilés)
+    const surf_verre=(surf_vitree||0)+(surf_ouvrants||0);
+    const poids_unit=poids_m2?+(poids_m2*surf_verre).toFixed(0):null;
     return {
       ...g, isFacade, el,
       surf_unit, surf_total:+(surf_unit*g.count).toFixed(1),
@@ -218,7 +228,6 @@ function metreGlobal(elements, prescriptions, hauteur_sol_m){
     };
   });
 
-  // Totaux projet
   const T={
     nb_elements:elements.length,
     nb_typologies:typologies.length,
@@ -237,7 +246,7 @@ function metreGlobal(elements, prescriptions, hauteur_sol_m){
   return {typologies,totaux:T};
 }
 
-// ── SÉCURITÉ ALLÈGE — NF P08-302 / DTU 39 P5 ───────────────────────────────
+// ── SÉCURITÉ ALLÈGE — NF DTU 39 P5 / NF P01-012 ───────────────────────────────
 // Règle : allège < 1.00m → protection contre chute requise, INDÉPENDAMMENT
 // de la hauteur du bâtiment (contrairement au champ "hauteur vitrage/sol" qui
 // lui sert uniquement à la correction de pression de vent DTU 39 — les deux
@@ -261,24 +270,34 @@ function verifAllege(el){
   } else if(el.allege_opaque){
     exigence="Allège opaque — garde-corps assuré par le remplissage";
     classe_min="1B1 (panneau)";
-    detail="Vérifier résistance choc du panneau d'allège (NF P08-302)";
+    detail="Vérifier la résistance aux chocs du panneau d'allège (NF P01-013 / NF P08-302)";
   } else {
     exigence="Vitrage faisant garde-corps — feuilleté obligatoire";
     classe_min="1B1 (EN 12600)";
-    detail="Face intérieure feuilletée min 44.2 — résistance au choc corps mou 1B1";
+    detail="Face intérieure (côté chute) feuilletée min 44.2 — classe 1B1 EN 12600 (NF DTU 39 P5)";
   }
   return {allege_m:+allege_m.toFixed(2),protection_requise,exigence,classe_min,detail};
 }
 
-// Vérifie si une composition a une face feuilletée suffisante (pour allège)
-function compoEstFeuillete(compo){
-  if(!compo)return false;
-  // Cherche un composant de type "XX.Y" (feuilleté) ex 44.2, 55.2, 66.2
-  return /\d\d\.\d/.test(compo)||/\d+\.\d\s*(s|sil|silence)/i.test(compo);
+// Sécurité chute (vitrage faisant garde-corps) : la face INTÉRIEURE — dernier verre,
+// composition notée extérieur → intérieur — doit être un feuilleté ≥ 44.2
+// (2 films mini, ≥ 8 mm de verre). CORRIGÉ v2.5 : l'ancienne version acceptait
+// n'importe quel feuilleté, y compris côté extérieur.
+function verifFeuilleteAllege(compo){
+  const a=analyseComposition(compo);
+  if(!a)return {ok:null,texte:"composition non analysable — vérifier manuellement"};
+  const lamOk=p=>!!p&&p.components.length>=2&&(p.films||0)>=2&&p.components.reduce((x,y)=>x+y,0)>=8;
+  const inner=a.panes[a.panes.length-1], outer=a.panes[0];
+  if(lamOk(inner))return {ok:true,texte:"face intérieure feuilletée ≥ 44.2"};
+  if(a.panes.length>1&&lamOk(outer))return {ok:false,texte:"feuilleté côté extérieur seulement — la face intérieure (côté chute) doit être feuilletée ≥ 44.2"};
+  return {ok:false,texte:"pas de face intérieure feuilletée ≥ 44.2"};
 }
 
 const ZONES_VENT = {"1":"Region 1 — intérieur protégé","2":"Région 2 — majorité territoire","3":"Région 3 — littoral / montagne","4":"Région 4 — très exposé"};
-const TERRAINS = {"0":"Cat. 0 — plaine dégagée","II":"Cat. II — zone rurale (réf.)","IIIa":"Cat. IIIa — périurbain","IIIb":"Cat. IIIb — suburbain dense","IV":"Cat. IV — mer / côte"};
+// Catégories de terrain NF EN 1991-1-4 / NA (ordre = pression décroissante).
+// CORRIGÉ v2.5 : les libellés de 0 et IV étaient inversés (IV affiché "mer / côte"
+// alors que c'est la catégorie la MOINS exposée du tableau de pressions).
+const TERRAINS = {"0":"Cat. 0 — mer / littoral exposé aux vents de mer, lacs ≥ 5 km","II":"Cat. II — rase campagne, obstacles isolés","IIIa":"Cat. IIIa — campagne bocagère, habitat dispersé","IIIb":"Cat. IIIb — zones urbanisées ou industrielles","IV":"Cat. IV — urbain dense (≥ 15 % de bâtiments > 15 m), forêts"};
 const ORIENTATIONS = ['Nord','Nord-Est','Est','Sud-Est','Sud','Sud-Ouest','Ouest','Nord-Ouest','Toutes orientations'];
 const USAGES = ['Chambre / bureau','Séjour / salle de classe','Couloir / communs','Façade côté rue','Façade côté cour','Façade pignon'];
 const CHASSIS_TYPES = ['Fenêtre OB','Fenêtre OF','Fenêtre fixe','Porte-fenêtre','Coulissant','Porte'];
@@ -287,38 +306,105 @@ const FACADE_TYPES = ['Façade rideau FWS','Façade rideau CW','Façade VEC','Fa
 function getTranche(h){const z=parseFloat(h);if(z<=9)return"H9";if(z<=18)return"H18";if(z<=28)return"H28";if(z<=50)return"H50";return"H100";}
 function calcPression(zone,terrain,h){if(!zone||!terrain||!h||parseFloat(h)<=0)return null;return PRESSIONS_DTU39[zone]?.[terrain]?.[getTranche(h)]||null;}
 
+// ── CLASSES VENT NF EN 12210 — pression d'essai P1 de chaque classe ─────────
+// CORRIGÉ v2.5 : l'ancienne correspondance (≤1200 Pa → classe 2) acceptait un C2
+// (essai à 800 Pa) pour 1100 Pa. Règle appliquée : P1 de la classe ≥ pression.
+// Estimation à confirmer avec le FD P20-201 (guide de choix).
+const CLASSES_V={1:400,2:800,3:1200,4:1600,5:2000};
+function classeVRequise(pression){
+  if(!pression)return null;
+  for(const k of [1,2,3,4,5]) if(CLASSES_V[k]>=pression) return {classe:k,label:"V"+k+" min (essai "+CLASSES_V[k]+" Pa)"};
+  return {classe:"E",label:"Exxx ≥ "+pression+" Pa (au-delà de la classe 5)"};
+}
+// Pression couverte par une ligne d'essai AEV (champ V) :
+//  - valeur en Pa ("1200/1800", "2000 Pa", "E2400") → 1er nombre de 3-4 chiffres
+//  - classe EN 12210 ("C3", "B2", "A3", "3") → pression P1 de la classe
+// La lettre (A/B/C) est le critère de flèche du cadre, pas un niveau de pression.
+function pressionCouverteAEV(V){
+  if(V==null)return null;
+  const s=String(V).trim();
+  const num=s.match(/(\d{3,4})/);
+  if(num)return parseInt(num[1],10);
+  const cl=s.match(/^[ABC]?\s*([1-5])$/i);
+  if(cl)return CLASSES_V[+cl[1]];
+  return null;
+}
+// N° de classe EN 12210 (1-5) couvert par une ligne d'essai
+function classeDepuisV(V){
+  const s=String(V==null?"":V).trim();
+  const cl=s.match(/^[ABC]?\s*([1-5])$/i);
+  if(cl)return +cl[1];
+  const num=s.match(/(\d{3,4})/);
+  if(num){const p=+num[1];let k=null;for(const c of [1,2,3,4,5])if(CLASSES_V[c]<=p)k=c;return k;}
+  return null;
+}
+// Classe V exigée par le CCTP ("A4 E9A V3" → 3 ; "A4 E9A C3" → 3)
+function classeVExigeeCCTP(aev_min){const m=String(aev_min||"").match(/[VC]\s*([1-5])\b/i);return m?+m[1]:null;}
+// Vent / AEV :
+//  - FAÇADE : pression d'essai déclarée ≥ pression de calcul (règle GlassIQ).
+//  - CHÂSSIS : meilleure classe V testée ≥ classe exigée par le CCTP. À défaut de
+//    CCTP, estimation par la pression DTU 39 (indicatif : la pression DTU 39 sert au
+//    dimensionnement du verre ; la classe exigible se lit dans le FD P20-201).
+function verifAEV(sys,pression,isFacade,aev_min){
+  if(!sys||!Array.isArray(sys.aev)||sys.aev.length===0)return {ok:null,max:null,note:"Pas d'essai AEV"};
+  if(isFacade){
+    if(!pression)return {ok:null,max:null,note:"Pression non calculée"};
+    const vals=sys.aev.map(a=>pressionCouverteAEV(a.V)).filter(v=>v!=null);
+    if(!vals.length)return {ok:null,max:null,note:"Pas d'essai exploitable"};
+    const max=Math.max(...vals);
+    return {ok:max>=pression,max,note:`essai ${max} / requis ${pression} Pa`};
+  }
+  const classes=sys.aev.map(a=>classeDepuisV(a.V)).filter(v=>v!=null);
+  if(!classes.length)return {ok:null,max:null,note:"Pas d'essai exploitable"};
+  const best=Math.max(...classes);
+  const req=classeVExigeeCCTP(aev_min);
+  if(req)return {ok:best>=req,max:best,note:`essai V${best} / CCTP V${req}`};
+  if(pression){
+    const cv=classeVRequise(pression);
+    const reqP=cv.classe==="E"?6:cv.classe;
+    return {ok:best>=reqP,max:best,note:`essai V${best} / estimé ${cv.classe==="E"?"> V5":"V"+cv.classe}`};
+  }
+  return {ok:null,max:best,note:`essai V${best} — exigence non précisée`};
+}
+
 const A3T=[[0.3,0.686],[0.5,1.143],[0.667,1.514],[1.0,2.0],[1.5,2.286],[2.0,2.357],[5.0,2.386]];
 const A4T=[[0.0,2.1143],[0.1,2.1143],[0.2,2.1000],[0.3,2.1000],[0.4,1.8714],[0.5,1.6429],[0.6,1.4143],[0.7,1.1857],[0.8,0.9714],[0.9,0.8000],[1.0,0.6571]];
 function interp(t,x){if(x<=t[0][0])return t[0][1];if(x>=t[t.length-1][0])return t[t.length-1][1];for(let i=0;i<t.length-1;i++){if(x>=t[i][0]&&x<=t[i+1][0]){const f=(x-t[i][0])/(t[i+1][0]-t[i][0]);return t[i][1]+f*(t[i+1][1]-t[i][1]);}}return t[t.length-1][1];}
-// Vérifie les dimensions d'un vantail contre le domaine d'emploi du DTA.
+// Vérifie les dimensions d'un châssis contre le domaine d'emploi du DTA.
 // AVERTISSEMENT PUR — ne bloque jamais le calcul. Absence de données = pas de vérif.
-// larg/haut en mm. typeSel = type d'ouvrant choisi (optionnel, matche dimensions_max[].type).
-function verifDimensions(sys,larg,haut,typeSel){
-  if(!sys||!Array.isArray(sys.dimensions_max)||sys.dimensions_max.length===0)
-    return {statut:"aucune",texte:null};// pas de données → aucune vérif (comportement actuel)
-  if(!larg||!haut)return {statut:"aucune",texte:null};
-  // Trouver la ligne correspondant au type sélectionné, sinon prendre la plus permissive
-  // (celle qui autorise la plus grande surface) pour ne pas alerter à tort.
-  let ligne=null;
-  if(typeSel){
-    ligne=sys.dimensions_max.find(d=>d.type===typeSel)||null;
-  }
-  if(!ligne){
-    // pas de type précis : on retient la ligne la MOINS restrictive (surface max la plus grande)
-    ligne=sys.dimensions_max.reduce((best,d)=>{
-      const s=d.h_max*d.l_max, bs=best?best.h_max*best.l_max:-1;
-      return s>bs?d:best;
-    },null);
-  }
-  if(!ligne)return {statut:"aucune",texte:null};
+// CORRIGÉ v2.5 : la ligne est choisie selon le nombre de vantaux, le fixe latéral
+// et le type d'ouverture (OB / OF) ; les champs L/H sont acceptés comme l_max/h_max.
+function verifDimensions(sys,larg,haut,el){
+  const aucune={statut:"aucune",texte:null};
+  if(!sys||!Array.isArray(sys.dimensions_max)||sys.dimensions_max.length===0)return aucune;
+  if(!larg||!haut||!el||typeof el!=="object")return aucune;
+  // Le domaine d'emploi concerne les châssis ouvrants simples
+  if(el.type==="facade"||el.chassis_compose||el.soustype==="Fenêtre fixe")return aucune;
+  const lignes=sys.dimensions_max
+    .map(d=>({type:d.type||"",h_max:+(d.h_max!=null?d.h_max:d.H)||0,l_max:+(d.l_max!=null?d.l_max:d.L)||0}))
+    .filter(d=>d.h_max>0&&d.l_max>0&&!/soufflet/i.test(d.type));
+  if(!lignes.length)return aucune;
+  const st=el.soustype||"";
+  const nv=nbVantauxElement(el,sys);
+  const avecFixe=(+el.larg_fixe||0)>0;
+  let cand=lignes;
+  const parNv=cand.filter(d=>nv>=2?/2 vantaux/i.test(d.type):/1 vantail/i.test(d.type));
+  if(parNv.length)cand=parNv;
+  const parFixe=cand.filter(d=>/fixe/i.test(d.type)===avecFixe);
+  if(parFixe.length)cand=parFixe;
+  const ouv=/\bOB\b/.test(st)?/OB/:(/\bOF\b|porte-?fen/i.test(st)?/OF|fran[cç]aise/i:null);
+  if(ouv){const p=cand.filter(d=>ouv.test(d.type));if(p.length)cand=p;}
+  // S'il reste plusieurs lignes : la plus permissive (pour ne pas alerter à tort)
+  const ligne=cand.reduce((b,d)=>(!b||d.h_max*d.l_max>b.h_max*b.l_max)?d:b,null);
+  if(!ligne)return aucune;
   const depH=haut>ligne.h_max, depL=larg>ligne.l_max;
   if(depH||depL){
     const details=[];
-    if(depH)details.push(`hauteur ${haut} > ${ligne.h_max} mm`);
     if(depL)details.push(`largeur ${larg} > ${ligne.l_max} mm`);
+    if(depH)details.push(`hauteur ${haut} > ${ligne.h_max} mm`);
     return {statut:"hors",ligne,texte:`Hors domaine d'emploi (${ligne.type}) : ${details.join(", ")} — à valider avec le fabricant`,couleur:"#9a3412",bg:"#fff7ed"};
   }
-  return {statut:"ok",ligne,texte:`Dimensions dans le domaine d'emploi (${ligne.type} : max ${ligne.h_max}×${ligne.l_max} mm)`,couleur:"#065f46",bg:"#f0fdf4"};
+  return {statut:"ok",ligne,texte:`Dans le domaine d'emploi (${ligne.type} : max L ${ligne.l_max} × H ${ligne.h_max} mm)`,couleur:"#065f46",bg:"#f0fdf4"};
 }
 
 // Statut de validité d'un DTA à partir de sa date "JJ/MM/AAAA".
@@ -381,68 +467,69 @@ const EPS3_TYPES = { // Quadro 9 (types les plus courants en menuiserie/façade)
 function eps2Lamine(n){return EPS2_LAMINE[n]||EPS2_LAMINE[Math.min(n,4)];}
 
 // ── ANALYSE COMPOSITION VITRAGE — épaisseur réelle + poids ─────────────────
-// Densité verre = 2.5 kg/m²/mm. PVB ~ négligeable en poids mais ajoute épaisseur.
-// Formats gérés : "44.2", "44.2s", "44.2 sil", "10/16/44.2", "86.2/24/44.2 sil",
-//                 "4/20/4", "10/12/66.2", "55.2s/20/44.2s", "BR5-NS-57mm"
+// Densité verre = 2.5 kg/m²/mm. PVB négligé en poids, compté en épaisseur (0.38/film).
+// Notation : verre / lame / verre [/ lame / verre], de l'EXTÉRIEUR vers l'INTÉRIEUR.
+// Formats : "44.2", "44.2s", "44.2 sil", "44.2 Ac", "664.2", "1010.4", "10/16/44.2",
+//           "86.2s/24/64.2s", "10/12/44.2 Ac", "6/16/4/16/6"...
+// CORRIGÉ v2.5 : si une partie n'est pas reconnue, TOUTE la composition est rejetée
+// (avant : la partie était ignorée → "10/12/44.2 Ac" lu comme un 10 mm seul).
+function splitLamine(digits){
+  // "44"→[4,4] · "664"→[6,6,4] · "1010"→[10,10] · "1212"→[12,12]
+  const single=digits.split('').map(Number);
+  if(single.length>=2&&single.every(d=>d>=3))return single;
+  if(digits.length%2===0){
+    const pairs=[];
+    for(let i=0;i<digits.length;i+=2)pairs.push(+digits.slice(i,i+2));
+    if(pairs.every(d=>d>=3&&d<=25))return pairs;
+  }
+  return null;
+}
 function parseGlassPart(part){
-  // Retourne {epaisseur_mm, poids_kg_m2, components:[...ep monolithiques]} pour un composant (mono ou feuilleté)
-  part=part.trim().toLowerCase().replace(/\s*(sil|silence|s)\s*$/,"").trim();
-  // Feuilleté type "44.2" = 2 verres de 4mm + 2 films PVB (0.38mm chacun → .2 = 2 films)
-  const lamMatch=part.match(/^(\d)(\d)\.(\d)$/); // ex 44.2 → 4,4,2
-  if(lamMatch){
-    const v1=parseInt(lamMatch[1]),v2=parseInt(lamMatch[2]),films=parseInt(lamMatch[3]);
-    const ep=v1+v2+films*0.38;
-    const poids=(v1+v2)*2.5; // PVB densité ~1.05 négligé
-    return {ep:+ep.toFixed(2),poids:+poids.toFixed(1),components:[v1,v2]};
+  // Suffixes commerciaux sans effet mécanique : s / sil / silence / ac / acoustique
+  let p=String(part).trim().toLowerCase();
+  p=p.replace(/\s*(silence|sil|acoustique|acou|ac|a|s)\s*$/,"").trim();
+  let m=p.match(/^(\d{2,4})\.(\d)$/);
+  if(m){
+    const verres=splitLamine(m[1]); const films=+m[2];
+    if(!verres||films<1)return null;
+    const epV=verres.reduce((x,y)=>x+y,0);
+    return {ep:+(epV+films*0.38).toFixed(2),poids:+(epV*2.5).toFixed(1),components:verres,films};
   }
-  // Monolithique simple "4","6","8","10","12"
-  const mono=part.match(/^(\d{1,2})$/);
-  if(mono){
-    const e=parseInt(mono[1]);
-    return {ep:e,poids:+(e*2.5).toFixed(1),components:[e]};
-  }
-  // Triple feuilleté "664.2" ou compositions exotiques
-  const multiLam=part.match(/^(\d+)\.(\d)$/);
-  if(multiLam){
-    const verres=multiLam[1].split('').map(Number);
-    const films=parseInt(multiLam[2]);
-    const epVerres=verres.reduce((a,b)=>a+b,0);
-    const ep=epVerres+films*0.38;
-    return {ep:+ep.toFixed(2),poids:+(epVerres*2.5).toFixed(1),components:verres};
+  m=p.match(/^(\d{1,2})$/);
+  if(m){
+    const e=+m[1];
+    if(e<3||e>25)return null;
+    return {ep:e,poids:+(e*2.5).toFixed(1),components:[e],films:0};
   }
   return null;
 }
 
 function analyseComposition(compo){
-  // Sépare les composants par "/" : verre / lame d'air / verre [/ lame / verre]
-  // Lame d'air = nombre seul entre deux verres ET généralement 12,16,18,20,24
   if(!compo||typeof compo!=="string")return null;
-  // Nettoyer mentions BR/NS (pare-balle) non parsables
-  if(/br\d|ns|^\d+\s*mm/i.test(compo))return null;
   const parts=compo.split('/').map(p=>p.trim()).filter(Boolean);
-  if(parts.length<1)return null;
-
-  let epTotal=0,poidsTotal=0,nbVerres=0,lames=[],panes=[];
-  parts.forEach((part,i)=>{
-    // Une lame d'air = un nombre seul de 6 à 24 situé en position paire (entre verres)
-    const isGap=/^\d{1,2}$/.test(part.replace(/\s/g,'')) && parseInt(part)>=6 && parseInt(part)<=24 && i%2===1 && parts.length>1;
-    if(isGap){
-      const g=parseInt(part);
-      epTotal+=g;
-      lames.push(g);
+  // 1 verre, ou verre/lame/verre, ou verre/lame/verre/lame/verre
+  if(parts.length<1||parts.length>5||parts.length%2===0)return null;
+  let epTotal=0,poidsTotal=0;const lames=[],panes=[];
+  for(let i=0;i<parts.length;i++){
+    if(i%2===1){
+      const gm=parts[i].match(/^(\d{1,2})\s*(mm|ar|argon|air|kr|krypton)?$/i);
+      if(!gm)return null;
+      const g=+gm[1];
+      if(g<4||g>32)return null;
+      epTotal+=g; lames.push(g);
     } else {
-      const r=parseGlassPart(part);
-      if(r){epTotal+=r.ep;poidsTotal+=r.poids;nbVerres++;panes.push({components:r.components});}
+      const r=parseGlassPart(parts[i]);
+      if(!r)return null;
+      epTotal+=r.ep; poidsTotal+=r.poids; panes.push({components:r.components,films:r.films});
     }
-  });
-  if(nbVerres===0)return null;
+  }
   return {
     epaisseur_totale:+epTotal.toFixed(1),
     poids_m2:+poidsTotal.toFixed(1),
-    nb_verres:nbVerres,
+    nb_verres:panes.length,
     lames_air:lames,
     panes,
-    type:lames.length>0?(nbVerres>=3?"Triple vitrage":"Double vitrage"):"Vitrage simple"
+    type:panes.length>=3?"Triple vitrage":panes.length===2?"Double vitrage":"Vitrage simple"
   };
 }
 
@@ -483,223 +570,189 @@ function calcEquivalences(panes, eps3){
   return {eR:+(sumR/(eps1*0.9*eps3)).toFixed(2), eF:+(sumF/eps1).toFixed(2)};
 }
 
-// Vérifie poids du vantail vs capacité ferrure + épaisseur vs feuillure
+// ── VITRAGES À VÉRIFIER (résistance / flèche) ──────────────────────────────
+// Un calcul DTU 39 P4 se fait sur chaque vitrage INDÉPENDANT (posé dans sa
+// feuillure), jamais sur l'élément entier. CORRIGÉ v2.5 : l'étape "Calcul vent"
+// calculait une façade de 12 m comme un seul vitrage.
+function nbVantauxElement(el,sys){
+  const soustype=(el&&el.soustype)||"";
+  const famille=(sys&&sys.famille)||"";
+  const defautSoustype=/coulissant|porte-?fen/i.test(soustype)?2:/fen[êe]tre|porte\b/i.test(soustype)?1:null;
+  const defautFamille=/coulissant|porte-?fen/i.test(famille)?2:1;
+  return Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||defautSoustype||defautFamille);
+}
+function panneauxCalcul(el,sys){
+  const L=+el.largeur||0, H=+el.hauteur||0;
+  if(!L||!H)return [];
+  // 1) Panneaux personnalisés (façade ou châssis composé)
+  if(el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0){
+    const list=el.panneaux.filter(p=>+p.largeur>0&&+p.hauteur>0)
+      .map(p=>({largeur:+p.largeur,hauteur:+p.hauteur,type:p.type||"fixe",label:p.label||"",qte:Math.max(1,+p.qte||1)}));
+    if(list.length)return list;
+  }
+  // 2) Façade trame régulière : entraxe × hauteur de panneau (saisie ou estimée)
+  if(el.type==="facade"){
+    const trame=+el.trame||1350;
+    let hp=+el.haut_panneau||0;
+    if(!(hp>0)){const nb=Math.max(1,Math.ceil((H/1000)/2.2));hp=H/nb;}
+    return [{largeur:Math.round(trame),hauteur:Math.round(hp),type:"fixe",label:"panneau de trame"+(+el.haut_panneau>0?"":", hauteur estimée"),qte:1}];
+  }
+  // 3) Châssis fixe (éventuellement divisé en grille)
+  if(el.soustype==="Fenêtre fixe"){
+    const nm=Math.max(0,+el.nb_montants||0), nt=Math.max(0,+el.nb_traverses||0);
+    if(nm>0||nt>0)return [{largeur:Math.round(L/(nm+1)),hauteur:Math.round(H/(nt+1)),type:"fixe",label:"carreau, grille "+(nm+1)+"×"+(nt+1),qte:(nm+1)*(nt+1)}];
+    return [{largeur:L,hauteur:H,type:"fixe",label:"",qte:1}];
+  }
+  // 4) Châssis ouvrant : vantaux (+ partie fixe accolée, vérifiée aussi)
+  const nv=nbVantauxElement(el,sys);
+  const lf=Math.max(0,Math.min(L,+el.larg_fixe||0));
+  const lv=Math.round((L-lf)/nv);
+  const list=[];
+  if(lv>0)list.push({largeur:lv,hauteur:H,type:/^porte$/i.test(el.soustype||"")?"porte":"ouvrant",label:nv>1?nv+" vantaux":"",qte:nv});
+  if(lf>0)list.push({largeur:Math.round(lf),hauteur:H,type:"fixe",label:"fixe accolé",qte:1});
+  return list;
+}
+// Résistance (Art.7-8) et flèche (Art.9) d'une composition sur une liste de vitrages.
+// Verdict = TOUS conformes. Pire cas déterminé SÉPARÉMENT pour la résistance
+// (e1×c max) et pour la flèche (eF requis max).
+function evalPanneaux(panneaux,pression,equiv,projet){
+  const hs=+projet.hauteur_sol||3;
+  let pireR=null,pireF=null;
+  const detail=panneaux.map(p=>{
+    const d=calcDTU39(pression,p.largeur,p.hauteur,2,2,projet.type_vitrage,hs);
+    const req=+(d.e1*d.c).toFixed(2);
+    const pc=Math.min(p.largeur,p.hauteur)/1000;
+    const flP=equiv.eF>0?+(d.alpha*(pression/1.5)*(Math.pow(pc,4)/Math.pow(equiv.eF,3))).toFixed(2):null;
+    const row={...p,requis:req,eF_requis:d.eF_requis,fleche_max:d.flecheMax,fleche_obtenue:flP,
+      res_ok:equiv.eR>=req,
+      fleche_ok:flP!=null?flP<=d.flecheMax:equiv.eF>=d.eF_requis,
+      dtu:d};
+    if(!pireR||req>pireR.requis)pireR=row;
+    if(!pireF||d.eF_requis>pireF.eF_requis)pireF=row;
+    return row;
+  });
+  return {detail,pireR,pireF,resistance_ok:detail.every(r=>r.res_ok),fleche_ok:detail.every(r=>r.fleche_ok)};
+}
+// Épaisseur DTU 39 minimale d'un élément = vitrage le plus défavorable
+function calcVentElement(el,projet,sys){
+  const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const pan=panneauxCalcul(el,sys);
+  if(!pression||!pan.length)return null;
+  let pire=null;
+  pan.forEach(p=>{
+    const d=calcDTU39(pression,p.largeur,p.hauteur,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
+    if(!pire||d.eRequired>pire.dtu.eRequired)pire={panneau:p,dtu:d};
+  });
+  return {...pire,nb:pan.length,pression};
+}
+function epaisseurDTUProjet(projet){
+  const vals=(projet.elements||[]).map(el=>calcVentElement(el,projet)).filter(Boolean).map(r=>r.dtu.eRequired);
+  return vals.length?Math.max(...vals)+" mm":"";
+}
+// Thermique : ligne du catalogue correspondant au type d'élément (fenêtre / PF,
+// 1 ou 2 vantaux) et au Ug du vitrage choisi. CORRIGÉ v2.5 : avant, il suffisait
+// qu'UNE configuration quelconque du catalogue passe pour afficher "Conforme".
+function verifThermique(sys,el,projet){
+  const th=((sys&&sys.thermique)||[]).filter(t=>typeof t.uw==="number"&&isFinite(t.uw));
+  if(!th.length)return {ok:null,cfg:null,note:"Données thermiques manquantes"};
+  let cand=th;
+  if(el&&el.type!=="facade"){
+    const estPorte=/porte/i.test(el.soustype||"");
+    const byKind=cand.filter(t=>estPorte?/porte/i.test(t.config):/^fen[êe]tre/i.test(t.config));
+    if(byKind.length)cand=byKind;
+    const nv=nbVantauxElement(el,sys);
+    const byNv=cand.filter(t=>nv>=2?/2 vtx|2 vantaux/i.test(t.config):/1 vtl|1 vantail/i.test(t.config));
+    if(byNv.length)cand=byNv;
+  }
+  const ugVit=parseFloat(projet&&projet.controle_ug);
+  let ugNote="";
+  if(ugVit>0){
+    // Une config testée avec un Ug égal ou moins bon reste du côté de la sécurité
+    const byUg=cand.filter(t=>typeof t.ug==="number"&&t.ug>=ugVit-1e-9);
+    if(byUg.length)cand=byUg; else ugNote=` — aucune config au Ug ${ugVit}, valeur catalogue`;
+  }
+  const best=cand.reduce((b,t)=>(!b||t.uw<b.uw)?t:b,null);
+  const uwMax=parseFloat(projet&&projet.uw_max);
+  return {ok:uwMax>0?best.uw<=uwMax:null,cfg:best,note:`Uw ${best.uw} W/m²K · ${best.config}${ugNote}`};
+}
+
+// ── VÉRIFICATION D'UNE COMPOSITION SUR UN ÉLÉMENT ──────────────────────────
+// Poids (ferrure / appui), feuillure, résistance (Art.7-8) et flèche (Art.9).
+// CORRIGÉ v2.5 : le tableau "détail par partie" utilisait eR/eF avant leur calcul
+// (tout ✗) ; la flèche globale était calculée sur un autre panneau que le pire cas.
 function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
   const a=analyseComposition(compo);
   if(!a)return null;
-  const isFacade=el&&el.type==="facade";
-  let surf, poids_unitaire, base_label, poids_max_ref, poids_ok, poids_decoupage=null, nb_vantaux=1;
-  let panel_L_mm=largeur_mm, panel_H_mm=hauteur_mm; // dimensions du panneau réel (redéfinies pour façade ci-dessous)
+  const elx={...(el||{}),largeur:largeur_mm,hauteur:hauteur_mm};
+  const isFacade=elx.type==="facade";
+  const panneaux=panneauxCalcul(elx,sys);
+  const surfP=p=>(p.largeur/1000)*(p.hauteur/1000);
+  const plusGrand=list=>list.reduce((b,p)=>(!b||surfP(p)>surfP(b))?p:b,null);
+  const ouvrants=panneaux.filter(p=>p.type==="ouvrant"||p.type==="porte");
 
-  if(isFacade){
-    if(el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0){
-      // Mode panneaux personnalisés : on vérifie le poids sur le panneau le PLUS
-      // GRAND (le plus défavorable), pas sur une trame régulière supposée.
-      let pire=null,pireSurf=-1;
-      el.panneaux.forEach(p=>{
-        const l=(+p.largeur||0)/1000,h=(+p.hauteur||0)/1000,s=l*h;
-        if(s>pireSurf){pireSurf=s;pire={l,h,label:p.label||""};}
-      });
-      if(pire){
-        panel_L_mm=+(pire.l*1000).toFixed(0); panel_H_mm=+(pire.h*1000).toFixed(0);
-        surf=+(pire.l*pire.h).toFixed(2);
-        poids_unitaire=+(a.poids_m2*surf).toFixed(1);
-        base_label=`panneau le plus grand ${panel_L_mm}×${panel_H_mm}mm${pire.label?" ("+pire.label+")":""}`;
-        poids_max_ref=sys?sys.poids_max:null;
-        poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
-      }
-    } else {
-    // Façade : on raisonne par PANNEAU de trame, pas sur la surface totale.
-    // Largeur panneau = entraxe de trame ; hauteur panneau = hauteur d'étage / nb niveaux,
-    // approximée par une hauteur de panneau courante (vitrage entre 2 traverses).
-    const trame_m=(+el.trame||1350)/1000;
-    const H_m=(hauteur_mm/1000);
-    // Hauteur de panneau : explicite si renseignée, sinon estimée par nb de niveaux probable.
-    let haut_panneau;
-    if(+el.haut_panneau>0){
-      haut_panneau=(+el.haut_panneau)/1000;
-    } else {
-      const nb_niveaux=Math.max(1,Math.ceil(H_m/2.2));
-      haut_panneau=H_m/nb_niveaux;
-    }
-    panel_L_mm=+(trame_m*1000).toFixed(0); panel_H_mm=+(haut_panneau*1000).toFixed(0);
-    surf=+(trame_m*haut_panneau).toFixed(2);
+  // ── Poids ──
+  // Façade : plus grand panneau vs capacité d'appui du système.
+  // Châssis : ouvrant/porte le plus lourd vs capacité de ferrure. Un FIXE ne pend
+  // sur aucune ferrure → pas de contrôle ferrure (poids donné pour information).
+  let refP,controle_ferrure;
+  if(isFacade){refP=plusGrand(panneaux);controle_ferrure=true;}
+  else if(ouvrants.length){refP=plusGrand(ouvrants);controle_ferrure=true;}
+  else {refP=plusGrand(panneaux);controle_ferrure=false;}
+  let surf=null,poids_unitaire=null,base_label="",poids_max_ref=null,poids_ok=null,poids_decoupage=null;
+  if(refP){
+    surf=+surfP(refP).toFixed(2);
     poids_unitaire=+(a.poids_m2*surf).toFixed(1);
-    base_label=`panneau ${trame_m.toFixed(2)}×${haut_panneau.toFixed(2)}m${+el.haut_panneau>0?"":" (est.)"}`;
-    // Pour une façade, la limite n'est pas la ferrure d'ouvrant mais la reprise
-    // par traverse/vérins. On retient une capacité de reprise par panneau (≈ poids_max système
-    // qui pour une façade représente la charge admissible par appui vitrage).
-    poids_max_ref=sys?sys.poids_max:null;
-    poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
-    }
-  } else {
-    // Châssis / ouvrant : poids par VANTAIL RÉEL (ou par CARREAU si grille fixe).
-    const L_m=largeur_mm/1000, H_m=hauteur_mm/1000;
-    const nb_montants=Math.max(0,+el.nb_montants||0), nb_traverses=Math.max(0,+el.nb_traverses||0);
-
-    if(el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0){
-      // Châssis composé (panneaux personnalisés) : mêmes règles qu'une façade en mode
-      // perso — poids vérifié sur le panneau le plus GRAND, résistance/flèche sur le
-      // pire cas (calculé plus bas). Un ouvrant reste limité par sa ferrure ; un fixe
-      // par la reprise. On prend la capacité système comme référence de poids.
-      // Poids : la limite de FERRURE (sys.poids_max) ne s'applique qu'aux OUVRANTS
-      // et PORTES (le poids pend sur la quincaillerie). Un FIXE ne repose sur aucune
-      // ferrure — son poids est repris par les traverses/parcloses, sans limite ferrure.
-      // On vérifie donc le poids ferrure sur l'ouvrant/porte le plus lourd uniquement,
-      // et on signale à part le fixe le plus lourd (pour info, sans blocage ferrure).
-      let pireOuv=null,pireOuvP=-1, pireFix=null,pireFixP=-1;
-      el.panneaux.forEach(p=>{
-        const l=(+p.largeur||0)/1000,h=(+p.hauteur||0)/1000,s=l*h;
-        const poids=a.poids_m2*s;
-        const estOuvrant=(p.type==="ouvrant"||p.type==="porte");
-        if(estOuvrant){ if(poids>pireOuvP){pireOuvP=poids;pireOuv={l,h,label:p.label||"",type:p.type};} }
-        else { if(poids>pireFixP){pireFixP=poids;pireFix={l,h,label:p.label||"",type:p.type};} }
-      });
-      // Le panneau retenu pour l'affichage poids : l'ouvrant le plus lourd s'il existe,
-      // sinon le fixe le plus lourd (mais sans contrôle ferrure dans ce cas).
-      const pirePoids = pireOuv || pireFix;
-      if(pirePoids){
-        panel_L_mm=+(pirePoids.l*1000).toFixed(0); panel_H_mm=+(pirePoids.h*1000).toFixed(0);
-        surf=+(pirePoids.l*pirePoids.h).toFixed(2);
-        poids_unitaire=+(a.poids_m2*surf).toFixed(1);
-        const estOuvrant=(pirePoids.type==="ouvrant"||pirePoids.type==="porte");
-        base_label=`${estOuvrant?"ouvrant":"fixe"} le plus lourd ${panel_L_mm}×${panel_H_mm}mm${pirePoids.label?" ("+pirePoids.label+")":""}`;
-        nb_vantaux=el.panneaux.reduce((n,p)=>n+((p.type==="ouvrant"||p.type==="porte")?(+p.qte||1):0),0);
-        // Contrôle ferrure UNIQUEMENT si le panneau retenu est un ouvrant/porte.
-        if(estOuvrant){
-          poids_max_ref=sys?sys.poids_max:null;
-          poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
-        } else {
-          // Que des fixes : pas de limite ferrure applicable.
-          poids_max_ref=null;
-          poids_ok=null;
-        }
-      }
-    } else if(el.soustype==="Fenêtre fixe"&&(nb_montants>0||nb_traverses>0)){
-      // Châssis fixe divisé en grille de carreaux (montants/traverses) — comme une
-      // mini-façade : on vérifie le poids/résistance/flèche sur le CARREAU le plus
-      // grand, pas sur le châssis entier (aucun vantail ici, tout est fixe).
-      const largCarreau=L_m/(nb_montants+1), hautCarreau=H_m/(nb_traverses+1);
-      panel_L_mm=+(largCarreau*1000).toFixed(0); panel_H_mm=+(hautCarreau*1000).toFixed(0);
-      surf=+(largCarreau*hautCarreau).toFixed(2);
-      poids_unitaire=+(a.poids_m2*surf).toFixed(1);
-      base_label=`carreau ${panel_L_mm}×${panel_H_mm}mm (grille ${nb_montants+1}×${nb_traverses+1})`;
-      nb_vantaux=0; // tout est fixe, pas de vantail
-      poids_max_ref=sys?sys.poids_max:null;
+    const nature=isFacade?"panneau":refP.type==="porte"?"porte":refP.type==="ouvrant"?"vantail":"fixe";
+    base_label=`${nature} ${refP.largeur}×${refP.hauteur}mm${refP.label?" ("+refP.label+")":""}`;
+    if(controle_ferrure){
+      poids_max_ref=sys&&sys.poids_max?sys.poids_max:null;
       poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
-    } else {
-    // L'utilisateur peut préciser la composition (nb vantaux + largeur fixe éventuelle).
-    // Sinon, calcul sur 1 vantail occupant toute la dimension.
-    // Nombre de vantaux : valeur saisie par l'utilisateur en priorité ; sinon valeur
-    // par défaut du système catalogue ; sinon selon le TYPE D'ÉLÉMENT réellement
-    // configuré par l'utilisateur (el.soustype : "Porte-fenêtre"/"Coulissant" → 2 vantaux),
-    // et seulement à défaut la famille catalogue du système (qui reste souvent générique,
-    // ex. "Fenêtre" même pour un profil utilisable en porte-fenêtre — ne pas s'y fier seule).
-    const soustype=(el&&el.soustype)||"";
-    const famille=(sys&&sys.famille)||"";
-    const defautSoustype=/coulissant|porte-?fen/i.test(soustype)?2:/fen[êe]tre|porte\b/i.test(soustype)?1:null;
-    const defautFamille=/coulissant|porte-?fen/i.test(famille)?2:1;
-    const nb_vantaux_calc=Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||defautSoustype||defautFamille);
-    nb_vantaux=nb_vantaux_calc;
-    const larg_fixe_mm=+el.larg_fixe||0; // largeur de la partie fixe (mm)
-    const larg_fixe_m=larg_fixe_mm/1000;
-    // Largeur disponible pour les ouvrants = largeur totale - fixe
-    const larg_ouvrants_m=Math.max(0,L_m-larg_fixe_m);
-    const larg_vantail=larg_ouvrants_m/nb_vantaux;
-    panel_L_mm=+(larg_vantail*1000).toFixed(0); panel_H_mm=hauteur_mm;
-    surf=+(larg_vantail*H_m).toFixed(2);
-    poids_unitaire=+(a.poids_m2*surf).toFixed(1);
-    base_label=nb_vantaux>1||larg_fixe_mm>0
-      ? `vantail ${(larg_vantail*1000).toFixed(0)}×${hauteur_mm}mm (${nb_vantaux} vtx${larg_fixe_mm>0?" + fixe "+larg_fixe_mm+"mm":""})`
-      : `vantail ${largeur_mm}×${hauteur_mm}mm`;
-    poids_max_ref=sys?sys.poids_max:null;
-    poids_ok=poids_max_ref?poids_unitaire<=poids_max_ref:null;
+    }
+  }
+  const nb_vantaux=isFacade?null:ouvrants.reduce((n,p)=>n+(p.qte||1),0);
 
-    // Si ça ne passe pas, calculer les découpages possibles
-    if(poids_ok===false&&poids_max_ref){
-      const options=[];
-      // Essayer 2, 3, 4 vantaux égaux
-      for(let n=2;n<=4;n++){
-        const lv=L_m/n;
-        const p=+(a.poids_m2*lv*H_m).toFixed(0);
-        if(p<=poids_max_ref)options.push({label:`${n} vantaux égaux`,detail:`${(lv*1000).toFixed(0)}×${hauteur_mm}mm chacun`,poids:p});
-      }
-      // Essayer fixe central + 2 ouvrants latéraux (fixe = 40% largeur)
-      for(const ratioFixe of [0.4,0.5,0.34]){
-        const lo=(L_m*(1-ratioFixe))/2;
-        const p=+(a.poids_m2*lo*H_m).toFixed(0);
-        if(p<=poids_max_ref){options.push({label:`Fixe central + 2 ouvrants`,detail:`fixe ${(L_m*ratioFixe*1000).toFixed(0)}mm + 2 ouvrants ${(lo*1000).toFixed(0)}×${hauteur_mm}mm`,poids:p});break;}
-      }
-      // Imposte fixe haute + ouvrant bas (réduit la hauteur)
-      for(const hImp of [0.4,0.6,0.8]){
-        const ho=H_m-hImp;
-        if(ho<=0)continue;
-        const p=+(a.poids_m2*L_m*ho).toFixed(0);
-        if(p<=poids_max_ref){options.push({label:`Imposte fixe haute + ouvrant`,detail:`imposte ${(hImp*1000).toFixed(0)}mm + ouvrant ${largeur_mm}×${(ho*1000).toFixed(0)}mm`,poids:p});break;}
-      }
-      poids_decoupage=options;
+  // Découpages possibles si un châssis ouvrant simple est trop lourd
+  const modePerso=elx.mode_trame==="personnalisee"&&Array.isArray(elx.panneaux)&&elx.panneaux.length>0;
+  if(!isFacade&&!modePerso&&poids_ok===false&&poids_max_ref){
+    const L_m=largeur_mm/1000,H_m=hauteur_mm/1000,options=[];
+    for(let n=2;n<=4;n++){
+      const lv=L_m/n,p=+(a.poids_m2*lv*H_m).toFixed(0);
+      if(p<=poids_max_ref)options.push({label:`${n} vantaux égaux`,detail:`${(lv*1000).toFixed(0)}×${hauteur_mm}mm chacun`,poids:p});
     }
+    for(const ratioFixe of [0.34,0.4,0.5]){
+      const lo=(L_m*(1-ratioFixe))/2,p=+(a.poids_m2*lo*H_m).toFixed(0);
+      if(p<=poids_max_ref){options.push({label:`Fixe central + 2 ouvrants`,detail:`fixe ${(L_m*ratioFixe*1000).toFixed(0)}mm + 2 ouvrants ${(lo*1000).toFixed(0)}×${hauteur_mm}mm`,poids:p});break;}
     }
+    const lvRef=refP?refP.largeur/1000:L_m;
+    for(const hImp of [0.4,0.6,0.8]){
+      const ho=H_m-hImp; if(ho<=0)continue;
+      const p=+(a.poids_m2*lvRef*ho).toFixed(0);
+      if(p<=poids_max_ref){options.push({label:`Imposte fixe haute + ouvrant`,detail:`imposte ${(hImp*1000).toFixed(0)}mm + ouvrant ${Math.round(lvRef*1000)}×${(ho*1000).toFixed(0)}mm`,poids:p});break;}
+    }
+    poids_decoupage=options;
   }
 
   const feuillure_ok=sys?(a.epaisseur_totale>=sys.epaisseur_min&&a.epaisseur_totale<=sys.epaisseur_max):null;
 
-  // ── Vérification résistance & flèche du vitrage — NF DTU 39 P4 Art.7-9 ──
-  // Comparaison de la composition RÉELLE (via calcEquivalences) aux exigences
-  // physiques pures (e1×c pour la résistance, eF_requis pour la flèche).
-  let resistance_ok=null, fleche_verre_ok=null, eR_reel=null, eF_reel=null, dtu_verre=null, fleche_obtenue=null, detail_panneaux=null;
-  if(projet){
-    const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
-    if(pression&&a.panes&&a.panes.length>0){
+  // ── Résistance & flèche — NF DTU 39 P4 Art.7-9, sur CHAQUE vitrage ──
+  let resistance_ok=null,fleche_verre_ok=null,eR_reel=null,eF_reel=null,dtu_verre=null,fleche_obtenue=null,detail_panneaux=null,base_calcul=null;
+  if(projet&&panneaux.length>0){
+    const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+    if(pression){
       const eps3=EPS3_TYPES[projet.type_verre]?EPS3_TYPES[projet.type_verre].eps3:1.0;
       const equiv=calcEquivalences(a.panes,eps3);
-      // aL/aH=2/2 : hypothèse châssis/façade appuyé sur tout le pourtour (cas standard
-      // fenêtre/façade en feuillure) — cas par défaut de l'outil, cohérent avec le calcul
-      // affiché en étape 2 (calcul vent).
-      // Pour une façade, la résistance/flèche du verre se vérifie sur la dimension
-      // RÉELLE du panneau (entraxe trame × hauteur panneau), pas sur la façade entière —
-      // chaque case de trame est un vitrage indépendant posé sur les meneaux/traverses.
-      // En mode "panneaux personnalisés", le panneau le plus lourd (poids) n'est pas
-      // forcément celui qui exige le plus de résistance au vent (ça dépend du rapport
-      // largeur/hauteur, pas seulement de la surface) — on teste donc TOUS les panneaux
-      // et on retient le cas le plus défavorable pour la résistance/flèche.
-      if(el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0){
-        let pireDtu=null,pireReq=-1,pirePanneau=null;
-        detail_panneaux=[];
-        el.panneaux.forEach(p=>{
-          const pl=+p.largeur||0, ph=+p.hauteur||0;
-          if(!pl||!ph)return;
-          const d=calcDTU39(pression,pl,ph,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
-          const req=d.e1*d.c;
-          // flèche réelle de CE panneau
-          let flP=null;
-          if(eF_reel>0&&d.alpha){
-            const pc=Math.min(pl,ph)/1000;
-            flP=+(d.alpha*(pression/1.5)*(Math.pow(pc,4)/Math.pow(eF_reel,3))).toFixed(2);
-          }
-          detail_panneaux.push({
-            largeur:pl, hauteur:ph, type:p.type||"fixe", label:p.label||"", qte:+p.qte||1,
-            requis:+req.toFixed(2), fleche_max:d.flecheMax,
-            fleche_obtenue:flP,
-            res_ok:eR_reel>=req,
-            fleche_ok:flP!=null?flP<=d.flecheMax:null,
-          });
-          if(req>pireReq){pireReq=req;pireDtu=d;pirePanneau=p;}
-        });
-        dtu_verre=pireDtu;
-        if(pirePanneau)base_label=`pire cas : panneau ${pirePanneau.largeur}×${pirePanneau.hauteur}mm${pirePanneau.label?" ("+pirePanneau.label+")":""}`;
-      } else {
-        dtu_verre=calcDTU39(pression,panel_L_mm,panel_H_mm,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
-      }
-      eR_reel=equiv.eR; eF_reel=equiv.eF;
-      resistance_ok=eR_reel>=(dtu_verre.e1*dtu_verre.c);
-      fleche_verre_ok=eF_reel>=dtu_verre.eF_requis;
-      // Flèche RÉELLE obtenue en mm (formule feuille réf. validée) :
-      // f = alpha × (P/1.5) × (petit_côté_m⁴ / eF_reel³). Comparable directement
-      // à la flèche admissible (dtu_verre.flecheMax) pour un verdict parlant sur le terrain.
-      if(eF_reel>0&&dtu_verre.alpha){
-        const petit_cote_m=Math.min(panel_L_mm,panel_H_mm)/1000;
-        fleche_obtenue=+(dtu_verre.alpha*(pression/1.5)*(Math.pow(petit_cote_m,4)/Math.pow(eF_reel,3))).toFixed(2);
+      if(equiv){
+        eR_reel=equiv.eR; eF_reel=equiv.eF;
+        const ev=evalPanneaux(panneaux,pression,equiv,projet);
+        resistance_ok=ev.resistance_ok; fleche_verre_ok=ev.fleche_ok;
+        // Synthèse : valeurs du pire cas de CHAQUE critère
+        dtu_verre={...ev.pireR.dtu,eF_requis:ev.pireF.dtu.eF_requis,flecheMax:ev.pireF.dtu.flecheMax,alpha:ev.pireF.dtu.alpha};
+        fleche_obtenue=ev.pireF.fleche_obtenue;
+        detail_panneaux=ev.detail.map(({dtu,...r})=>r);
+        const nomP=p=>`${p.largeur}×${p.hauteur}mm${p.label?" ("+p.label+")":""}`;
+        base_calcul=ev.detail.length===1?nomP(ev.pireR)
+          :(ev.pireR===ev.pireF?`pire cas ${nomP(ev.pireR)} — ${ev.detail.length} vitrages vérifiés`
+            :`pire cas résistance ${nomP(ev.pireR)} · pire cas flèche ${nomP(ev.pireF)} — ${ev.detail.length} vitrages vérifiés`);
       }
     }
   }
@@ -708,13 +761,13 @@ function verifVitrage(compo,largeur_mm,hauteur_mm,sys,el,projet){
     ...a,
     isFacade,
     surface:surf,
-    base_label,
+    base_label,base_calcul,
     poids_vantail:poids_unitaire,
     poids_max:poids_max_ref,
-    poids_ok,
+    poids_ok,controle_ferrure,
     poids_decoupage,
     resistance_ok, fleche_verre_ok, eR_reel, eF_reel, dtu_verre, fleche_obtenue, detail_panneaux,
-    nb_vantaux:isFacade?null:nb_vantaux,
+    nb_vantaux,
     feuillure_min:sys?sys.epaisseur_min:null,
     feuillure_max:sys?sys.epaisseur_max:null,
     feuillure_ok,
@@ -1373,8 +1426,31 @@ const INITIAL_CONTROLES=[
   {id:"gu_hd65",marque:"Guardian",gamme:"SunGuard HD",ref:"SunGuard HD 65/33",tl:65,fs:0.33,ug:1.0,note:"Haute définition, très neutre"},
 ];
 
-function getDB(){try{const r=localStorage.getItem("glassiq_v2_db");return r?JSON.parse(r):INITIAL_DB;}catch{return INITIAL_DB;}}
-function saveDB(db){try{localStorage.setItem("glassiq_v2_db",JSON.stringify(db));}catch{}}
+// Base : les systèmes du FICHIER (INITIAL_DB) font toujours foi — une correction faite
+// dans le code est visible immédiatement. Seuls les systèmes AJOUTÉS par l'utilisateur
+// sont stockés dans le navigateur (clé glassiq_v2_perso).
+// CORRIGÉ v2.5 : avant, la base complète était figée dans le navigateur au 1er ajout.
+function getPerso(){
+  try{
+    const r=localStorage.getItem("glassiq_v2_perso");
+    if(r){const l=JSON.parse(r);return Array.isArray(l)?l:[];}
+    // Migration depuis l'ancienne clé : on ne récupère que les systèmes ajoutés
+    const old=localStorage.getItem("glassiq_v2_db");
+    if(old){
+      const ids=new Set(INITIAL_DB.systemes.map(s=>s.id));
+      const perso=((JSON.parse(old)||{}).systemes||[]).filter(s=>s&&!ids.has(s.id)).map(s=>({...s,perso:true}));
+      localStorage.setItem("glassiq_v2_perso",JSON.stringify(perso));
+      return perso;
+    }
+  }catch(e){}
+  return [];
+}
+function savePerso(list){try{localStorage.setItem("glassiq_v2_perso",JSON.stringify(list));return true;}catch(e){return false;}}
+function getDB(){
+  const ids=new Set(INITIAL_DB.systemes.map(s=>s.id));
+  const perso=getPerso().filter(s=>s&&s.id&&!ids.has(s.id)).map(s=>({tests:[],aev:[],thermique:[],...s}));
+  return {systemes:[...INITIAL_DB.systemes,...perso]};
+}
 function getControles(){try{const r=localStorage.getItem("glassiq_v2_ctrl");return r?JSON.parse(r):INITIAL_CONTROLES;}catch{return INITIAL_CONTROLES;}}
 
 // ── GESTION DES PROJETS (sauvegarde / chargement) ──────────────────────────
@@ -1436,6 +1512,15 @@ const defaultProjet={
   controle_ref:"",controle_tl:"",controle_fs:"",controle_ug:"",
 };
 
+function ChampTerrain({value,onChange}){
+  return <div>
+    <label style={S.label}>Catégorie terrain</label>
+    <select value={value} onChange={e=>onChange(e.target.value)} style={S.input}>{Object.entries(TERRAINS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
+    {value==="IV"&&<div style={{fontSize:11,color:"#991b1b",marginTop:3,fontWeight:600}}>⚠ Cat. IV = urbain dense / forêt (pression la plus FAIBLE). Bord de mer = Cat. 0.</div>}
+    {value==="0"&&<div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Bord de mer — pression la plus forte du tableau</div>}
+  </div>;
+}
+
 function StepBar({current,setPage}){
   const steps=[{id:"projet",n:1,label:"Projet CCTP"},{id:"vent",n:2,label:"Calcul vent"},{id:"comparateur",n:3,label:"Comparateur"},{id:"controle",n:4,label:"Solaire"},{id:"prescription",n:5,label:"Prescription"}];
   return <div style={{display:"flex",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:4}}>
@@ -1493,11 +1578,11 @@ function PageProjet({projet,setProjet,setPage}){
     <div style={S.card}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,paddingBottom:10,borderBottom:"1px solid #f3f4f6"}}>
         <div style={{width:30,height:30,borderRadius:8,background:"#fef3c7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>☀</div>
-        <div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>Exigences thermiques & solaires</div><div style={{fontSize:12,color:"#6b7280"}}>RE2020 / CCTP architecte</div></div>
+        <div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>Exigences thermiques & solaires</div><div style={{fontSize:12,color:"#6b7280"}}>CCTP / étude thermique</div></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-        <div><label style={S.label}>Uw max (W/m².K)</label><input type="number" value={projet.uw_max} onChange={e=>upd("uw_max",e.target.value)} placeholder="ex : 1.4" step="0.1" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>RE2020 courant : 1.4 — haute perf : 1.0</div></div>
-        <div><label style={S.label}>Facteur solaire g max</label><input type="number" value={projet.g_max} onChange={e=>upd("g_max",e.target.value)} placeholder="ex : 0.36" step="0.01" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>RE2020 : g ≤ 0.36 zone H1/H2</div></div>
+        <div><label style={S.label}>Uw max (W/m².K)</label><input type="number" value={projet.uw_max} onChange={e=>upd("uw_max",e.target.value)} placeholder="ex : 1.4" step="0.1" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Valeur du CCTP / de l'étude thermique</div></div>
+        <div><label style={S.label}>Facteur solaire g max</label><input type="number" value={projet.g_max} onChange={e=>upd("g_max",e.target.value)} placeholder="ex : 0.36" step="0.01" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Selon CCTP (confort d'été)</div></div>
         <div><label style={S.label}>TL minimum (%)</label><input type="number" value={projet.tl_min} onChange={e=>upd("tl_min",e.target.value)} placeholder="ex : 50" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Luminosité imposée</div></div>
       </div>
     </div>
@@ -1518,7 +1603,7 @@ function PageProjet({projet,setProjet,setPage}){
         let vInfo=null;
         if(pression){
           if(iF)vInfo=<div style={{padding:"6px 12px",background:"#ede9fe",borderRadius:6,fontSize:12,color:"#5b21b6",marginTop:8}}>⚠ Essai AEV du système ≥ <strong>{pression} Pa</strong> obligatoire</div>;
-          else{const cl=pression<=600?"V1":pression<=1200?"C2 min":pression<=2000?"C3 min":"C4 min";vInfo=<div style={{padding:"6px 12px",background:"#ccfbf1",borderRadius:6,fontSize:12,color:"#0f766e",marginTop:8}}>ℹ {pression} Pa → classement estimé : <strong>{cl}</strong></div>;}
+          else{const cv=classeVRequise(pression);vInfo=<div style={{padding:"6px 12px",background:"#ccfbf1",borderRadius:6,fontSize:12,color:"#0f766e",marginTop:8}}>ℹ Classe vent du châssis : <strong>CCTP {projet.aev_min||"non précisé"}</strong> <span style={{color:"#6b7280"}}>· estimation par la pression DTU 39 ({pression} Pa) : {cv.label} — indicatif, la classe exigible se lit dans le FD P20-201</span></div>;}
         }
         return <div key={el.id} style={{borderRadius:10,border:"1px solid #e5e7eb",borderLeft:`3px solid ${bc}`,padding:"12px 14px",marginBottom:10,background:"#fafafa"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr auto 80px 28px",gap:10,alignItems:"end",marginBottom:10}}>
@@ -1727,7 +1812,7 @@ function PageProjet({projet,setProjet,setPage}){
                     </div>;
                   })()}
                   {panneaux.length===0&&<div style={{padding:"8px 12px",background:"#fff1f2",border:"1px solid #fca5a5",borderRadius:8,fontSize:11,color:"#991b1b",marginBottom:8}}>
-                    ⚠ Aucun panneau saisi — tant que la liste est vide, le récap ci-dessous est calculé en <strong>trame régulière par défaut (1350mm)</strong>, qui ne correspond PAS à ta saisie. Utilise "⚡ Générer la grille" ou ajoute les panneaux manuellement.
+                    ⚠ Aucun panneau saisi — tant que la liste est vide, le récap ci-dessous est calculé en <strong>trame régulière par défaut (1350mm)</strong>, qui ne correspond PAS à ta saisie. Utilise le concepteur de trame ci-dessus (« ✓ Valider → générer les panneaux ») ou ajoute les panneaux manuellement.
                   </div>}
                   {panneaux.map((p,pi)=>(
                     <div key={pi} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:6,marginBottom:6,alignItems:"end"}}>
@@ -1790,7 +1875,7 @@ function PageProjet({projet,setProjet,setPage}){
             </div>;
           })()}
           {/* Composition du châssis + allège */}
-          {!iF&&<div style={{marginTop:8,padding:"10px 12px",background:"#ecfdf5",borderRadius:8,border:"1px solid #a7f3d0"}}>
+          {!iF&&!el.chassis_compose&&<div style={{marginTop:8,padding:"10px 12px",background:"#ecfdf5",borderRadius:8,border:"1px solid #a7f3d0"}}>
             <div style={{fontSize:11,fontWeight:700,color:"#065f46",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>🪟 Composition du châssis</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10}}>
               <div><label style={{...S.label,fontSize:10}}>Nombre de vantaux</label><select value={el.nb_vantaux||"auto"} onChange={e=>updEl(i,"nb_vantaux",e.target.value==="auto"?"":e.target.value)} style={S.input}><option value="auto">Auto (selon système)</option><option value="1">1 vantail</option><option value="2">2 vantaux</option><option value="3">3 vantaux</option><option value="4">4 vantaux</option></select><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Auto : 2 pour PF/coulissant, 1 sinon</div></div>
@@ -1809,7 +1894,7 @@ function PageProjet({projet,setProjet,setPage}){
             })()}
           </div>}
           {/* Grille de carreaux fixes — pour un châssis entièrement fixe divisé par montants/traverses */}
-          {!iF&&el.soustype==="Fenêtre fixe"&&<div style={{marginTop:8,padding:"10px 12px",background:"#eef2ff",borderRadius:8,border:"1px solid #c7d2fe"}}>
+          {!iF&&!el.chassis_compose&&el.soustype==="Fenêtre fixe"&&<div style={{marginTop:8,padding:"10px 12px",background:"#eef2ff",borderRadius:8,border:"1px solid #c7d2fe"}}>
             <div style={{fontSize:11,fontWeight:700,color:"#3730a3",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>▦ Grille de carreaux (montants/traverses)</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
               <div><label style={{...S.label,fontSize:10}}>Nombre de montants intermédiaires</label><input type="number" min="0" value={el.nb_montants||""} placeholder="0" onChange={e=>updEl(i,"nb_montants",e.target.value)} style={S.input}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Divisions verticales · 0 = aucune</div></div>
@@ -1828,7 +1913,7 @@ function PageProjet({projet,setProjet,setPage}){
             if(!va.protection_requise)return null;
             return <div style={{marginTop:8,padding:"8px 12px",background:va.classe_min?"#fef2f2":"#f0fdf4",borderRadius:8,border:`1px solid ${va.classe_min?"#fecaca":"#bbf7d0"}`}}>
               <div style={{fontSize:12,fontWeight:600,color:va.classe_min?"#991b1b":"#065f46"}}>🛡 Sécurité chute : {va.exigence}</div>
-              <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>Allège {va.allege_m}m {"<"} 1m, chute {va.chute}m {">"} 1m → {va.classe_min?`classe ${va.classe_min} requise`:""}. {va.detail}</div>
+              <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>Allège {va.allege_m} m {"<"} 1 m → {va.classe_min?`classe ${va.classe_min} requise. `:""}{va.detail}</div>
             </div>;
           })()}
           {vInfo}
@@ -1844,7 +1929,7 @@ function PageProjet({projet,setProjet,setPage}){
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
         <div><label style={S.label}>Zone de vent</label><select value={projet.zone_vent} onChange={e=>upd("zone_vent",e.target.value)} style={S.input}><option value="">À déterminer</option>{Object.entries(ZONES_VENT).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
-        <div><label style={S.label}>Catégorie terrain</label><select value={projet.cat_terrain} onChange={e=>upd("cat_terrain",e.target.value)} style={S.input}>{Object.entries(TERRAINS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
+        <ChampTerrain value={projet.cat_terrain} onChange={v=>upd("cat_terrain",v)}/>
         <div><label style={S.label}>Hauteur bâtiment (m)</label><input type="number" value={projet.hauteur_bat} onChange={e=>upd("hauteur_bat",e.target.value)} placeholder="ex : 18" style={S.input}/></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
@@ -1876,30 +1961,29 @@ function PageProjet({projet,setProjet,setPage}){
 }
 
 // ── PAGE 2 : CALCUL VENT ──────────────────────────────────────────────────
+// CORRIGÉ v2.5 : calcul sur le vitrage le plus défavorable de chaque élément
+// (panneau de trame, vantail, partie de châssis composé), et résultats recalculés
+// à chaque modification des paramètres (plus de valeur figée).
 function PageVent({projet,setProjet,setPage}){
   const upd=(k,v)=>setProjet(p=>({...p,[k]:v}));
-  const [results,setResults]=useState(null);
+  const [show,setShow]=useState(false);
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const results=show&&pression?projet.elements.map(el=>({el,r:calcVentElement(el,projet)})):null;
+  const cv=classeVRequise(pression);
   const calculer=()=>{
     if(!pression||!projet.elements.length)return;
-    const res=projet.elements.map(el=>{
-      if(!el.largeur||!el.hauteur)return{el,dtu:null};
-      const dtu=calcDTU39(pression,+el.largeur,+el.hauteur,2,2,projet.type_vitrage,+projet.hauteur_sol||3);
-      return{el,dtu};
-    });
-    setResults(res);
-    const maxE=Math.max(...res.filter(r=>r.dtu).map(r=>r.dtu.eRequired));
-    setProjet(p=>({...p,pression_pa:pression,epaisseur_dtu:maxE+" mm"}));
+    setShow(true);
+    setProjet(p=>({...p,pression_pa:pression,epaisseur_dtu:epaisseurDTUProjet(p)}));
   };
   return <div>
     <StepBar current={2} setPage={setPage}/>
     <div style={{...S.card,background:"#f0fdf4",border:"1px solid #6ee7b7",marginBottom:14}}>
       <div style={{fontSize:13,fontWeight:600,color:"#065f46",marginBottom:4}}>💨 NF DTU 39 P4 — Calcul de pression et épaisseur de vitrage</div>
-      <div style={{fontSize:12,color:"#065f46"}}>Paramètres repris depuis l'étape 1. Modifiables ici si besoin.</div>
+      <div style={{fontSize:12,color:"#065f46"}}>Paramètres repris depuis l'étape 1. Modifiables ici si besoin — les résultats se mettent à jour automatiquement.</div>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
       <div><label style={S.label}>Zone de vent</label><select value={projet.zone_vent} onChange={e=>upd("zone_vent",e.target.value)} style={S.input}><option value="">—</option>{Object.entries(ZONES_VENT).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
-      <div><label style={S.label}>Catégorie terrain</label><select value={projet.cat_terrain} onChange={e=>upd("cat_terrain",e.target.value)} style={S.input}>{Object.entries(TERRAINS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
+      <ChampTerrain value={projet.cat_terrain} onChange={v=>upd("cat_terrain",v)}/>
       <div><label style={S.label}>Hauteur bâtiment (m)</label><input type="number" value={projet.hauteur_bat} onChange={e=>upd("hauteur_bat",e.target.value)} placeholder="18" style={S.input}/></div>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
@@ -1909,7 +1993,6 @@ function PageVent({projet,setProjet,setPage}){
     {pression&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m / {projet.hauteur_bat?getTranche(projet.hauteur_bat):""}</div></div>}
     <button onClick={calculer} disabled={!pression} style={S.btnPrimary}>💨 Calculer l'épaisseur DTU 39 pour chaque élément</button>
     {results&&<div style={{marginTop:20}}>
-      {/* Bandeau résultat principal : la pression en gros et clair */}
       <div style={{padding:"16px 20px",background:"linear-gradient(135deg,#1a1a2e,#2d2d52)",borderRadius:12,marginBottom:16}}>
         <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Pression de vent sur la façade</div>
         <div style={{display:"flex",alignItems:"baseline",gap:12,flexWrap:"wrap"}}>
@@ -1920,117 +2003,147 @@ function PageVent({projet,setProjet,setPage}){
       </div>
 
       <div style={{fontSize:12,fontWeight:700,color:"#1a1a2e",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.06em"}}>Épaisseur de vitrage minimale par élément</div>
-      {results.map(({el,dtu},i)=><div key={i} style={{...S.card,borderLeft:`3px solid ${el.type==="facade"?"#7c3aed":"#0d9488"}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dtu?12:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><Badge color={el.type==="facade"?"purple":"teal"}>{el.type==="facade"?"Façade rideau":"Châssis"}</Badge><span style={{fontWeight:700}}>{el.label}</span><span style={{fontSize:12,color:"#6b7280"}}>{el.largeur}×{el.hauteur}mm</span></div>
-          {dtu?<div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#6b7280"}}>Épaisseur verre mini</div><div style={{fontSize:20,fontWeight:800,color:"#059669"}}>≥ {dtu.eRequired} mm</div></div>:<Badge color="gray">Dimensions non saisies</Badge>}
-        </div>
-        {dtu&&<div>
-          <div style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:8,marginBottom:8,fontSize:13,color:"#065f46"}}>
-            ✓ Sous <strong>{pression} Pa</strong>, le vitrage doit faire au minimum <strong>{dtu.eRequired} mm</strong> d'épaisseur de verre (le plus contraignant entre résistance et flèche).
+      {results.map(({el,r},i)=>{
+        const dtu=r?r.dtu:null;
+        return <div key={i} style={{...S.card,borderLeft:`3px solid ${el.type==="facade"?"#7c3aed":"#0d9488"}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dtu?12:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><Badge color={el.type==="facade"?"purple":"teal"}>{el.type==="facade"?"Façade rideau":"Châssis"}</Badge><span style={{fontWeight:700}}>{el.label}</span><span style={{fontSize:12,color:"#6b7280"}}>{el.largeur}×{el.hauteur}mm</span></div>
+            {dtu?<div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#6b7280"}}>Épaisseur verre mini</div><div style={{fontSize:20,fontWeight:800,color:"#059669"}}>≥ {dtu.eRequired} mm</div></div>:<Badge color="gray">Dimensions non saisies</Badge>}
           </div>
-          {/* Détail technique repliable, en petit */}
-          <details style={{marginBottom:8}}>
-            <summary style={{fontSize:11,color:"#9ca3af",cursor:"pointer",userSelect:"none"}}>Voir le détail du calcul DTU 39</summary>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginTop:8,padding:"10px 12px",background:"#f9fafb",borderRadius:8}}>
-              <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (e1×c, Art.7-8)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{(dtu.e1*dtu.c).toFixed(2)} mm</div></div>
-              <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (déformation ≤ {dtu.flecheMax}mm, Art.9)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{dtu.eF_requis} mm</div></div>
-              <div><div style={{fontSize:10,color:"#6b7280"}}>Retenu (le plus grand)</div><div style={{fontSize:14,fontWeight:700,color:"#059669"}}>{dtu.eRequired} mm</div></div>
+          {dtu&&<div>
+            <div style={{fontSize:11,color:"#6b7280",marginBottom:6}}>Calculé sur le vitrage le plus défavorable : <strong>{r.panneau.largeur}×{r.panneau.hauteur} mm</strong>{r.panneau.label?` (${r.panneau.label})`:""}{r.nb>1?` — ${r.nb} vitrages différents vérifiés`:""}</div>
+            <div style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:8,marginBottom:8,fontSize:13,color:"#065f46"}}>
+              ✓ Sous <strong>{pression} Pa</strong>, le vitrage doit faire au minimum <strong>{dtu.eRequired} mm</strong> d'épaisseur de verre équivalente (le plus contraignant entre résistance et flèche).
             </div>
-            <div style={{fontSize:10,color:"#9ca3af",marginTop:6}}>Valeurs exprimées en épaisseur de verre monolithique équivalente — la composition réelle (feuilleté/isolant) est ensuite vérifiée par ses propres coefficients d'équivalence (ε1/ε2/ε3, NF DTU 39 P4 Art.8-9) dans le comparateur.</div>
-          </details>
-          {el.type==="facade"?<div style={{padding:"7px 12px",background:"#ede9fe",borderRadius:8,fontSize:12,color:"#5b21b6"}}>⚠ Façade rideau — l'essai AEV du système doit couvrir une pression ≥ <strong>{pression} Pa</strong></div>:<div style={{padding:"7px 12px",background:"#ccfbf1",borderRadius:8,fontSize:12,color:"#0f766e"}}>ℹ Châssis — vérifier que le classement V/C couvre <strong>{pression} Pa</strong> (V3 ≈ 1200 Pa, V4 ≈ 1600 Pa)</div>}
-        </div>}
-      </div>)}
+            <details style={{marginBottom:8}}>
+              <summary style={{fontSize:11,color:"#9ca3af",cursor:"pointer",userSelect:"none"}}>Voir le détail du calcul DTU 39</summary>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginTop:8,padding:"10px 12px",background:"#f9fafb",borderRadius:8}}>
+                <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (e1×c, Art.7-8)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{(dtu.e1*dtu.c).toFixed(2)} mm</div></div>
+                <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (déformation ≤ {dtu.flecheMax}mm, Art.9)</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{dtu.eF_requis} mm</div></div>
+                <div><div style={{fontSize:10,color:"#6b7280"}}>Retenu (le plus grand)</div><div style={{fontSize:14,fontWeight:700,color:"#059669"}}>{dtu.eRequired} mm</div></div>
+              </div>
+              <div style={{fontSize:10,color:"#9ca3af",marginTop:6}}>Valeurs en épaisseur de verre monolithique équivalente — la composition réelle (feuilleté/isolant) est ensuite vérifiée par ses coefficients d'équivalence (ε1/ε2/ε3, NF DTU 39 P4 Art.8-9) dans le comparateur.</div>
+            </details>
+            {el.type==="facade"
+              ?<div style={{padding:"7px 12px",background:"#ede9fe",borderRadius:8,fontSize:12,color:"#5b21b6"}}>⚠ Façade rideau — l'essai AEV du système doit couvrir une pression ≥ <strong>{pression} Pa</strong></div>
+              :<div style={{padding:"7px 12px",background:"#ccfbf1",borderRadius:8,fontSize:12,color:"#0f766e"}}>ℹ Châssis — classe vent : <strong>CCTP {projet.aev_min||"non précisé"}</strong> <span style={{color:"#6b7280"}}>· estimation par la pression : {cv?cv.label:"—"} (EN 12210 : V2 800 · V3 1200 · V4 1600 · V5 2000 Pa) — indicatif, voir FD P20-201</span></div>}
+          </div>}
+        </div>;
+      })}
       <div style={{display:"flex",gap:12,marginTop:14}}><button onClick={()=>setPage("comparateur")} style={{...S.btnPrimary,background:"#4f46e5"}}>⚖ Étape 3 — Choisir le système →</button></div>
     </div>}
   </div>;
 }
+
+// Champs de prescription alimentés par le comparateur
+const CHAMPS_COMPARATEUR=["gamme","vitrage","rw","rwctr","rapport","correction","uw","aev","epaisseur_dtu","epaisseur_reelle","poids_m2","poids_vantail"];
 
 // ── PAGE 3 : COMPARATEUR MULTI-CRITÈRES ───────────────────────────────────
 function PageComparateur({db,projet,setProjet,setPage}){
   const [results,setResults]=useState(null);
   const [loading,setLoading]=useState(false);
   const [selEl,setSelEl]=useState(0);
-  const [confirmed,setConfirmed]=useState({});// {elId: {sys,best}}
+  const prescs=projet.prescriptions||{};// système retenu = lu dans le projet (persistant)
   const [vlibre,setVlibre]=useState({compo:"",sysId:"",verre:"recuit"});// vérificateur de vitrage libre
   const el=projet.elements[selEl]||projet.elements[0];
-  const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const ventEl=el?calcVentElement(el,projet):null;
 
   const chercher=async()=>{
     if(!el)return;
     setLoading(true);
-    await new Promise(r=>setTimeout(r,300));
-    const ratr=parseInt(el.ratr)||36,uw_max=parseFloat(projet.uw_max)||99,surf=(el.largeur&&el.hauteur)?(+el.largeur/1000)*(+el.hauteur/1000):null;
+    await new Promise(r=>setTimeout(r,200));
+    const ratr=parseInt(el.ratr)||36;
+    // Surface de référence pour la correction acoustique : châssis entier ; pour une
+    // façade, le plus grand vitrage (les PV façade portent sur des modules, pas 40 m²).
+    let surf=null;
+    if(el.largeur&&el.hauteur){
+      if(el.type==="facade"){const pan=panneauxCalcul(el);surf=pan.length?Math.max(...pan.map(p=>p.largeur*p.hauteur/1e6)):null;}
+      else surf=(+el.largeur/1000)*(+el.hauteur/1000);
+    }
+    const va=verifAllege(el);
+    const allegeReq=va.protection_requise&&!el.allege_opaque;
     const solutions=[];
     for(const sys of db.systemes){
+      if(!Array.isArray(sys.tests)||sys.tests.length===0)continue;
       if(el.type==="facade"&&sys.famille!=="Façade")continue;
       if(el.type==="chassis"&&sys.famille==="Façade")continue;
-      // Un système Coulissant (rails, quincaillerie glissante) n'est pas fabricable en
-      // ouvrant battant (OB/OF) et inversement — mécanismes physiquement incompatibles.
+      // Un système Coulissant n'est pas fabricable en ouvrant battant (OB/OF) et inversement.
       if(el.type==="chassis"){
         const estCoulissant=/coulissant/i.test(el.soustype||"");
         const sysEstCoulissant=sys.famille==="Coulissant";
-        if(estCoulissant&&!sysEstCoulissant)continue;
-        if(!estCoulissant&&sysEstCoulissant)continue;
+        if(estCoulissant!==sysEstCoulissant)continue;
       }
       const bpc={};
       for(const test of sys.tests){
-        const st=(test.dim_L/1000)*(test.dim_H/1000);let corr=0;
-        if(surf&&surf>st){const r=surf/st;if(r<=1.5)corr=-1;else if(r<=2.0)corr=-2;else corr=-3;}
-        for(const v of test.vitrages){const rc=v.rwctr+corr;if(rc>=ratr){const k=v.composition;if(!bpc[k]||rc<bpc[k].rc)bpc[k]={...v,rc,corr,test};}}
+        const st=((+test.dim_L||0)/1000)*((+test.dim_H||0)/1000);let corr=0;
+        if(surf&&st>0&&surf>st){const r=surf/st;if(r<=1.5)corr=-1;else if(r<=2.0)corr=-2;else corr=-3;}
+        for(const v of (test.vitrages||[])){
+          const rc=(+v.rwctr)+corr;
+          if(isFinite(rc)&&rc>=ratr){const k=v.composition;if(!bpc[k]||rc<bpc[k].rc)bpc[k]={...v,rc,corr,test};}
+        }
       }
       const matches=Object.values(bpc).sort((a,b)=>a.rc-b.rc);
       if(!matches.length)continue;
-      const best=matches[0];
-      const uw_ok=sys.thermique&&sys.thermique.length>0?sys.thermique.some(t=>t.uw<=uw_max):null;
-      let aev_ok=null;
-      if(pression&&sys.aev&&sys.aev.length>0){
-        if(el.type==="facade"){const pp=sys.aev.map(a=>{const m=(a.V||"").match(/(\d+)\s*Pa/);return m?parseInt(m[1]):null;}).filter(Boolean);if(pp.length)aev_ok=Math.max(...pp)>=pression;}
-        else{const mc=pression<=600?1:pression<=1200?2:pression<=2000?3:4;aev_ok=sys.aev.some(a=>{const m=(a.V||"").match(/[VC](\d)/);return m&&parseInt(m[1])>=mc;});}
-      }
-      // Épaisseur réelle du vitrage retenu vs feuillure (plus fiable que l'épaisseur DTU mini)
-      const vBest=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
-      const ep_ok=vBest?vBest.feuillure_ok:(projet.epaisseur_dtu?(sys.epaisseur_min<=parseFloat(projet.epaisseur_dtu)&&parseFloat(projet.epaisseur_dtu)<=sys.epaisseur_max):null);
+      // Composition proposée : la plus "juste" acoustiquement PARMI celles qui passent
+      // les contrôles mécaniques (feuillure, poids, résistance, flèche, allège).
+      const evals=matches.map(m=>{
+        const v=verifVitrage(m.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
+        const al=allegeReq?verifFeuilleteAllege(m.composition).ok:null;
+        const k=[v?v.feuillure_ok:null,v?v.poids_ok:null,v?v.resistance_ok:null,v?v.fleche_verre_ok:null,al].filter(c=>c===false).length;
+        return {m,v,al,k};
+      }).sort((a,b)=>a.k!==b.k?a.k-b.k:a.m.rc-b.m.rc);
+      const best=evals[0].m, vBest=evals[0].v, allege_ok=evals[0].al;
+      const th=verifThermique(sys,el,projet);
+      const uw_ok=parseFloat(projet.uw_max)>0?th.ok:null;
+      const aev=verifAEV(sys,pression,el.type==="facade",projet.aev_min);
+      const dta=statutDTA(sys.validite);
+      const dta_ok=dta.statut==="expire"?false:dta.statut==="inconnu"?null:true;
+      const vd=verifDimensions(sys,+el.largeur,+el.hauteur,el);
+      const dim_ok=vd.statut==="hors"?false:vd.statut==="ok"?true:null;
+      const ep_ok=vBest?vBest.feuillure_ok:null;
       const poids_ok=vBest?vBest.poids_ok:null;
       const resistance_ok=vBest?vBest.resistance_ok:null;
       const fleche_verre_ok=vBest?vBest.fleche_verre_ok:null;
-      const ko=[uw_ok,aev_ok,ep_ok,poids_ok,resistance_ok,fleche_verre_ok].filter(c=>c===false).length;
-      solutions.push({sys,best,allMatches:matches,uw_ok,aev_ok,ep_ok,poids_ok,resistance_ok,fleche_verre_ok,ko});
+      const ko=[uw_ok,aev.ok,ep_ok,poids_ok,resistance_ok,fleche_verre_ok,dta_ok,dim_ok,allege_ok].filter(c=>c===false).length;
+      solutions.push({sys,best,allMatches:matches,uw_ok,th,aev_ok:aev.ok,aev_note:aev.note,ep_ok,poids_ok,resistance_ok,fleche_verre_ok,dta_ok,dim_ok,allege_ok,ko});
     }
     solutions.sort((a,b)=>a.ko!==b.ko?a.ko-b.ko:a.best.rc-b.best.rc);
     setResults(solutions);setLoading(false);
   };
 
-  // Injecte le système retenu dans projet.prescriptions[elId]
-  const utiliser=(sys,best,allMatches)=>{
+  // Injecte le système retenu dans projet.prescriptions[elId]. Une nouvelle retenue
+  // efface les modifications manuelles de ces champs en page Prescription (sinon
+  // elles masqueraient le nouveau choix).
+  const utiliser=(sys,best)=>{
     const elId=el.id;
-    // Trouver le meilleur Uw dispo
-    const bestUw=sys.thermique&&sys.thermique.length>0?Math.min(...sys.thermique.map(t=>t.uw)):null;
-    // Analyse physique du vitrage retenu
+    const th=verifThermique(sys,el,projet);
     const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
+    const ve=calcVentElement(el,projet,sys);
     const prescription={
-      elId,
+      elId, sysId:sys.id,
       gamme:`${sys.marque} ${sys.nom}`,
       vitrage:best.composition,
       rw:`${best.rw} dB`,
       rwctr:`${best.rc} dB`,
       rapport:best.test.rapport,
       correction:best.corr!==0?`${best.corr} dB`:"0 dB",
-      uw:bestUw?`${bestUw} W/m²K`:"",
-      aev:sys.aev&&sys.aev.length>0?sys.aev.map(a=>`A${a.A}/E${a.E}/V${a.V}`).join(" | "):"",
-      epaisseur_dtu:projet.epaisseur_dtu||"",
+      uw:th.cfg?`${th.cfg.uw} W/m²K`:"",
+      aev:sys.aev&&sys.aev.length>0?sys.aev.map(a=>`${a.A}/${a.E}/${a.V}`).join(" | "):"",
+      epaisseur_dtu:ve?`${ve.dtu.eRequired} mm`:"",
       epaisseur_reelle:v?`${v.epaisseur_totale} mm`:"",
       poids_m2:v?`${v.poids_m2} kg/m²`:"",
-      poids_vantail:v?`${v.poids_vantail} kg`:"",
-      allMatches,
+      poids_vantail:v&&v.poids_vantail!=null?`${v.poids_vantail} kg`:"",
     };
-    setProjet(p=>({...p,prescriptions:{...(p.prescriptions||{}), [elId]:prescription}}));
-    setConfirmed(c=>({...c,[elId]:{sys,best}}));
+    setProjet(p=>{
+      const ov={...(p.presc_overrides||{})};
+      if(ov[elId]){const o={...ov[elId]};CHAMPS_COMPARATEUR.forEach(k=>{delete o[k];});ov[elId]=o;}
+      return {...p,prescriptions:{...(p.prescriptions||{}),[elId]:prescription},presc_overrides:ov};
+    });
   };
 
   // Résumé des éléments déjà confirmés
-  const nbConfirmed=Object.keys(confirmed).length;
+  const nbConfirmed=projet.elements.filter(e=>prescs[e.id]).length;
   const allConfirmed=projet.elements.length>0&&nbConfirmed>=projet.elements.length;
 
   return <div>
@@ -2045,7 +2158,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
       <label style={S.label}>Élément à analyser</label>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {projet.elements.map((e,i)=>{
-          const done=confirmed[e.id];
+          const done=prescs[e.id];
           return <button key={i} onClick={()=>{setSelEl(i);setResults(null);}} style={{padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",border:"1.5px solid",background:selEl===i?"#1a1a2e":done?"#f0fdf4":"#f9fafb",color:selEl===i?"#fff":done?"#065f46":"#374151",borderColor:selEl===i?"#1a1a2e":done?"#6ee7b7":"#e5e7eb"}}>
             {done?"✓ ":""}{e.label} <span style={{fontSize:11,opacity:0.7}}>RA,tr {e.ratr} dB</span>
           </button>;
@@ -2056,10 +2169,10 @@ function PageComparateur({db,projet,setProjet,setPage}){
 
     {el&&<div style={{...S.card,background:"#f9fafb",marginBottom:14}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
-        <Stat label="RA,tr requis" value={`≥ ${el.ratr} dB`} hi/><Stat label="Uw max" value={projet.uw_max?`≤ ${projet.uw_max}`:"Non précisé"}/><Stat label="g max" value={projet.g_max?`≤ ${projet.g_max}`:"Non précisé"}/><Stat label="Pression vent" value={pression?`${pression} Pa`:"Non calculée"}/><Stat label="Épaisseur DTU 39" value={projet.epaisseur_dtu||"Non calculée"}/>
+        <Stat label="RA,tr requis" value={`≥ ${el.ratr} dB`} hi/><Stat label="Uw max" value={projet.uw_max?`≤ ${projet.uw_max}`:"Non précisé"}/><Stat label="g max" value={projet.g_max?`≤ ${projet.g_max}`:"Non précisé"}/><Stat label="Pression vent" value={pression?`${pression} Pa`:"Non calculée"}/><Stat label="Épaisseur DTU 39" value={ventEl?`≥ ${ventEl.dtu.eRequired} mm`:"Non calculée"}/>
       </div>
-      {confirmed[el.id]&&<div style={{marginTop:10,padding:"8px 12px",background:"#d1fae5",borderRadius:8,fontSize:12,color:"#065f46",fontWeight:600}}>
-        ✓ Système retenu : <strong>{confirmed[el.id].sys.marque} {confirmed[el.id].sys.nom}</strong> — {confirmed[el.id].best.composition} — RA,tr {confirmed[el.id].best.rc} dB
+      {prescs[el.id]&&<div style={{marginTop:10,padding:"8px 12px",background:"#d1fae5",borderRadius:8,fontSize:12,color:"#065f46",fontWeight:600}}>
+        ✓ Système retenu : <strong>{prescs[el.id].gamme}</strong> — {prescs[el.id].vitrage} — RA,tr {prescs[el.id].rwctr}
       </div>}
     </div>}
 
@@ -2083,7 +2196,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
       });
       return <div style={{...S.card,marginTop:14,background:"#fffbeb",border:"1px solid #fde68a"}}>
         <div style={{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:8}}>🔬 Vérificateur de vitrage libre</div>
-        <div style={{fontSize:11,color:"#92400e",marginBottom:10}}>Teste une composition de ton choix (même non testée en base) sur <strong>{el.nom||"l'élément courant"}</strong> — résistance, flèche, poids, feuillure. L'acoustique n'est pas vérifiée ici (elle exige un PV d'essai réel).</div>
+        <div style={{fontSize:11,color:"#92400e",marginBottom:10}}>Teste une composition de ton choix (même non testée en base) sur <strong>{el.label||"l'élément courant"}</strong> — résistance, flèche, poids, feuillure. L'acoustique n'est pas vérifiée ici (elle exige un PV d'essai réel).</div>
         <div style={{display:"grid",gridTemplateColumns:"2fr 1.5fr 1fr",gap:10,marginBottom:10}}>
           <div><label style={{...S.label,fontSize:10}}>Composition (ex: 55.2/16/44.2s)</label><input type="text" value={vlibre.compo} placeholder="55.2/16/44.2s" onChange={e=>setVlibre(v=>({...v,compo:e.target.value}))} style={S.input}/></div>
           <div><label style={{...S.label,fontSize:10}}>Système (feuillure)</label><select value={vlibre.sysId} onChange={e=>setVlibre(v=>({...v,sysId:e.target.value}))} style={S.input}><option value="">— choisir —</option>{sysList.map(s=><option key={s.id} value={s.id}>{s.marque} {s.nom}</option>)}</select></div>
@@ -2092,11 +2205,12 @@ function PageComparateur({db,projet,setProjet,setPage}){
         {res&&<div style={{padding:"12px 14px",background:"#fff",borderRadius:8,border:"1px solid #e5e7eb"}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:8}}>
             <div><div style={{fontSize:10,color:"#6b7280"}}>Épaisseur totale</div><div style={{fontSize:15,fontWeight:700,color:res.feuillure_ok===false?"#991b1b":"#1a1a2e"}}>{res.epaisseur_totale} mm {sysV?(res.feuillure_ok===false?"✗":"✓"):""}</div>{sysV&&<div style={{fontSize:9,color:"#9ca3af"}}>feuillure {sysV.epaisseur_min}–{sysV.epaisseur_max}mm</div>}</div>
-            <div><div style={{fontSize:10,color:"#6b7280"}}>Poids {res.isFacade?"/panneau":res.nb_vantaux===0?"/carreau":"/vantail"}</div><div style={{fontSize:15,fontWeight:700,color:res.poids_ok===false?"#991b1b":"#1a1a2e"}}>{res.poids_vantail} kg {sysV?(res.poids_ok===false?"✗":"✓"):""}</div>{res.poids_max&&<div style={{fontSize:9,color:"#9ca3af"}}>max {res.poids_max} kg</div>}</div>
+            <div><div style={{fontSize:10,color:"#6b7280"}}>Poids {res.isFacade?"/panneau":res.nb_vantaux===0?"/fixe":"/vantail"}</div><div style={{fontSize:15,fontWeight:700,color:res.poids_ok===false?"#991b1b":"#1a1a2e"}}>{res.poids_vantail} kg {sysV?(res.poids_ok===false?"✗":"✓"):""}</div>{res.poids_max&&<div style={{fontSize:9,color:"#9ca3af"}}>max {res.poids_max} kg</div>}</div>
             <div><div style={{fontSize:10,color:"#6b7280"}}>Résistance (Art.8)</div><div style={{fontSize:15,fontWeight:700,color:res.resistance_ok===false?"#991b1b":"#059669"}}>{res.eR_reel!=null?"eR "+res.eR_reel+" mm":"—"} {res.resistance_ok===false?"✗":res.resistance_ok?"✓":""}</div>{res.dtu_verre&&<div style={{fontSize:9,color:"#9ca3af"}}>requis ≥ {(res.dtu_verre.e1*res.dtu_verre.c).toFixed(2)} mm</div>}</div>
             <div><div style={{fontSize:10,color:"#6b7280"}}>Flèche (Art.9)</div><div style={{fontSize:15,fontWeight:700,color:res.fleche_verre_ok===false?"#991b1b":"#059669"}}>{res.eF_reel!=null?"eF "+res.eF_reel+" mm":"—"} {res.fleche_verre_ok===false?"✗":res.fleche_verre_ok?"✓":""}</div>{res.dtu_verre&&<div style={{fontSize:9,color:"#9ca3af"}}>requis ≥ {res.dtu_verre.eF_requis} mm</div>}{res.fleche_obtenue!=null&&<div style={{fontSize:9,color:res.fleche_obtenue>res.dtu_verre.flecheMax?"#991b1b":"#059669",fontWeight:600}}>flèche {res.fleche_obtenue} / {res.dtu_verre.flecheMax} mm {res.fleche_obtenue>res.dtu_verre.flecheMax?"✗":"✓"}</div>}</div>
           </div>
-          {res.base_label&&<div style={{fontSize:10,color:"#6b7280",marginBottom:6}}>Calcul sur : {res.base_label}</div>}
+          {res.base_label&&<div style={{fontSize:10,color:"#6b7280",marginBottom:2}}>Poids calculé sur : {res.base_label}{res.controle_ferrure===false?" — fixe, pas de limite ferrure":""}</div>}
+          {res.base_calcul&&<div style={{fontSize:10,color:"#6b7280",marginBottom:6}}>Résistance / flèche : {res.base_calcul}</div>}
           {(()=>{
             const checks=[res.feuillure_ok,res.poids_ok,res.resistance_ok,res.fleche_verre_ok];
             const anyFail=checks.some(c=>c===false);
@@ -2106,26 +2220,28 @@ function PageComparateur({db,projet,setProjet,setPage}){
             </div>;
           })()}
         </div>}
-        {vlibre.compo.trim()&&!res&&<div style={{fontSize:12,color:"#991b1b"}}>Composition non reconnue — format attendu : ex. 44.2, 6/16/44.2s, 55.2/16/44.2, 10/20/66.2</div>}
+        {vlibre.compo.trim()&&!res&&<div style={{fontSize:12,color:"#991b1b"}}>Composition non reconnue — format attendu verre/lame/verre, ex. 44.2 · 6/16/44.2s · 10/12/44.2 Ac · 1010.4/16/8</div>}
       </div>;
     })()}
 
     {results&&<div style={{marginTop:20}}>
       <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}><strong>{results.length}</strong> système{results.length>1?"s":""} conforme{results.length>1?"s":""} acoustiquement — triés par conformité globale</div>
-      {results.map(({sys,best:bestAlgo,allMatches,uw_ok,aev_ok,ep_ok,ko},i)=>{
+      {results.map(({sys,best:bestAlgo,allMatches,uw_ok,th,aev_ok,aev_note,dta_ok,dim_ok,allege_ok,ko},i)=>{
         const allOk=ko===0;const bc=allOk?"#6ee7b7":ko>=2?"#fca5a5":"#fde68a";const bg=allOk?"#f0fdf4":ko>=2?"#fff1f2":"#fffbeb";
-        const isRetenu=confirmed[el.id]?.sys.id===sys.id;
+        const pr=prescs[el.id];
+        const isRetenu=!!pr&&(pr.sysId?pr.sysId===sys.id:pr.gamme===`${sys.marque} ${sys.nom}`);
         // Si ce système est retenu, on affiche la composition RÉELLEMENT choisie par
         // l'utilisateur (qui peut être une "autre composition compatible"), pas celle
         // proposée par défaut par l'algorithme — sinon la sélection ne se reflète jamais.
-        const best=isRetenu?confirmed[el.id].best:bestAlgo;
+        const best=isRetenu?(allMatches.find(m=>m.composition===pr.vitrage)||bestAlgo):bestAlgo;
+        const vCard=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
         return <div key={sys.id} style={{...S.card,border:isRetenu?"2px solid #059669":(`1.5px solid ${bc}`),background:isRetenu?"#f0fdf4":bg,marginBottom:10}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:8}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <span style={{width:26,height:26,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:isRetenu?"#059669":allOk?"#d1fae5":ko>=2?"#fee2e2":"#fef3c7",color:isRetenu?"#fff":undefined}}>{isRetenu?"★":allOk?"✓":ko>=2?"✗":"⚠"}</span>
               <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>{sys.marque} {sys.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{sys.famille} · DTA: {sys.dta||"—"} · Feuillure: {sys.epaisseur_min}–{sys.epaisseur_max}mm</div>
               {(()=>{const st=statutDTA(sys.validite);return <div style={{display:"inline-block",marginTop:4,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:st.couleur,background:st.bg,border:`1px solid ${st.couleur}33`}}>{st.statut==="expire"?"⛔ ":st.statut==="bientot"?"⚠ ":st.statut==="inconnu"?"? ":"✓ "}{st.texte}</div>;})()}
-              {(()=>{const vd=verifDimensions(sys,+el.largeur,+el.hauteur,el.soustype);if(vd.statut==="aucune")return null;return <div style={{display:"inline-block",marginTop:4,marginLeft:6,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:vd.couleur,background:vd.bg,border:`1px solid ${vd.couleur}33`}}>{vd.statut==="hors"?"📐 ⚠ ":"📐 ✓ "}{vd.texte}</div>;})()}</div>
+              {(()=>{const vd=verifDimensions(sys,+el.largeur,+el.hauteur,el);if(vd.statut==="aucune")return null;return <div style={{display:"inline-block",marginTop:4,marginLeft:6,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:vd.couleur,background:vd.bg,border:`1px solid ${vd.couleur}33`}}>{vd.statut==="hors"?"📐 ⚠ ":"📐 ✓ "}{vd.texte}</div>;})()}</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
               <div style={{textAlign:"right"}}><div style={{fontFamily:"monospace",fontWeight:700,fontSize:13,color:"#374151"}}>{best.composition}</div><div style={{fontSize:12,color:"#059669"}}>RA,tr {best.rc} dB{best.corr!==0?` (corrigé ${best.corr} dB)`:""}</div><div style={{fontSize:11,color:"#6b7280"}}>Rapport {best.test.rapport}</div></div>
@@ -2134,16 +2250,19 @@ function PageComparateur({db,projet,setProjet,setPage}){
               </button>
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,columnGap:16}}>
             <CheckRow label="Acoustique RA,tr" ok={true} note={`${best.rc} dB ≥ ${el.ratr} dB`}/>
-            <CheckRow label="Thermique Uw" ok={uw_ok} note={uw_ok===null?"Données manquantes":uw_ok?"Conforme":"Non conforme"}/>
-            <CheckRow label={el.type==="facade"?"Pression AEV essai":"Classement V/C AEV"} ok={aev_ok} note={aev_ok===null?"Pas d'essai AEV":aev_ok?"Couvert":"Insuffisant"}/>
-            <CheckRow label="Épaisseur feuillure" ok={ep_ok} note={ep_ok===null?"Non vérifié":`${sys.epaisseur_min}–${sys.epaisseur_max}mm`}/>
+            <CheckRow label="Thermique Uw" ok={uw_ok} note={!(parseFloat(projet.uw_max)>0)?"Uw max non précisé":th&&th.cfg?`Uw ${th.cfg.uw} / max ${projet.uw_max}`:"Données manquantes"}/>
+            <CheckRow label={el.type==="facade"?"Vent — essai façade":"Vent — classe V"} ok={aev_ok} note={aev_note}/>
+            <CheckRow label="Épaisseur feuillure" ok={vCard?vCard.feuillure_ok:null} note={vCard?`${vCard.epaisseur_totale} mm (${sys.epaisseur_min}–${sys.epaisseur_max})`:"Non vérifiable"}/>
+            <CheckRow label="Validité DTA" ok={dta_ok} note={dta_ok===null?"Non renseignée":dta_ok?"Valide":"Expiré"}/>
+            <CheckRow label="Domaine d'emploi" ok={dim_ok} note={dim_ok===null?"Non vérifié":dim_ok?"Dans le domaine":"Hors domaine"}/>
           </div>
+          {th&&th.cfg&&parseFloat(projet.uw_max)>0&&<div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>Thermique — config de référence : {th.note}</div>}
           {/* Vérification physique : poids vantail + épaisseur réelle vs feuillure */}
           {(()=>{
             const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
-            if(!v)return null;
+            if(!v)return <div style={{marginTop:8,padding:"8px 12px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12,color:"#9a3412",fontWeight:600}}>⚠ Composition « {best.composition} » non analysable automatiquement — poids, feuillure, résistance et flèche NON vérifiés.</div>;
             return <div style={{marginTop:8,padding:"8px 12px",background:"#f9fafb",borderRadius:8,border:"1px solid #e5e7eb"}}>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,alignItems:"center"}}>
                 <div>
@@ -2157,9 +2276,9 @@ function PageComparateur({db,projet,setProjet,setPage}){
                   <div style={{fontSize:10,color:"#9ca3af"}}>{v.nb_verres} verre{v.nb_verres>1?"s":""}{v.lames_air.length?" · lame "+v.lames_air.join("+")+"mm":""}</div>
                 </div>
                 <div>
-                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>{v.isFacade?"POIDS / PANNEAU":(v.nb_vantaux===0?"POIDS / CARREAU":"POIDS VANTAIL")} ({v.surface} m²)</div>
+                  <div style={{fontSize:10,color:"#6b7280",marginBottom:1}}>{v.isFacade?"POIDS / PANNEAU":(v.nb_vantaux===0?"POIDS / FIXE":"POIDS VANTAIL")} ({v.surface} m²)</div>
                   <div style={{fontSize:13,fontWeight:700,color:v.poids_ok===false?"#991b1b":v.poids_ok?"#059669":"#1a1a2e"}}>{v.poids_vantail} kg {v.poids_ok===false?"✗":v.poids_ok?"✓":""}</div>
-                  <div style={{fontSize:10,color:"#9ca3af"}}>{v.base_label} · max {v.isFacade?"appui":"ferrure"} : {v.poids_max?v.poids_max+" kg":"non renseigné"}</div>
+                  <div style={{fontSize:10,color:"#9ca3af"}}>{v.base_label} · {v.controle_ferrure===false?"fixe : pas de limite ferrure":`max ${v.isFacade?"appui":"ferrure"} : ${v.poids_max?v.poids_max+" kg":"non renseigné"}`}</div>
                 </div>
                 <div>
                   {v.poids_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ {v.isFacade?"Panneau trop lourd pour l'appui vitrage":"Vantail trop lourd pour la quincaillerie"}</div>}
@@ -2183,6 +2302,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
                   {v.fleche_obtenue!=null&&<div style={{fontSize:10,color:v.fleche_obtenue>v.dtu_verre.flecheMax?"#991b1b":"#059669",fontWeight:600,marginTop:2}}>↳ flèche obtenue : {v.fleche_obtenue} mm / {v.dtu_verre.flecheMax} mm {v.fleche_obtenue>v.dtu_verre.flecheMax?"✗":"✓"}</div>}
                 </div>
               </div>}
+              {v.base_calcul&&<div style={{fontSize:10,color:"#6b7280",marginTop:6}}>Résistance / flèche calculées sur : {v.base_calcul}</div>}
               {/* Détail partie par partie — châssis/façade composé */}
               {v.detail_panneaux&&v.detail_panneaux.length>1&&<div style={{marginTop:8,padding:"8px 12px",background:"#faf5ff",borderRadius:8,border:"1px solid #e9d5ff"}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#6b21a8",marginBottom:6}}>📋 Détail par partie ({v.detail_panneaux.length} types de panneaux)</div>
@@ -2208,7 +2328,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
                     </tbody>
                   </table>
                 </div>
-                <div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>Le verdict global de la carte est piloté par le panneau le plus défavorable. eR est fixe (propriété du vitrage), seul le "requis" change selon la taille de chaque partie.</div>
+                <div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>Le verdict global n'est ✓ que si TOUTES les parties sont conformes. eR / eF sont des propriétés du vitrage ; seuls le « requis » et la flèche changent selon la taille de chaque partie.</div>
               </div>}
               {/* Suggestions de découpage si vantail trop lourd */}
               {v.poids_decoupage&&v.poids_decoupage.length>0&&<div style={{marginTop:8,padding:"8px 12px",background:"#eff6ff",borderRadius:8,border:"1px solid #bfdbfe"}}>
@@ -2230,9 +2350,11 @@ function PageComparateur({db,projet,setProjet,setPage}){
           {(()=>{
             const va=verifAllege(el);
             if(!va.protection_requise||el.allege_opaque)return null;
-            const feuillete=compoEstFeuillete(best.composition);
-            return <div style={{marginTop:8,padding:"7px 12px",borderRadius:8,background:feuillete?"#f0fdf4":"#fef2f2",border:`1px solid ${feuillete?"#bbf7d0":"#fecaca"}`,fontSize:12,color:feuillete?"#065f46":"#991b1b",fontWeight:600}}>
-              {feuillete?`✓ Sécurité allège OK — ${best.composition} comporte une face feuilletée (classe 1B1 EN 12600)`:`⚠ Sécurité allège : vitrage faisant garde-corps mais ${best.composition} sans face feuilletée — feuilleté 44.2 min obligatoire (NF P08-302 / EN 12600 classe 1B1)`}
+            const fa=verifFeuilleteAllege(best.composition);
+            const okc=fa.ok===true;
+            return <div style={{marginTop:8,padding:"7px 12px",borderRadius:8,background:okc?"#f0fdf4":"#fef2f2",border:`1px solid ${okc?"#bbf7d0":"#fecaca"}`,fontSize:12,color:okc?"#065f46":"#991b1b",fontWeight:600}}>
+              {okc?`✓ Sécurité allège — ${best.composition} : ${fa.texte} (classe 1B1 EN 12600, NF DTU 39 P5)`:`⚠ Sécurité allège — ${best.composition} : ${fa.texte} (vitrage faisant garde-corps, NF DTU 39 P5 / EN 12600 classe 1B1)`}
+              <div style={{fontSize:10,fontWeight:400,color:"#6b7280",marginTop:2}}>Composition lue de l'extérieur vers l'intérieur.</div>
             </div>;
           })()}
           {/* Autres compositions compatibles */}
@@ -2288,42 +2410,48 @@ function PageControleSolaire({projet,setProjet}){
 }
 
 // ── PAGE 5 : PRESCRIPTION ─────────────────────────────────────────────────
+// Valeurs TOUJOURS recalculées depuis le projet (comparateur, contrôle solaire,
+// calcul vent). CORRIGÉ v2.5 : les modifications manuelles faites ici sont
+// enregistrées dans le projet (presc_overrides / presc_lignes_sup) — elles ne sont
+// plus perdues en changeant de page et partent avec la sauvegarde / l'export.
 function PagePrescription({projet,setProjet,setPage}){
   const prescs=projet.prescriptions||{};
-  // Sync typos quand prescriptions change (retour du comparateur)
-  const [typos,setTypos]=useState(()=>projet.elements.map((el,i)=>{
-    const p=prescs[el.id]||{};
-    return {
-      id:el.id||i,label:el.label,dims:el.largeur&&el.hauteur?`${el.largeur}\u00d7${el.hauteur}mm`:"",
-      orientation:el.orientation||"",usage:el.usage||"",rw_requis:el.ratr?"RA,tr \u2265 "+el.ratr+" dB":"",
-      type_element:el.type==="facade"?"Fa\u00e7ade rideau":"Ch\u00e2ssis",
-      gamme:p.gamme||"",vitrage:p.vitrage||"",rw:p.rw||"",rwctr:p.rwctr||"",rapport:p.rapport||"",correction:p.correction||"0 dB",
-      controle:projet.controle_ref||"",tl:projet.controle_tl||"",fs:projet.controle_fs?String(projet.controle_fs):"",ug:projet.controle_ug||"",
-      epaisseur_dtu:p.epaisseur_dtu||projet.epaisseur_dtu||"",aev:p.aev||"",uw:p.uw||"",
-      epaisseur_reelle:p.epaisseur_reelle||"",poids_m2:p.poids_m2||"",poids_vantail:p.poids_vantail||"",
-      _facade:el.type==="facade"?analyseFacade(el):null,
-      _allege:verifAllege(el),
-      _rc3:!!el.rc3_requis,
-      _allege_opaque:!!el.allege_opaque,
-    };
-  }));
-  const upd=(id,k,v)=>setTypos(t=>t.map(x=>x.id===id?{...x,[k]:v}:x));
-  // Resynchronise les champs issus du comparateur (vitrage, gamme, RA,tr...) si la
-  // prescription change après un retour à l'étape 3 — sans écraser les champs propres
-  // à cette page (dims/orientation/usage/contrôle) que l'utilisateur peut avoir modifiés.
-  useEffect(()=>{
-    setTypos(t=>t.map(ty=>{
-      const p=prescs[ty.id];
-      if(!p)return ty;
-      return {...ty,
-        gamme:p.gamme||ty.gamme, vitrage:p.vitrage||ty.vitrage, rw:p.rw||ty.rw, rwctr:p.rwctr||ty.rwctr,
-        rapport:p.rapport||ty.rapport, correction:p.correction||ty.correction,
-        epaisseur_dtu:p.epaisseur_dtu||ty.epaisseur_dtu, aev:p.aev||ty.aev, uw:p.uw||ty.uw,
-        epaisseur_reelle:p.epaisseur_reelle||ty.epaisseur_reelle, poids_m2:p.poids_m2||ty.poids_m2, poids_vantail:p.poids_vantail||ty.poids_vantail,
+  const ov=projet.presc_overrides||{};
+  const sup=projet.presc_lignes_sup||[];
+  const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const epProjet=epaisseurDTUProjet(projet);
+  const typos=[
+    ...projet.elements.map(el=>{
+      const p=prescs[el.id]||{};
+      const ve=calcVentElement(el,projet);
+      const base={
+        id:el.id,label:el.label,dims:el.largeur&&el.hauteur?`${el.largeur}×${el.hauteur}mm`:"",
+        orientation:el.orientation||"",usage:el.usage||"",rw_requis:el.ratr?"RA,tr ≥ "+el.ratr+" dB":"",
+        type_element:el.type==="facade"?"Façade rideau":"Châssis",
+        gamme:p.gamme||"",vitrage:p.vitrage||"",rw:p.rw||"",rwctr:p.rwctr||"",rapport:p.rapport||"",correction:p.correction||"0 dB",
+        controle:projet.controle_ref||"",tl:projet.controle_tl||"",fs:projet.controle_fs!=null&&projet.controle_fs!==""?String(projet.controle_fs):"",ug:projet.controle_ug||"",
+        epaisseur_dtu:ve?`${ve.dtu.eRequired} mm`:(p.epaisseur_dtu||""),aev:p.aev||"",uw:p.uw||"",
+        epaisseur_reelle:p.epaisseur_reelle||"",poids_m2:p.poids_m2||"",poids_vantail:p.poids_vantail||"",
       };
-    }));
-  },[projet.prescriptions]);
-  const addT=()=>setTypos(t=>[...t,{id:Date.now(),label:`Élément ${t.length+1}`,dims:"",orientation:"",usage:"",rw_requis:"",type_element:"Châssis",gamme:"",vitrage:"",rw:"",rwctr:"",rapport:"",correction:"0 dB",controle:"",tl:"",fs:"",ug:"",epaisseur_dtu:"",aev:""}]);
+      const o=ov[el.id]||{};
+      return {...base,...o,_sup:false,_modifie:Object.keys(o).length>0,
+        _facade:el.type==="facade"?analyseFacade(el):null,_allege:verifAllege(el),_rc3:!!el.rc3_requis,_allege_opaque:!!el.allege_opaque};
+    }),
+    ...sup.map(l=>({...l,_sup:true,_modifie:false,_facade:null,_allege:{protection_requise:false},_rc3:false,_allege_opaque:false})),
+  ];
+  const upd=(ty,k,v)=>setProjet(p=>{
+    if(ty._sup)return {...p,presc_lignes_sup:(p.presc_lignes_sup||[]).map(l=>l.id===ty.id?{...l,[k]:v}:l)};
+    const o=p.presc_overrides||{};
+    return {...p,presc_overrides:{...o,[ty.id]:{...(o[ty.id]||{}),[k]:v}}};
+  });
+  const reinit=(id)=>setProjet(p=>{const o={...(p.presc_overrides||{})};delete o[id];return {...p,presc_overrides:o};});
+  const addT=()=>setProjet(p=>{
+    const l=p.presc_lignes_sup||[];
+    return {...p,presc_lignes_sup:[...l,{id:"L"+Date.now(),label:`Élément ${p.elements.length+l.length+1}`,dims:"",orientation:"",usage:"",rw_requis:"",type_element:"Châssis",gamme:"",vitrage:"",rw:"",rwctr:"",rapport:"",correction:"0 dB",controle:"",tl:"",fs:"",ug:"",epaisseur_dtu:"",aev:"",uw:"",epaisseur_reelle:"",poids_m2:"",poids_vantail:""}]};
+  });
+  const delSup=(id)=>setProjet(p=>({...p,presc_lignes_sup:(p.presc_lignes_sup||[]).filter(l=>l.id!==id)}));
+  const champ=(ty,l,k,ph)=><div key={k} style={{marginBottom:4}}><div style={{fontSize:9,color:"#6b7280",marginBottom:1}}>{l}</div><input value={ty[k]||""} onChange={e=>upd(ty,k,e.target.value)} placeholder={ph} style={{...S.input,fontSize:11,padding:"3px 7px",background:"#fff"}}/></div>;
+  const lignesPV=typos.filter(t=>t.gamme);
   return <div>
     <StepBar current={5} setPage={setPage}/>
     <div className="no-print" style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
@@ -2333,62 +2461,61 @@ function PagePrescription({projet,setProjet,setPage}){
     </div>
     <div style={{background:"#fff",borderRadius:14,padding:"24px 32px",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,paddingBottom:12,borderBottom:"3px solid #1a1a2e"}}>
-        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>🪟 GlassIQ v2</div><div style={{fontSize:11,color:"#6b7280"}}>Note de choix vitrage</div></div>
+        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>🪟 GlassIQ v2.5</div><div style={{fontSize:11,color:"#6b7280"}}>Note de choix vitrage</div></div>
         <div style={{textAlign:"right",fontSize:12}}><div style={{fontWeight:700,fontSize:14,color:"#1a1a2e"}}>PRESCRIPTION VITRAGE</div><div style={{color:"#6b7280",marginTop:2}}>{new Date().toLocaleDateString("fr-FR")}</div></div>
       </div>
-      {/* Infos projet */}
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:12,padding:"10px 14px",background:"#f8f9fb",borderRadius:10,border:"1px solid #e5e7eb"}}>
         <div><div style={{fontSize:10,color:"#9ca3af",marginBottom:1}}>PROJET</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{projet.nom||"—"}</div></div>
         <div><div style={{fontSize:10,color:"#9ca3af",marginBottom:1}}>MOA</div><div style={{fontSize:12,color:"#374151"}}>{projet.moa||"—"}</div></div>
         <div><div style={{fontSize:10,color:"#9ca3af",marginBottom:1}}>MOE</div><div style={{fontSize:12,color:"#374151"}}>{projet.moe||"—"}</div></div>
         <div><div style={{fontSize:10,color:"#9ca3af",marginBottom:1}}>RÉDACTEUR</div><div style={{fontSize:12,color:"#374151"}}>{projet.redacteur||"—"}</div></div>
       </div>
-      {/* Données vent */}
-      {projet.pression_pa&&<div style={{marginBottom:12,padding:"10px 14px",background:"#f0f9ff",borderRadius:10,border:"1px solid #bae6fd"}}>
+      {pression&&<div style={{marginBottom:12,padding:"10px 14px",background:"#f0f9ff",borderRadius:10,border:"1px solid #bae6fd"}}>
         <div style={{fontSize:10,fontWeight:700,color:"#0369a1",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>💨 Données vent</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
-          {[["Zone",ZONES_VENT[projet.zone_vent]?.split("—")[0]||"—"],["Terrain",TERRAINS[projet.cat_terrain]?.split("—")[0]||"—"],["Hauteur",projet.hauteur_bat?projet.hauteur_bat+" m":"—"],["Pression DTU 39",projet.pression_pa+" Pa"],["Épaisseur min.",projet.epaisseur_dtu||"—"]].map(([l,v])=><div key={l}><div style={{fontSize:10,color:"#0369a1"}}>{l}</div><div style={{fontSize:12,fontWeight:700,color:"#1e40af"}}>{v}</div></div>)}
+          {[["Zone",ZONES_VENT[projet.zone_vent]?.split("—")[0]||"—"],["Terrain",TERRAINS[projet.cat_terrain]?.split("—")[0]||"—"],["Hauteur",projet.hauteur_bat?projet.hauteur_bat+" m":"—"],["Pression DTU 39",pression+" Pa"],["Épaisseur min. (pire élément)",epProjet||"—"]].map(([l,v])=><div key={l}><div style={{fontSize:10,color:"#0369a1"}}>{l}</div><div style={{fontSize:12,fontWeight:700,color:"#1e40af"}}>{v}</div></div>)}
         </div>
       </div>}
-      {/* Exigences */}
       <div style={{marginBottom:12,padding:"10px 14px",background:"#fffbeb",borderRadius:10,border:"1px solid #fde68a"}}>
         <div style={{fontSize:10,fontWeight:700,color:"#92400e",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>📋 Exigences CCTP</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
           {[["AEV minimum",projet.aev_min||"—"],["Uw max",projet.uw_max?projet.uw_max+" W/m²K":"—"],["g max",projet.g_max||"—"],["TL min",projet.tl_min?projet.tl_min+"%":"—"]].map(([l,v])=><div key={l}><div style={{fontSize:10,color:"#92400e"}}>{l}</div><div style={{fontSize:12,fontWeight:700,color:"#92400e"}}>{v}</div></div>)}
         </div>
       </div>
-      {/* Lignes */}
       <div style={{fontSize:11,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Prescriptions par élément</div>
       {typos.map(ty=><div key={ty.id} style={{marginBottom:12,borderRadius:10,overflow:"hidden",border:"1.5px solid #e5e7eb"}}>
         <div style={{background:"#1a1a2e",color:"#fff",padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-            <input value={ty.label} onChange={e=>upd(ty.id,"label",e.target.value)} style={{background:"transparent",border:"none",color:"#fff",fontSize:13,fontWeight:700,width:150,outline:"none"}}/>
+            <input value={ty.label||""} onChange={e=>upd(ty,"label",e.target.value)} style={{background:"transparent",border:"none",color:"#fff",fontSize:13,fontWeight:700,width:150,outline:"none"}}/>
             <span style={{fontSize:11,background:"rgba(255,255,255,0.15)",padding:"2px 8px",borderRadius:10,color:"rgba(255,255,255,0.8)"}}>{ty.type_element}</span>
-            <input value={ty.dims} onChange={e=>upd(ty.id,"dims",e.target.value)} placeholder="Dimensions" style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",fontSize:11,borderRadius:6,padding:"3px 8px",width:140,outline:"none"}}/>
-            <input value={ty.rw_requis} onChange={e=>upd(ty.id,"rw_requis",e.target.value)} placeholder="RA,tr requis" style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",fontSize:11,borderRadius:6,padding:"3px 8px",width:120,outline:"none"}}/>
+            <input value={ty.dims||""} onChange={e=>upd(ty,"dims",e.target.value)} placeholder="Dimensions" style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",fontSize:11,borderRadius:6,padding:"3px 8px",width:140,outline:"none"}}/>
+            <input value={ty.rw_requis||""} onChange={e=>upd(ty,"rw_requis",e.target.value)} placeholder="RA,tr requis" style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",fontSize:11,borderRadius:6,padding:"3px 8px",width:120,outline:"none"}}/>
+          </div>
+          <div className="no-print" style={{display:"flex",gap:6}}>
+            {ty._modifie&&<button onClick={()=>reinit(ty.id)} title="Revenir aux valeurs calculées" style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid rgba(255,255,255,0.3)",background:"transparent",color:"#fde68a",cursor:"pointer"}}>✎ modifié · ↺ valeurs calculées</button>}
+            {ty._sup&&<button onClick={()=>delSup(ty.id)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid rgba(255,255,255,0.3)",background:"transparent",color:"#fca5a5",cursor:"pointer"}}>✕ supprimer</button>}
           </div>
         </div>
         <div style={{padding:"10px 12px",background:"#fff",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
           <div style={{padding:"9px 11px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#065f46",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>🔍 Vitrage acoustique</div>
-            {[["Gamme alu","gamme","ex : Schüco AWS 75.II"],["Composition","vitrage","ex : 44.2s/16/10"],["Rw mesuré","rw","ex : 43 dB"],["RA,tr corrigé","rwctr","ex : 38 dB"],["Rapport PV","rapport","ex : BEB2.E.6077-1"],["Correction dim.","correction","ex : 0 dB"]].map(([l,k,ph])=><div key={k} style={{marginBottom:4}}><div style={{fontSize:9,color:"#6b7280",marginBottom:1}}>{l}</div><input value={ty[k]} onChange={e=>upd(ty.id,k,e.target.value)} placeholder={ph} style={{...S.input,fontSize:11,padding:"3px 7px",background:"#fff"}}/></div>)}
+            {[["Gamme alu","gamme","ex : Schüco AWS 75.II"],["Composition","vitrage","ex : 44.2s/16/10"],["Rw mesuré","rw","ex : 43 dB"],["RA,tr corrigé","rwctr","ex : 38 dB"],["Rapport PV","rapport","ex : BEB2.E.6077-1"],["Correction dim.","correction","ex : 0 dB"]].map(([l,k,ph])=>champ(ty,l,k,ph))}
           </div>
           <div style={{padding:"9px 11px",background:"#fffbeb",borderRadius:8,border:"1px solid #fde68a"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#92400e",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>☀ Contrôle solaire</div>
-            {[["Référence capa","controle","ex : Xtreme 70/33"],["TL (%)","tl","ex : 70%"],["Facteur solaire","fs","ex : 0.33"],["Ug (W/m².K)","ug","ex : 1.0"]].map(([l,k,ph])=><div key={k} style={{marginBottom:4}}><div style={{fontSize:9,color:"#6b7280",marginBottom:1}}>{l}</div><input value={ty[k]} onChange={e=>upd(ty.id,k,e.target.value)} placeholder={ph} style={{...S.input,fontSize:11,padding:"3px 7px",background:"#fff"}}/></div>)}
+            {[["Référence capa","controle","ex : Xtreme 70/33"],["TL (%)","tl","ex : 70%"],["Facteur solaire","fs","ex : 0.33"],["Ug (W/m².K)","ug","ex : 1.0"]].map(([l,k,ph])=>champ(ty,l,k,ph))}
           </div>
           <div style={{padding:"9px 11px",background:"#eef2ff",borderRadius:8,border:"1px solid #c7d2fe"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#3730a3",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>💨 DTU 39 & AEV</div>
-            {[["Épaisseur min. DTU 39","epaisseur_dtu","ex : 8.5 mm"],["Épaisseur réelle vitrage","epaisseur_reelle","ex : 34.8 mm"],["Poids vitrage","poids_m2","ex : 45 kg/m²"],["Poids du vantail","poids_vantail","ex : 78 kg"],["Classement AEV","aev","ex : A4 / E9A / C3"],["Uw système","uw","ex : 1.3 W/m²K"]].map(([l,k,ph])=><div key={k} style={{marginBottom:4}}><div style={{fontSize:9,color:"#6b7280",marginBottom:1}}>{l}</div><input value={ty[k]} onChange={e=>upd(ty.id,k,e.target.value)} placeholder={ph} style={{...S.input,fontSize:11,padding:"3px 7px",background:"#fff"}}/></div>)}
+            {[["Épaisseur min. DTU 39","epaisseur_dtu","ex : 8.5 mm"],["Épaisseur réelle vitrage","epaisseur_reelle","ex : 34.8 mm"],["Poids vitrage","poids_m2","ex : 45 kg/m²"],["Poids du vantail","poids_vantail","ex : 78 kg"],["Classement AEV","aev","ex : A4 / E9A / C3"],["Uw système","uw","ex : 1.3 W/m²K"]].map(([l,k,ph])=>champ(ty,l,k,ph))}
             <div style={{marginTop:8,padding:"7px 9px",background:ty.vitrage&&ty.rwctr?"#d1fae5":"#f3f4f6",borderRadius:6}}>
               <div style={{fontSize:10,fontWeight:700,color:ty.vitrage&&ty.rwctr?"#065f46":"#9ca3af"}}>{ty.vitrage&&ty.rwctr?"✓ Prescription complète":"⚠ À compléter"}</div>
               {ty.vitrage&&ty.rwctr&&<div style={{fontSize:9,color:"#374151",marginTop:2,lineHeight:1.5}}>{ty.vitrage} — RA,tr {ty.rwctr}{ty.controle?" · "+ty.controle:""}</div>}
             </div>
           </div>
         </div>
-        {/* Métré façade + sécurité allège + RC3 */}
         {(ty._facade||ty._allege.protection_requise||ty._rc3)&&<div style={{padding:"8px 12px",background:"#fafafa",borderTop:"1px solid #e5e7eb",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
-          {ty._facade&&<div style={{display:"flex",gap:14,fontSize:11,color:"#374151"}}>
+          {ty._facade&&<div style={{display:"flex",gap:14,fontSize:11,color:"#374151",flexWrap:"wrap"}}>
             {ty._facade.mode==="personnalisee"
               ? <span>🏢 <strong>{ty._facade.nb_panneaux_total}</strong> panneaux ({ty._facade.panneaux.length} tailles){ty._facade.nb_meneaux?` · ${ty._facade.nb_meneaux} montants`:""}</span>
               : <span>🏢 <strong>{ty._facade.nb_meneaux}</strong> meneaux ({ty._facade.nb_travees} travées)</span>}
@@ -2398,7 +2525,7 @@ function PagePrescription({projet,setProjet,setPage}){
             {ty._facade.ml_meneaux!=null&&<span>ML meneaux <strong>{ty._facade.ml_meneaux} m</strong></span>}
           </div>}
           {ty._allege.protection_requise&&<div style={{fontSize:11,fontWeight:600,color:ty._allege_opaque?"#92400e":"#991b1b",padding:"3px 10px",background:"#fff",borderRadius:6,border:"1px solid #fde68a"}}>
-            🛡 {ty._allege_opaque?"Allège opaque — garde-corps panneau":"Feuilleté 1B1 obligatoire (allège "+ty._allege.allege_m+"m)"}
+            🛡 {ty._allege_opaque?"Allège opaque — garde-corps assuré par le panneau":"Face intérieure feuilletée ≥ 44.2 (1B1) obligatoire — allège "+ty._allege.allege_m+" m"}
           </div>}
           {ty._rc3&&<div style={{fontSize:11,fontWeight:600,color:"#92400e",padding:"3px 10px",background:"#fff",borderRadius:6,border:"1px solid #fde68a"}}>
             ⚠ RC3 requis — hors DTA, capots/serrage renforcés + raidisseurs montants/traverses, PV EN 1627-1630 spécifique à demander au fabricant
@@ -2406,54 +2533,47 @@ function PagePrescription({projet,setProjet,setPage}){
         </div>}
       </div>)}
 
-      {/* ── MÉTRÉ DE SYNTHÈSE ─────────────────────────────────── */}
       {(()=>{
-        const {totaux:T}=metreGlobal(projet.elements,projet.prescriptions,+projet.hauteur_sol||3);
+        const {totaux:T}=metreGlobal(projet.elements,projet.prescriptions);
         return <div style={{marginTop:18,padding:"14px 18px",background:"#f9fafb",borderRadius:10,border:"1px solid #e5e7eb"}}>
           <div style={{fontSize:11,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>📐 Métré de synthèse</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
-            {[["Surface totale",`${T.surf_total} m²`],["Façades / Châssis",`${T.nb_facades} / ${T.nb_chassis}`],["Meneaux",`${T.nb_meneaux}`],["Ouvrants",`${T.nb_ouvrants}`],["ML meneaux",`${T.ml_meneaux} m`],["ML traverses",`${T.ml_traverses} m`],["Vitrage fixe",`${T.surf_vitree} m²`],["Poids total",T.poids_total>0?`${(T.poids_total/1000).toFixed(1)} t`:"—"]].map(([l,v])=>(
+            {[["Surface totale",`${T.surf_total} m²`],["Façades / Châssis",`${T.nb_facades} / ${T.nb_chassis}`],["Meneaux",`${T.nb_meneaux}`],["Ouvrants / vantaux",`${T.nb_ouvrants}`],["ML meneaux",`${T.ml_meneaux} m`],["ML traverses",`${T.ml_traverses} m`],["Vitrage fixe",`${T.surf_vitree} m²`],["Poids vitrage",T.poids_total>0?`${(T.poids_total/1000).toFixed(1)} t`:"—"]].map(([l,v])=>(
               <div key={l}><div style={{fontSize:10,color:"#6b7280"}}>{l}</div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>{v}</div></div>
             ))}
           </div>
         </div>;
       })()}
 
-      {/* ── PV D'ESSAIS MOBILISÉS ─────────────────────────────── */}
-      {(()=>{
-        const prescs=projet.prescriptions||{};
-        const lignes=Object.values(prescs).filter(p=>p.gamme);
-        if(lignes.length===0)return null;
-        return <div style={{marginTop:14,padding:"14px 18px",background:"#f0f9ff",borderRadius:10,border:"1px solid #bae6fd"}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#0369a1",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>📋 Procès-verbaux d'essais mobilisés</div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-            <thead><tr style={{color:"#0369a1",textAlign:"left"}}>{["Système","Vitrage","Acoustique","Rapport PV","AEV"].map(h=><th key={h} style={{padding:"4px 8px",fontWeight:600,borderBottom:"1px solid #bae6fd"}}>{h}</th>)}</tr></thead>
-            <tbody>{lignes.map((p,i)=><tr key={i}>
-              <td style={{padding:"4px 8px",fontWeight:600}}>{p.gamme}</td>
-              <td style={{padding:"4px 8px",fontFamily:"monospace"}}>{p.vitrage}</td>
-              <td style={{padding:"4px 8px"}}>RA,tr {p.rwctr}</td>
-              <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#6b7280"}}>{p.rapport}</td>
-              <td style={{padding:"4px 8px",fontSize:10}}>{p.aev||"—"}</td>
-            </tr>)}</tbody>
-          </table>
-        </div>;
-      })()}
+      {lignesPV.length>0&&<div style={{marginTop:14,padding:"14px 18px",background:"#f0f9ff",borderRadius:10,border:"1px solid #bae6fd"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#0369a1",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>📋 Procès-verbaux d'essais mobilisés</div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead><tr style={{color:"#0369a1",textAlign:"left"}}>{["Élément","Système","Vitrage","Acoustique","Rapport PV","AEV"].map(h=><th key={h} style={{padding:"4px 8px",fontWeight:600,borderBottom:"1px solid #bae6fd"}}>{h}</th>)}</tr></thead>
+          <tbody>{lignesPV.map((p,i)=><tr key={i}>
+            <td style={{padding:"4px 8px"}}>{p.label}</td>
+            <td style={{padding:"4px 8px",fontWeight:600}}>{p.gamme}</td>
+            <td style={{padding:"4px 8px",fontFamily:"monospace"}}>{p.vitrage}</td>
+            <td style={{padding:"4px 8px"}}>RA,tr {p.rwctr}</td>
+            <td style={{padding:"4px 8px",fontFamily:"monospace",color:"#6b7280"}}>{p.rapport}</td>
+            <td style={{padding:"4px 8px",fontSize:10}}>{p.aev||"—"}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>}
 
-      {/* ── JUSTIFICATIONS RÉGLEMENTAIRES ─────────────────────── */}
       <div style={{marginTop:14,padding:"14px 18px",background:"#fffbeb",borderRadius:10,border:"1px solid #fde68a"}}>
         <div style={{fontSize:11,fontWeight:700,color:"#92400e",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>⚖ Référentiel réglementaire & normatif</div>
         <div style={{fontSize:11,color:"#78350f",lineHeight:1.7}}>
-          <div><strong>Performance énergétique</strong> — RE2020 : Uw ≤ {projet.uw_max||"—"} W/m².K · facteur solaire g ≤ {projet.g_max||"—"} · TL ≥ {projet.tl_min||"—"}%.</div>
-          <div><strong>Résistance au vent</strong> — NF DTU 39 P4 : pression de calcul {projet.pression_pa||"—"} Pa (région {projet.zone_vent}, terrain {projet.cat_terrain}, hauteur {projet.hauteur_bat}m). Épaisseur de vitrage et flèche vérifiées.</div>
-          <div><strong>Étanchéité AEV</strong> — NF EN 12152/12154 (façades) ou NF EN 14351-1 (fenêtres) : classement minimum requis {projet.aev_min||"—"}.</div>
-          <div><strong>Acoustique</strong> — exigences RA,tr par élément justifiées par PV d'essais en laboratoire (correction dimensionnelle selon NF EN ISO 717-1).</div>
-          <div><strong>Sécurité des personnes</strong> — NF P08-302 (garde-corps) et NF EN 12600 (classement au choc) : vitrage feuilleté 1B1 minimum en allège vitrée &lt; 1 m avec risque de chute.</div>
-          <div><strong>Façades rideaux</strong> — NF EN 13830 : flèche admissible des meneaux L/200 sous charge de vent.</div>
+          <div><strong>Performance thermique & solaire</strong> — exigences du CCTP / de l'étude thermique : Uw ≤ {projet.uw_max||"—"} W/m².K · facteur solaire g ≤ {projet.g_max||"—"} · TL ≥ {projet.tl_min||"—"}%.</div>
+          <div><strong>Résistance au vent</strong> — NF DTU 39 P4 : pression de calcul {pression||"—"} Pa (région {projet.zone_vent}, catégorie de terrain {projet.cat_terrain}, hauteur {projet.hauteur_bat} m). Épaisseur et flèche vérifiées sur chaque vitrage (panneau de trame, vantail, partie de châssis composé).</div>
+          <div><strong>Étanchéité AEV</strong> — NF EN 12152/12154 (façades) ou NF EN 14351-1 / NF EN 12210 (fenêtres) : classement minimum requis {projet.aev_min||"—"}.</div>
+          <div><strong>Acoustique</strong> — RA,tr justifié par PV d'essais en laboratoire (indices NF EN ISO 717-1) ; correction forfaitaire de −1 à −3 dB appliquée quand la surface dépasse celle de l'essai.</div>
+          <div><strong>Sécurité des personnes</strong> — NF DTU 39 P5 et NF EN 12600 : face intérieure feuilletée ≥ 44.2 (classe 1B1) en allège vitrée &lt; 1 m avec risque de chute ; garde-corps NF P01-012 / P01-013.</div>
+          <div><strong>Façades rideaux</strong> — flèche des meneaux vérifiée à L/200 (valeur usuelle, à confirmer par le DTA du système / NF DTU 33.1).</div>
         </div>
       </div>
 
       <div style={{marginTop:16,paddingTop:10,borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",fontSize:10,color:"#9ca3af"}}>
-        <div>GlassIQ v2 — Note de choix vitrage & métré</div>
+        <div>GlassIQ v2.5 — Note de choix vitrage & métré</div>
         <div>Généré le {new Date().toLocaleDateString("fr-FR")}{projet.redacteur?" — "+projet.redacteur:""}</div>
       </div>
     </div>
@@ -2616,7 +2736,7 @@ function PageMetre({projet}){
         ))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
-        {[["Façades",T.nb_facades,"unités"],["Châssis",T.nb_chassis,"unités"],["Meneaux",T.nb_meneaux,"profilés"],["Ouvrants",T.nb_ouvrants,"unités"]].map(([l,v,sub])=>(
+        {[["Façades",T.nb_facades,"unités"],["Châssis",T.nb_chassis,"unités"],["Meneaux",T.nb_meneaux,"profilés"],["Ouvrants",T.nb_ouvrants,"vantaux / unités"]].map(([l,v,sub])=>(
           <div key={l} style={{background:"#f9fafb",borderRadius:10,padding:"12px 14px",border:"1px solid #e5e7eb"}}>
             <div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>{v}</div><div style={{fontSize:11,color:"#6b7280"}}>{l} <span style={{color:"#9ca3af"}}>· {sub}</span></div>
           </div>
@@ -2625,7 +2745,7 @@ function PageMetre({projet}){
 
       {/* Linéaires + poids */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20,padding:"12px 16px",background:"#1a1a2e",borderRadius:10}}>
-        {[["ML meneaux",`${T.ml_meneaux} m`],["ML traverses",`${T.ml_traverses} m`],["Poids total estimé",T.poids_total>0?`${(T.poids_total/1000).toFixed(1)} t`:"— prescrire d'abord"]].map(([l,v])=>(
+        {[["ML meneaux",`${T.ml_meneaux} m`],["ML traverses",`${T.ml_traverses} m`],["Poids vitrage estimé",T.poids_total>0?`${(T.poids_total/1000).toFixed(1)} t`:"— prescrire d'abord"]].map(([l,v])=>(
           <div key={l}><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>{l.toUpperCase()}</div><div style={{fontSize:18,fontWeight:800,color:"#fff"}}>{v}</div></div>
         ))}
       </div>
@@ -2666,36 +2786,37 @@ function PageMetre({projet}){
 
 // ── PAGE FLÈCHE FAÇADE RIDEAU ──────────────────────────────────────────────
 function PageFleche({projet}){
-  const pression=projet.pression_pa||calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   const facades=projet.elements.filter(e=>e.type==="facade");
   const [systeme,setSysteme]=useState("FW60");
   const [entraxe,setEntraxe]=useState("1.35");
   const [portee,setPortee]=useState("3.5");
   const [critere,setCritere]=useState("200");
-  const [results,setResults]=useState(null);
+  const [show,setShow]=useState(false);
+  const libCrit=critere==="200_15"?"L/200 ≤ 15 mm":"L/"+critere;
+  const e=+entraxe||0, Lp=+portee||0;
+  const valide=!!pression&&e>0&&Lp>0;
+  // Résultats recalculés en direct (changement de critère / entraxe pris en compte)
+  const results=show&&valide?profilesCompatibles(systeme,pression,e,Lp,critere):null;
 
   const chargerFacade=(el)=>{
     const af=analyseFacade(el);
     if(af){
-      setEntraxe(String(af.entraxe_meneau));
-      // Portée = hauteur d'étage : on prend la hauteur de la façade si < 5m, sinon on divise par niveaux probables
+      let ent=af.entraxe_meneau;
+      if(!ent){const pan=panneauxCalcul(el);ent=pan.length?+(Math.max(...pan.map(p=>p.largeur))/1000).toFixed(2):1.35;}
+      setEntraxe(String(ent));
       const h=af.H;
       setPortee(String(h>5?+(h/Math.ceil(h/3.5)).toFixed(2):h));
     }
-    if(el.soustype&&el.soustype.includes("50"))setSysteme("FW50");
-    else setSysteme("FW60");
-  };
-
-  const calculer=()=>{
-    if(!pression||!entraxe||!portee)return;
-    const profs=profilesCompatibles(systeme,pression,+entraxe,+portee);
-    setResults(profs);
+    const pr=(projet.prescriptions||{})[el.id];
+    const g=((pr&&pr.gamme)||"")+" "+(el.soustype||"");
+    setSysteme(/FWS?\s*50/i.test(g)?"FW50":"FW60");
   };
 
   return <div>
     <div style={{...S.card,background:"#eef2ff",border:"1px solid #c7d2fe",marginBottom:14}}>
       <div style={{fontSize:14,fontWeight:700,color:"#3730a3",marginBottom:4}}>📐 Flèche meneau façade rideau — vérification structurelle</div>
-      <div style={{fontSize:12,color:"#3730a3"}}>Le meneau travaille comme une poutre sur 2 appuis (planchers) sous charge de vent. Flèche admissible : valeur usuelle L/200 — <strong>à confirmer par le DTA du système retenu</strong>, NF EN 13830 ne fixant pas de valeur universelle pour les façades rideaux (seule la flèche des châssis fenêtres/portes est fixée par le NF DTU 39 : L/150, max 15mm sous 800 Pa). Données profilés : catalogue Schüco Façades 2026.</div>
+      <div style={{fontSize:12,color:"#3730a3"}}>Le meneau travaille comme une poutre sur 2 appuis (planchers) sous charge de vent. Flèche admissible : valeur usuelle L/200, souvent plafonnée à 15 mm — <strong>à confirmer par le DTA du système retenu / NF DTU 33.1</strong>. (La flèche des châssis fenêtres/portes relève du NF DTU 39 : L/150, max 15 mm sous 800 Pa.) Données profilés : catalogue Schüco Façades 2026.</div>
     </div>
 
     {!pression&&<div style={{...S.card,background:"#fff1f2",border:"1px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13}}>⚠ Pression de vent non calculée — renseigne d'abord la zone, le terrain et la hauteur en étape 1 ou 2.</div>}
@@ -2706,63 +2827,61 @@ function PageFleche({projet}){
         {facades.map((el,i)=>{
           const af=analyseFacade(el);
           return <button key={i} onClick={()=>chargerFacade(el)} style={{padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"1.5px solid #c4b5fd",background:"#f5f3ff",color:"#5b21b6"}}>
-            {el.label} <span style={{opacity:0.7}}>· trame {af?af.entraxe_meneau:"?"}m · {af?af.nb_meneaux:"?"} meneaux</span>
+            {el.label} <span style={{opacity:0.7}}>· {af&&af.mode!=="personnalisee"?`trame ${af.entraxe_meneau} m · ${af.nb_meneaux} meneaux`:"panneaux personnalisés"}</span>
           </button>;
         })}
       </div>
     </div>}
 
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:14}}>
-      <div><label style={S.label}>Système façade</label><select value={systeme} onChange={e=>setSysteme(e.target.value)} style={S.input}><option value="FW50">Schüco FWS 50</option><option value="FW60">Schüco FWS 60</option></select></div>
-      <div><label style={S.label}>Entraxe meneaux (m)</label><input type="number" value={entraxe} onChange={e=>setEntraxe(e.target.value)} step="0.05" placeholder="1.35" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Largeur de trame</div></div>
-      <div><label style={S.label}>Portée meneau (m)</label><input type="number" value={portee} onChange={e=>setPortee(e.target.value)} step="0.1" placeholder="3.5" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Hauteur d'étage (entre planchers)</div></div>
-      <div><label style={S.label}>Critère de flèche</label><select value={critere} onChange={e=>setCritere(e.target.value)} style={S.input}><option value="200">L/200 (courant EN 13830)</option><option value="175">L/175 (admissible max)</option></select></div>
+      <div><label style={S.label}>Système façade</label><select value={systeme} onChange={ev=>setSysteme(ev.target.value)} style={S.input}><option value="FW50">Schüco FWS 50</option><option value="FW60">Schüco FWS 60</option></select></div>
+      <div><label style={S.label}>Entraxe meneaux (m)</label><input type="number" value={entraxe} onChange={ev=>setEntraxe(ev.target.value)} step="0.05" placeholder="1.35" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Largeur de trame</div></div>
+      <div><label style={S.label}>Portée meneau (m)</label><input type="number" value={portee} onChange={ev=>setPortee(ev.target.value)} step="0.1" placeholder="3.5" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Hauteur d'étage (entre planchers)</div></div>
+      <div><label style={S.label}>Critère de flèche</label><select value={critere} onChange={ev=>setCritere(ev.target.value)} style={S.input}><option value="200">L/200 (usuel)</option><option value="200_15">L/200 plafonné à 15 mm</option><option value="175">L/175</option></select></div>
     </div>
 
-    {pression&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+    {valide&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression vent</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{pression} Pa</div></div>
-      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Charge linéique meneau</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{(pression*(+entraxe||1.35)/1000).toFixed(2)} N/mm</div></div>
-      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Flèche admissible L/{critere}</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{((+portee||3.5)*1000/+critere).toFixed(1)} mm</div></div>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Charge linéique meneau</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{(pression*e/1000).toFixed(2)} N/mm</div></div>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Flèche admissible {libCrit}</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{flecheAdmissible(Lp*1000,critere).toFixed(1)} mm</div></div>
       <div style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(240,192,64,0.15)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8}}>
         <div style={{fontSize:11,color:"rgba(240,192,64,0.8)"}}>Inertie Ix minimale requise</div>
-        <div style={{fontSize:22,fontWeight:800,color:"#f0c040"}}>{inertieRequise(pression,+entraxe||1.35,+portee||3.5,+critere)} cm⁴</div>
+        <div style={{fontSize:22,fontWeight:800,color:"#f0c040"}}>{inertieRequise(pression,e,Lp,critere)} cm⁴</div>
         <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>universel — comparable à tout catalogue fabricant</div>
       </div>
     </div>}
 
-    <button onClick={calculer} disabled={!pression} style={S.btnPrimary}>📐 Vérifier les meneaux {systeme==="FW50"?"FWS 50":"FWS 60"}</button>
+    <button onClick={()=>setShow(true)} disabled={!valide} style={S.btnPrimary}>📐 Vérifier les meneaux {systeme==="FW50"?"FWS 50":"FWS 60"}</button>
 
     {results&&<div style={{marginTop:20}}>
       <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>{results.length} profilé{results.length>1?"s":""} meneau analysé{results.length>1?"s":""} — le plus léger qui passe est mis en avant</div>
       {(()=>{
-        const okList=results.filter(p=>critere==="175"?p.calc.ok_175:p.calc.ok_200);
-        const recommended=okList.length>0?okList[0]:null;
+        const recommended=results.find(p=>p.calc.ok)||null;
         return <>
           {recommended&&<div style={{...S.card,background:"#f0fdf4",border:"2px solid #059669",marginBottom:14}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <span style={{width:28,height:28,borderRadius:8,background:"#059669",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>★</span>
-              <div><div style={{fontSize:15,fontWeight:800,color:"#1a1a2e"}}>Profilé minimum recommandé : {recommended.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>Réf. Schüco {recommended.ref} · le plus léger qui satisfait L/{critere}</div></div>
+              <div><div style={{fontSize:15,fontWeight:800,color:"#1a1a2e"}}>Profilé minimum recommandé : {recommended.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>Réf. Schüco {recommended.ref} · le plus léger qui satisfait {libCrit}</div></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
               <Stat label="Inertie Ix" value={`${recommended.Ix} cm⁴`} hi/>
               <Stat label="Flèche calculée" value={`${recommended.calc.fleche} mm`} hi/>
-              <Stat label={`Admissible L/${critere}`} value={`${critere==="175"?recommended.calc.adm_175:recommended.calc.adm_200} mm`}/>
+              <Stat label={`Admissible ${libCrit}`} value={`${recommended.calc.adm} mm`}/>
               <Stat label="Taux d'utilisation" value={`${Math.round(recommended.calc.ratio*100)}%`}/>
             </div>
           </div>}
-          {!recommended&&<div style={{...S.card,background:"#fff1f2",border:"1.5px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13,fontWeight:600}}>⚠ Aucun meneau {systeme==="FW50"?"FWS 50":"FWS 60"} ne satisfait L/{critere} dans cette configuration. Il faut réduire l'entraxe, réduire la portée, ou passer à un meneau renforcé acier / un système plus profond.</div>}
+          {!recommended&&<div style={{...S.card,background:"#fff1f2",border:"1.5px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13,fontWeight:600}}>⚠ Aucun meneau {systeme==="FW50"?"FWS 50":"FWS 60"} ne satisfait {libCrit} dans cette configuration. Il faut réduire l'entraxe, réduire la portée, ou passer à un meneau renforcé acier / un système plus profond.</div>}
 
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead><tr style={{background:"#1a1a2e",color:"#fff"}}>{["Profilé","Réf.","Ix (cm⁴)","Flèche (mm)",`Adm. L/${critere}`,"Taux","Verdict"].map(h=><th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:600,fontSize:12}}>{h}</th>)}</tr></thead>
+            <thead><tr style={{background:"#1a1a2e",color:"#fff"}}>{["Profilé","Réf.","Ix (cm⁴)","Flèche (mm)",`Adm. ${libCrit}`,"Taux","Verdict"].map(h=><th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:600,fontSize:12}}>{h}</th>)}</tr></thead>
             <tbody>{results.map((p,i)=>{
-              const ok=critere==="175"?p.calc.ok_175:p.calc.ok_200;
-              const adm=critere==="175"?p.calc.adm_175:p.calc.adm_200;
+              const ok=p.calc.ok;
               return <tr key={i} style={{background:ok?(recommended&&p.ref===recommended.ref?"#d1fae5":"#fff"):"#fff1f2"}}>
                 <td style={{padding:"7px 10px",fontWeight:600}}>{p.nom}</td>
                 <td style={{padding:"7px 10px",fontFamily:"monospace",fontSize:12,color:"#6b7280"}}>{p.ref}</td>
                 <td style={{padding:"7px 10px",fontWeight:700}}>{p.Ix}</td>
                 <td style={{padding:"7px 10px",color:ok?"#065f46":"#991b1b",fontWeight:600}}>{p.calc.fleche}</td>
-                <td style={{padding:"7px 10px",color:"#6b7280"}}>{adm}</td>
+                <td style={{padding:"7px 10px",color:"#6b7280"}}>{p.calc.adm}</td>
                 <td style={{padding:"7px 10px"}}>{Math.round(p.calc.ratio*100)}%</td>
                 <td style={{padding:"7px 10px"}}>{ok?<Badge color="green">✓ OK</Badge>:<Badge color="red">✗ Flèche</Badge>}</td>
               </tr>;
@@ -2771,7 +2890,7 @@ function PageFleche({projet}){
         </>;
       })()}
       <div style={{...S.card,background:"#f9fafb",marginTop:16,fontSize:12,color:"#6b7280",lineHeight:1.6}}>
-        <strong>Méthode :</strong> meneau modélisé en poutre simplement appuyée, charge vent uniformément répartie q = pression × entraxe. Flèche f = 5qL⁴/(384·E·I) avec E<sub>alu</sub> = 70 000 N/mm². Inertie Ix = flexion sous vent (perpendiculaire à la façade). Les valeurs d'inertie sont issues du catalogue de fabrication Schüco Façades. Pour un dimensionnement définitif, valider avec une note de calcul SchüCal et tenir compte des reprises de charge réelles, du poids propre et des combinaisons ELU/ELS.
+        <strong>Méthode :</strong> meneau modélisé en poutre simplement appuyée, charge vent uniformément répartie q = pression × entraxe. Flèche f = 5qL⁴/(384·E·I) avec E<sub>alu</sub> = 70 000 N/mm². Inertie Ix = flexion sous vent (perpendiculaire à la façade). Les valeurs d'inertie sont issues du catalogue de fabrication Schüco Façades. Contrainte, poids propre et combinaisons ELU/ELS non vérifiés ici : pour un dimensionnement définitif, valider avec une note de calcul SchüCal.
       </div>
     </div>}
   </div>;
@@ -2858,11 +2977,11 @@ function PageSecurite({db}){
           <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>Schüco {data.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{data.famille} · {data.certs.length} certification{data.certs.length>1?"s":""}</div></div>
         </div>
         {data.certs.map((c,i)=>(
-          <div key={i} style={{display:"grid",gridTemplateColumns:"110px 1fr 150px 90px",gap:10,alignItems:"center",padding:"7px 0",borderBottom:i<data.certs.length-1?"1px solid #f3f4f6":"none"}}>
+          <div key={i} style={{display:"grid",gridTemplateColumns:"110px 1fr 150px 120px",gap:10,alignItems:"center",padding:"7px 0",borderBottom:i<data.certs.length-1?"1px solid #f3f4f6":"none"}}>
             <Badge color={typeColors[c.type]||"gray"}>{c.classe}</Badge>
             <div style={{fontSize:12,color:"#374151"}}>{c.config}{c.dims&&c.dims!=="—"?<span style={{color:"#9ca3af"}}> — {c.dims}mm</span>:""}</div>
             <div style={{fontSize:11,color:"#6b7280",fontFamily:"monospace"}}>{c.rapport}</div>
-            <div style={{fontSize:11,color:"#9ca3af",textAlign:"right"}}>{c.labo}{c.date?" · "+c.date:""}</div>
+            <div style={{fontSize:11,color:"#9ca3af",textAlign:"right"}}>{c.labo}{c.date?" · "+c.date:""}{(()=>{if(!/^\d{2}\/\d{2}\/\d{4}$/.test(c.date||""))return null;const st=statutDTA(c.date);if(st.statut==="ok")return null;return <div style={{color:st.couleur,fontWeight:700}}>{st.statut==="expire"?"⛔ PV expiré":"⚠ expire dans "+st.jours+" j"}</div>;})()}</div>
           </div>
         ))}
       </div>
@@ -2899,7 +3018,7 @@ function PageSecurite({db}){
 }
 
 // ── PAGE BASE ─────────────────────────────────────────────────────────────
-function PageBase({db,onUpdate}){
+function PageBase({db}){
   const normalSystems=db.systemes.filter(s=>!s.certifications);
   const marques=[...new Set(normalSystems.map(s=>s.marque))];
   const [ma,setMa]=useState(marques[0]||"");
@@ -2935,44 +3054,347 @@ function PageBase({db,onUpdate}){
   </div>;
 }
 
-// ── PAGE AJOUTER ──────────────────────────────────────────────────────────
-function PageAjouter({db,onUpdate}){
-  const [prompt,setPrompt]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [result,setResult]=useState(null);
-  const [error,setError]=useState(null);
-  const analyser=async()=>{
-    setLoading(true);setError(null);setResult(null);
-    if(!prompt.trim()){setLoading(false);return;}
-    try{
-      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`Expert vitrages alu. Extrait données acoustiques, retourne UNIQUEMENT JSON valide (sans markdown):
-{"id":"id","nom":"nom","marque":"fab","famille":"Fenêtre|Porte|Façade","dta":"","validite":"","epaisseur_min":24,"epaisseur_max":48,"poids_max":130,"tests":[{"rapport":"","type_chassis":"","dim_L":1230,"dim_H":1480,"labo":"","date":"","vitrages":[{"composition":"","rw":0,"rwc":0,"rwctr":0}]}],"thermique":[]}
-Texte: ${prompt}`}]})});
-      const d=await r.json();
-      const txt=d.content?.map(i=>i.text||"").join("")||"";
-      setResult(JSON.parse(txt.replace(/```json|```/g,"").trim()));
-    }catch(err){setError("Impossible d'analyser. Vérifiez que le texte contient des données acoustiques.");}
-    setLoading(false);
+// ── PAGE AJOUTER / GÉRER MES SYSTÈMES ─────────────────────────────────────
+// CORRIGÉ v2.5 : l'ancien ajout "par IA" ne pouvait pas fonctionner hors de Claude
+// (appel API sans clé, bloqué par le navigateur). Remplacé par un formulaire de
+// saisie manuelle — utilisable même sans DTA — avec modification, export et import.
+const FAMILLES_SAISIE=["Fenêtre","Porte-fenêtre","Porte","Coulissant","Façade"];
+function formVide(){
+  return {id:"",nom:"",marque:"Schüco",famille:"Fenêtre",dta:"",validite:"",epaisseur_min:"24",epaisseur_max:"48",poids_max:"130",vantaux_defaut:"",note:"",
+    tests:[{rapport:"",type_chassis:"",dim_L:"1230",dim_H:"1480",labo:"",date:"",vitrages:[{composition:"",rw:"",rwc:"",rwctr:""}]}],
+    aev:[],thermique:[],dimensions_max:[]};
+}
+function systemeVersForm(s){
+  const str=v=>v==null?"":String(v);
+  return {id:s.id||"",nom:str(s.nom),marque:str(s.marque),famille:FAMILLES_SAISIE.includes(s.famille)?s.famille:"Fenêtre",dta:str(s.dta),validite:str(s.validite),
+    epaisseur_min:str(s.epaisseur_min),epaisseur_max:str(s.epaisseur_max),poids_max:str(s.poids_max),vantaux_defaut:str(s.vantaux_defaut),note:str(s.note),
+    tests:(s.tests||[]).map(t=>({rapport:str(t.rapport),type_chassis:str(t.type_chassis),dim_L:str(t.dim_L),dim_H:str(t.dim_H),labo:str(t.labo),date:str(t.date),
+      vitrages:(t.vitrages||[]).map(v=>({composition:str(v.composition),rw:str(v.rw),rwc:str(v.rwc),rwctr:str(v.rwctr)}))})),
+    aev:(s.aev||[]).map(a=>({chassis:str(a.chassis),dims:str(a.dims),A:str(a.A),E:str(a.E),V:str(a.V),rapport:str(a.rapport),date:str(a.date)})),
+    thermique:(s.thermique||[]).map(t=>({ug:str(t.ug),config:str(t.config),uw:str(t.uw)})),
+    dimensions_max:(s.dimensions_max||[]).map(d=>({type:str(d.type),l_max:str(d.l_max!=null?d.l_max:d.L),h_max:str(d.h_max!=null?d.h_max:d.H)}))};
+}
+function nombreSaisi(v){const x=parseFloat(String(v==null?"":v).replace(",","."));return isFinite(x)?x:null;}
+function formVersSysteme(f){
+  const n=nombreSaisi, t=v=>String(v||"").trim();
+  const sys={id:f.id||("perso_"+Date.now().toString(36)),perso:true,nom:t(f.nom),marque:t(f.marque),famille:f.famille,dta:t(f.dta),validite:t(f.validite),
+    epaisseur_min:n(f.epaisseur_min),epaisseur_max:n(f.epaisseur_max),poids_max:n(f.poids_max),note:t(f.note),
+    tests:f.tests.map(x=>({rapport:t(x.rapport),type_chassis:t(x.type_chassis),dim_L:n(x.dim_L)||1230,dim_H:n(x.dim_H)||1480,labo:t(x.labo),date:t(x.date),
+      vitrages:x.vitrages.filter(v=>t(v.composition)&&n(v.rwctr)!=null).map(v=>({composition:t(v.composition),rw:n(v.rw),rwc:n(v.rwc),rwctr:n(v.rwctr)}))}))
+      .filter(x=>x.vitrages.length>0),
+    aev:f.aev.filter(a=>t(a.chassis)||t(a.V)).map(a=>({chassis:t(a.chassis),dims:t(a.dims),A:t(a.A),E:t(a.E),V:t(a.V),rapport:t(a.rapport),date:t(a.date)})),
+    thermique:f.thermique.filter(x=>n(x.uw)!=null).map(x=>({ug:n(x.ug),config:t(x.config),uw:n(x.uw)})),
+    dimensions_max:f.dimensions_max.filter(d=>n(d.l_max)&&n(d.h_max)).map(d=>({type:t(d.type),l_max:n(d.l_max),h_max:n(d.h_max)}))};
+  if(n(f.vantaux_defaut))sys.vantaux_defaut=n(f.vantaux_defaut);
+  return sys;
+}
+function erreursForm(f){
+  const e=[], n=nombreSaisi;
+  if(!String(f.nom).trim())e.push("Nom du système obligatoire");
+  if(!String(f.marque).trim())e.push("Marque obligatoire");
+  const mi=n(f.epaisseur_min),ma=n(f.epaisseur_max);
+  if(!(mi>0)||!(ma>0)||mi>ma)e.push("Feuillure : épaisseurs min / max invalides");
+  if(!(n(f.poids_max)>0))e.push("Poids max (ferrure ou appui vitrage) obligatoire");
+  if(String(f.validite).trim()&&!/^\d{2}\/\d{2}\/\d{4}$/.test(String(f.validite).trim()))e.push("Validité DTA : format JJ/MM/AAAA (ou laisser vide)");
+  return e;
+}
+function avertissementsForm(f){
+  const w=[];
+  const vit=f.tests.flatMap(t=>t.vitrages).filter(v=>String(v.composition).trim());
+  if(!vit.length)w.push("Aucun PV acoustique : le système n'apparaîtra pas dans le comparateur (seulement dans « Ma base » et le vérificateur de vitrage libre).");
+  vit.forEach(v=>{
+    if(!analyseComposition(String(v.composition).trim()))w.push(`« ${v.composition} » non reconnue : poids, feuillure et résistance ne pourront pas être calculés (format ex. 10/16/44.2s).`);
+    if(nombreSaisi(v.rwctr)==null)w.push(`« ${v.composition} » : Rw+Ctr manquant — ligne ignorée.`);
+  });
+  if(!String(f.dta).trim())w.push("Sans DTA : le comparateur affichera « validité non renseignée » (non bloquant).");
+  return w;
+}
+
+function PageAjouter({db,onChange}){
+  const [form,setForm]=useState(formVide);
+  const [perso,setPerso]=useState(()=>getPerso());
+  const [msg,setMsg]=useState(null);
+  const [confirmDel,setConfirmDel]=useState(null);
+  const [srcId,setSrcId]=useState("");
+  const refresh=()=>{setPerso(getPerso());onChange&&onChange();};
+  const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const setRow=(list,i,k,v)=>setForm(f=>({...f,[list]:f[list].map((r,j)=>j===i?{...r,[k]:v}:r)}));
+  const addRow=(list,row)=>setForm(f=>({...f,[list]:[...f[list],row]}));
+  const delRow=(list,i)=>setForm(f=>({...f,[list]:f[list].filter((_,j)=>j!==i)}));
+  const setTest=(ti,k,v)=>setForm(f=>({...f,tests:f.tests.map((t,j)=>j===ti?{...t,[k]:v}:t)}));
+  const setVit=(ti,vi,k,v)=>setForm(f=>({...f,tests:f.tests.map((t,j)=>j===ti?{...t,vitrages:t.vitrages.map((x,m)=>m===vi?{...x,[k]:v}:x)}:t)}));
+  const addVit=(ti)=>setForm(f=>({...f,tests:f.tests.map((t,j)=>j===ti?{...t,vitrages:[...t.vitrages,{composition:"",rw:"",rwc:"",rwctr:""}]}:t)}));
+  const delVit=(ti,vi)=>setForm(f=>({...f,tests:f.tests.map((t,j)=>j===ti?{...t,vitrages:t.vitrages.filter((_,m)=>m!==vi)}:t)}));
+  const erreurs=erreursForm(form), avert=avertissementsForm(form);
+
+  const enregistrer=()=>{
+    if(erreurs.length)return;
+    const sys=formVersSysteme(form);
+    const list=getPerso();
+    const idx=list.findIndex(s=>s.id===sys.id);
+    if(idx>=0)list[idx]=sys; else list.push(sys);
+    if(!savePerso(list)){setMsg({t:"warn",m:"Échec de l'enregistrement (stockage du navigateur plein ou bloqué)."});return;}
+    refresh(); setForm(formVide());
+    setMsg({t:"ok",m:`« ${sys.marque} ${sys.nom} » enregistré ✓ — disponible dans le comparateur et dans Ma base.`});
   };
-  const confirmer=()=>{
-    if(!result)return;
-    const ex=db.systemes.find(s=>s.id===result.id);
-    onUpdate({...db,systemes:ex?db.systemes.map(s=>s.id===result.id?result:s):[...db.systemes,result]});
-    setResult(null);setPrompt("");
+  const editer=(s)=>{setForm(systemeVersForm(s));setMsg({t:"ok",m:`Modification de « ${s.marque} ${s.nom} » — enregistre pour valider.`});try{window.scrollTo(0,0);}catch(e){}};
+  const partirDe=()=>{
+    const s=db.systemes.find(x=>x.id===srcId);if(!s)return;
+    const f=systemeVersForm(s);
+    setForm({...f,id:"",nom:f.nom+" (variante)"});setSrcId("");
+    setMsg({t:"ok",m:`Données copiées depuis ${s.marque} ${s.nom} — modifie puis enregistre. L'original n'est pas touché.`});
   };
+  const supprimer=(id)=>{savePerso(getPerso().filter(s=>s.id!==id));setConfirmDel(null);if(form.id===id)setForm(formVide());refresh();};
+  const exporter=()=>{
+    const blob=new Blob([JSON.stringify(getPerso(),null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");
+    a.href=url;a.download="GlassIQ_mes_systemes.json";a.click();URL.revokeObjectURL(url);
+  };
+  const importer=(e)=>{
+    const file=e.target.files&&e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        const arr=(Array.isArray(data)?data:[data]).filter(s=>s&&typeof s==="object"&&s.nom&&s.famille);
+        if(!arr.length)throw new Error("vide");
+        const ids=new Set(INITIAL_DB.systemes.map(s=>s.id));
+        const list=getPerso();
+        arr.forEach(s=>{
+          const sys={tests:[],aev:[],thermique:[],...s,perso:true};
+          if(!sys.id||ids.has(sys.id))sys.id="perso_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+          const idx=list.findIndex(x=>x.id===sys.id);
+          if(idx>=0)list[idx]=sys; else list.push(sys);
+        });
+        savePerso(list);refresh();
+        setMsg({t:"ok",m:`${arr.length} système(s) importé(s) ✓`});
+      }catch(err){setMsg({t:"warn",m:"Fichier invalide — attendu : export « Mes systèmes » de GlassIQ."});}
+    };
+    reader.readAsText(file);
+    e.target.value="";
+  };
+
+  // Aides de saisie (fonctions — pas des composants — pour garder le focus pendant la frappe)
+  const inp=(value,onCh,ph,extra)=><input value={value} placeholder={ph||""} onChange={e=>onCh(e.target.value)} style={{...S.input,padding:"6px 8px",fontSize:12,...(extra||{})}}/>;
+  const lab=(t)=><label style={{...S.label,fontSize:9,marginBottom:3}}>{t}</label>;
+  const titre=(t,sous)=><div style={{marginBottom:8}}><div style={{fontSize:12,fontWeight:700,color:"#1a1a2e",textTransform:"uppercase",letterSpacing:"0.05em"}}>{t}</div>{sous&&<div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{sous}</div>}</div>;
+  const btnX=(onClick)=><button onClick={onClick} style={{padding:"6px 9px",borderRadius:6,border:"1px solid #fca5a5",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:11}}>✕</button>;
+  const btnAdd=(t,onClick)=><button onClick={onClick} style={{...S.btnSecondary,fontSize:11,padding:"5px 10px"}}>{t}</button>;
+
   return <div>
     <div style={{...S.card,background:"#f9fafb",marginBottom:14}}>
-      <div style={{fontSize:13,fontWeight:600,color:"#374151"}}>🤖 Ajout par IA — collez les données d'un DTA ou rapport acoustique</div>
-      <div style={{fontSize:12,color:"#6b7280",marginTop:4}}>L'IA extrait automatiquement compositions, Rw, Rw+C, Rw+Ctr.</div>
+      <div style={{fontSize:14,fontWeight:700,color:"#1a1a2e",marginBottom:4}}>＋ Ajouter / gérer mes systèmes</div>
+      <div style={{fontSize:12,color:"#6b7280",lineHeight:1.5}}>Saisie manuelle, <strong>même sans DTA</strong>. Les systèmes livrés avec GlassIQ (Schüco…) ne sont jamais modifiés : tes ajouts sont stockés dans ce navigateur — pense à les <strong>exporter</strong> pour les sauvegarder ou les transmettre.</div>
     </div>
-    <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder={"Ex: Schüco AWS 60, rapport BEB2.C.6053-3, OB 1250x2500mm, CEBTP 2015\n4/16/4 → Rw 34, Rw+C 33, Rw+Ctr 30\n44.2S/16/4 → Rw 38, Rw+C 37, Rw+Ctr 33"} rows={7} style={{...S.input,fontFamily:"monospace",fontSize:13,marginBottom:12}}/>
-    <button onClick={analyser} disabled={loading||!prompt.trim()} style={S.btnPrimary}>{loading?"Analyse IA…":"🤖 Analyser avec l'IA"}</button>
-    {error&&<div style={{marginTop:12,padding:"12px 16px",background:"#fff1f2",border:"1px solid #fca5a5",borderRadius:10,color:"#991b1b",fontSize:13}}>{error}</div>}
-    {result&&<div style={{marginTop:14,...S.card,background:"#f0fdf4",border:"1.5px solid #6ee7b7"}}>
-      <div style={{fontWeight:700,color:"#065f46",marginBottom:8}}>✓ {result.nom} ({result.marque}) — {result.tests?.length||0} rapport(s), {result.tests?.reduce((a,t)=>a+t.vitrages.length,0)||0} composition(s)</div>
-      {result.tests?.map((t,i)=><div key={i} style={{fontSize:12,color:"#374151",marginBottom:3}}><strong>{t.type_chassis}</strong> — {t.vitrages.map(v=>`${v.composition} (Rw ${v.rw})`).join(", ")}</div>)}
-      <div style={{display:"flex",gap:10,marginTop:10}}><button onClick={confirmer} style={S.btnPrimary}>✓ Ajouter à la base</button><button onClick={()=>setResult(null)} style={S.btnSecondary}>Annuler</button></div>
-    </div>}
+    {msg&&<div style={{...S.card,padding:"10px 14px",background:msg.t==="ok"?"#f0fdf4":"#fff7ed",border:`1px solid ${msg.t==="ok"?"#bbf7d0":"#fed7aa"}`,color:msg.t==="ok"?"#065f46":"#9a3412",fontSize:12,fontWeight:600}}>{msg.m}</div>}
+
+    <div style={{...S.card,display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
+      <div style={{flex:1,minWidth:240}}>{lab("Partir d'un système existant (copie modifiable)")}<select value={srcId} onChange={e=>setSrcId(e.target.value)} style={{...S.input,padding:"6px 8px",fontSize:12}}><option value="">— choisir —</option>{db.systemes.filter(s=>!s.certifications).map(s=><option key={s.id} value={s.id}>{s.marque} {s.nom} — {s.famille}</option>)}</select></div>
+      <button onClick={partirDe} disabled={!srcId} style={{...S.btnSecondary,opacity:srcId?1:0.5}}>Copier</button>
+      {(form.id||form.nom)&&<button onClick={()=>{setForm(formVide());setMsg(null);}} style={S.btnSecondary}>Vider le formulaire</button>}
+    </div>
+
+    <div style={S.card}>
+      {titre(form.id?"Modifier le système":"Identification")}
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
+        <div>{lab("Nom du système *")}{inp(form.nom,v=>setF("nom",v),"ex : AWS 75.SI+")}</div>
+        <div>{lab("Marque *")}{inp(form.marque,v=>setF("marque",v),"Schüco")}</div>
+        <div>{lab("Famille *")}<select value={form.famille} onChange={e=>setF("famille",e.target.value)} style={{...S.input,padding:"6px 8px",fontSize:12}}>{FAMILLES_SAISIE.map(f=><option key={f}>{f}</option>)}</select></div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        <div>{lab("N° DTA / Avis technique")}{inp(form.dta,v=>setF("dta",v),"vide si pas de DTA")}</div>
+        <div>{lab("Validité DTA (JJ/MM/AAAA)")}{inp(form.validite,v=>setF("validite",v),"ex : 31/01/2029")}</div>
+        <div>{lab("Vantaux par défaut")}{inp(form.vantaux_defaut,v=>setF("vantaux_defaut",v),"auto")}</div>
+      </div>
+    </div>
+
+    <div style={S.card}>
+      {titre("Mécanique","Feuillure = plage d'épaisseur de vitrage admise · poids max = ferrure (ouvrant) ou appui vitrage (façade)")}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        <div>{lab("Épaisseur vitrage min (mm) *")}{inp(form.epaisseur_min,v=>setF("epaisseur_min",v),"24")}</div>
+        <div>{lab("Épaisseur vitrage max (mm) *")}{inp(form.epaisseur_max,v=>setF("epaisseur_max",v),"48")}</div>
+        <div>{lab("Poids max (kg) *")}{inp(form.poids_max,v=>setF("poids_max",v),"130")}</div>
+      </div>
+    </div>
+
+    <div style={S.card}>
+      {titre("PV acoustiques","Une ligne par composition testée — Rw+Ctr (= RA,tr) obligatoire pour le comparateur. Composition notée extérieur → intérieur.")}
+      {form.tests.map((t,ti)=><div key={ti} style={{border:"1px solid #e5e7eb",borderRadius:8,padding:"10px 12px",marginBottom:10,background:"#fafafa"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1.3fr 1.6fr 0.8fr 0.8fr 1fr 0.7fr auto",gap:6,alignItems:"end",marginBottom:8}}>
+          <div>{lab("Rapport")}{inp(t.rapport,v=>setTest(ti,"rapport",v),"BEB2…")}</div>
+          <div>{lab("Châssis testé")}{inp(t.type_chassis,v=>setTest(ti,"type_chassis",v),"Fenêtre 1 vantail OB")}</div>
+          <div>{lab("L essai (mm)")}{inp(t.dim_L,v=>setTest(ti,"dim_L",v),"1230")}</div>
+          <div>{lab("H essai (mm)")}{inp(t.dim_H,v=>setTest(ti,"dim_H",v),"1480")}</div>
+          <div>{lab("Labo")}{inp(t.labo,v=>setTest(ti,"labo",v),"CEBTP")}</div>
+          <div>{lab("Année")}{inp(t.date,v=>setTest(ti,"date",v),"2024")}</div>
+          {btnX(()=>delRow("tests",ti))}
+        </div>
+        {t.vitrages.map((v,vi)=>{
+          const ok=!String(v.composition).trim()||!!analyseComposition(String(v.composition).trim());
+          return <div key={vi} style={{display:"grid",gridTemplateColumns:"2fr 0.7fr 0.7fr 0.7fr auto",gap:6,alignItems:"end",marginBottom:4}}>
+            <div>{vi===0&&lab("Composition")}{inp(v.composition,x=>setVit(ti,vi,"composition",x),"10/16/44.2s",ok?null:{borderColor:"#fca5a5",background:"#fff1f2"})}</div>
+            <div>{vi===0&&lab("Rw")}{inp(v.rw,x=>setVit(ti,vi,"rw",x),"dB")}</div>
+            <div>{vi===0&&lab("Rw+C")}{inp(v.rwc,x=>setVit(ti,vi,"rwc",x),"dB")}</div>
+            <div>{vi===0&&lab("Rw+Ctr *")}{inp(v.rwctr,x=>setVit(ti,vi,"rwctr",x),"dB")}</div>
+            {btnX(()=>delVit(ti,vi))}
+          </div>;
+        })}
+        <div style={{marginTop:6}}>{btnAdd("+ composition",()=>addVit(ti))}</div>
+      </div>)}
+      {btnAdd("+ PV acoustique",()=>addRow("tests",{rapport:"",type_chassis:"",dim_L:"1230",dim_H:"1480",labo:"",date:"",vitrages:[{composition:"",rw:"",rwc:"",rwctr:""}]}))}
+    </div>
+
+    <div style={S.card}>
+      {titre("Essais AEV","Vent (V) : classe EN 12210 (C3, B2…) ou pression d'essai en Pa pour une façade (ex. 1200/1800)")}
+      {form.aev.map((a,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 0.6fr 0.6fr 0.8fr 1.2fr 0.6fr auto",gap:6,alignItems:"end",marginBottom:4}}>
+        <div>{i===0&&lab("Châssis testé")}{inp(a.chassis,v=>setRow("aev",i,"chassis",v),"PF 2 vantaux")}</div>
+        <div>{i===0&&lab("Dimensions")}{inp(a.dims,v=>setRow("aev",i,"dims",v),"1600x2250")}</div>
+        <div>{i===0&&lab("A")}{inp(a.A,v=>setRow("aev",i,"A",v),"4")}</div>
+        <div>{i===0&&lab("E")}{inp(a.E,v=>setRow("aev",i,"E",v),"9A")}</div>
+        <div>{i===0&&lab("V")}{inp(a.V,v=>setRow("aev",i,"V",v),"C3")}</div>
+        <div>{i===0&&lab("Rapport")}{inp(a.rapport,v=>setRow("aev",i,"rapport",v),"")}</div>
+        <div>{i===0&&lab("Année")}{inp(a.date,v=>setRow("aev",i,"date",v),"")}</div>
+        {btnX(()=>delRow("aev",i))}
+      </div>)}
+      {btnAdd("+ essai AEV",()=>addRow("aev",{chassis:"",dims:"",A:"",E:"",V:"",rapport:"",date:""}))}
+    </div>
+
+    <div style={S.card}>
+      {titre("Thermique (Uw)","Configuration : commence par « Fenêtre » ou « Porte-fenêtre » et précise « 1 vtl » / « 2 vtx » — le comparateur choisit ainsi la bonne ligne")}
+      {form.thermique.map((t,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"3fr 0.7fr 0.7fr auto",gap:6,alignItems:"end",marginBottom:4}}>
+        <div>{i===0&&lab("Configuration")}{inp(t.config,v=>setRow("thermique",i,"config",v),"Fenêtre 1 vtl 1.25x1.48 (Swisspacer)")}</div>
+        <div>{i===0&&lab("Ug")}{inp(t.ug,v=>setRow("thermique",i,"ug",v),"1.1")}</div>
+        <div>{i===0&&lab("Uw")}{inp(t.uw,v=>setRow("thermique",i,"uw",v),"1.4")}</div>
+        {btnX(()=>delRow("thermique",i))}
+      </div>)}
+      {btnAdd("+ ligne thermique",()=>addRow("thermique",{ug:"",config:"",uw:""}))}
+    </div>
+
+    <div style={S.card}>
+      {titre("Domaine d'emploi (dimensions max)","Type : ex. « 1 vantail OB », « 2 vantaux OF », « 2 vantaux + fixe latéral »")}
+      {form.dimensions_max.map((d,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:6,alignItems:"end",marginBottom:4}}>
+        <div>{i===0&&lab("Type")}{inp(d.type,v=>setRow("dimensions_max",i,"type",v),"1 vantail OB")}</div>
+        <div>{i===0&&lab("L max (mm)")}{inp(d.l_max,v=>setRow("dimensions_max",i,"l_max",v),"1150")}</div>
+        <div>{i===0&&lab("H max (mm)")}{inp(d.h_max,v=>setRow("dimensions_max",i,"h_max",v),"1775")}</div>
+        {btnX(()=>delRow("dimensions_max",i))}
+      </div>)}
+      {btnAdd("+ ligne",()=>addRow("dimensions_max",{type:"",l_max:"",h_max:""}))}
+    </div>
+
+    <div style={S.card}>
+      {titre("Note")}
+      <textarea value={form.note} onChange={e=>setF("note",e.target.value)} rows={3} placeholder="Source des données, réserves, contact fabricant…" style={{...S.input,fontSize:12}}/>
+    </div>
+
+    {erreurs.length>0&&<div style={{...S.card,background:"#fef2f2",border:"1px solid #fecaca",fontSize:12,color:"#991b1b"}}>{erreurs.map((e,i)=><div key={i}>✗ {e}</div>)}</div>}
+    {avert.length>0&&<div style={{...S.card,background:"#fffbeb",border:"1px solid #fde68a",fontSize:12,color:"#92400e"}}>{avert.map((w,i)=><div key={i}>⚠ {w}</div>)}</div>}
+    <div style={{display:"flex",gap:10,marginBottom:20}}>
+      <button onClick={enregistrer} disabled={erreurs.length>0} style={{...S.btnPrimary,background:"#059669",opacity:erreurs.length?0.5:1,cursor:erreurs.length?"not-allowed":"pointer"}}>{form.id?"✓ Enregistrer les modifications":"✓ Ajouter à ma base"}</button>
+    </div>
+
+    <div style={S.card}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#1a1a2e"}}>Mes systèmes ajoutés ({perso.length})</div>
+        <div style={{display:"flex",gap:8}}>
+          <label style={{...S.btnSecondary,cursor:"pointer",display:"inline-flex",alignItems:"center"}}>⬆ Importer<input type="file" accept=".json,application/json" onChange={importer} style={{display:"none"}}/></label>
+          <button onClick={exporter} disabled={!perso.length} style={{...S.btnSecondary,opacity:perso.length?1:0.5}}>⬇ Exporter</button>
+        </div>
+      </div>
+      {perso.length===0&&<div style={{fontSize:12,color:"#9ca3af"}}>Aucun système ajouté pour l'instant.</div>}
+      {perso.map(s=><div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderTop:"1px solid #f3f4f6",flexWrap:"wrap",gap:8}}>
+        <div><div style={{fontWeight:700,fontSize:13}}>{s.marque} {s.nom} <span style={{fontWeight:400,color:"#6b7280",fontSize:12}}>· {s.famille}</span></div>
+          <div style={{fontSize:11,color:"#9ca3af"}}>{s.dta?"DTA "+s.dta:"sans DTA"} · {(s.tests||[]).reduce((n,t)=>n+(t.vitrages||[]).length,0)} composition(s) · {(s.aev||[]).length} essai(s) AEV</div></div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>editer(s)} style={{...S.btnSecondary,fontSize:12}}>Modifier</button>
+          {confirmDel===s.id
+            ?<button onClick={()=>supprimer(s.id)} style={{...S.btnSecondary,fontSize:12,background:"#fee2e2",borderColor:"#fca5a5",color:"#991b1b"}}>Confirmer ?</button>
+            :<button onClick={()=>setConfirmDel(s.id)} style={{...S.btnSecondary,fontSize:12,color:"#991b1b"}}>Supprimer</button>}
+        </div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+// ── AUTOTEST — contrôles automatiques des calculs ─────────────────────────
+// À relancer après chaque modification du fichier : protège contre les régressions.
+function runAutotests(){
+  const T=[];
+  const ok=(nom,cond,detail)=>T.push({nom,ok:!!cond,detail:detail||""});
+  const proche=(a,b,tol)=>Math.abs(a-b)<=(tol==null?0.01:tol);
+  // Terrain
+  const p0=calcPression("2","0","12"), pIV=calcPression("2","IV","12");
+  ok("Terrain : cat. 0 (mer) plus exposée que cat. IV (urbain dense)", p0>pIV, `cat. 0 → ${p0} Pa · cat. IV → ${pIV} Pa`);
+  ok("Terrain : libellé cat. 0 = mer, cat. IV ≠ mer", /mer/i.test(TERRAINS["0"])&&!/mer/i.test(TERRAINS["IV"]), TERRAINS["0"]);
+  // Continuité des formules e1
+  const a4=calcDTU39(1000,2499,1000,2,2,"isolant_2lam",10).e1, b4=calcDTU39(1000,2501,1000,2,2,"isolant_2lam",10).e1;
+  ok("e1 4 appuis : raccord des 2 formules à L/l = 2,5 (écart < 1 %)", proche(a4,b4,0.01*b4), `${a4} / ${b4} mm`);
+  const a3=calcDTU39(1000,7499,1000,2,1,"isolant_2lam",10).e1, b3=calcDTU39(1000,7501,1000,2,1,"isolant_2lam",10).e1;
+  ok("e1 3 appuis : raccord des 2 formules à L/l = 7,5 (écart < 1 %)", proche(a3,b3,0.01*b3), `${a3} / ${b3} mm`);
+  // Équivalences
+  const e442=calcEquivalences(analyseComposition("44.2").panes,1);
+  ok("Feuilleté 44.2 : eR = 8/(0,9×1,3) = 6,84 · eF = 8/1,3 = 6,15", proche(e442.eR,6.84)&&proche(e442.eF,6.15), `eR ${e442.eR} · eF ${e442.eF}`);
+  const e4=calcEquivalences(analyseComposition("4/16/4").panes,1);
+  ok("Double 4/16/4 : eR = 8/(1,6×0,9) = 5,56 · eF = 8/1,6 = 5", proche(e4.eR,5.56)&&proche(e4.eF,5), `eR ${e4.eR} · eF ${e4.eF}`);
+  // Compositions
+  const ac=analyseComposition("10/12/44.2 Ac");
+  ok("« 10/12/44.2 Ac » lu en double vitrage complet (45 kg/m²)", ac&&ac.panes.length===2&&proche(ac.poids_m2,45,0.1), ac?`${ac.type} · ${ac.poids_m2} kg/m² · ${ac.epaisseur_totale} mm`:"non lu");
+  const l10=analyseComposition("1010.4");
+  ok("Feuilleté « 1010.4 » = 10 + 10 mm", l10&&l10.panes[0].components.join("+")==="10+10", l10?l10.panes[0].components.join("+"):"non lu");
+  ok("Composition inconnue rejetée (plus de lecture tronquée)", analyseComposition("8 LSG/18/10")===null&&analyseComposition("10/12/xx")===null, "");
+  const compos=[];INITIAL_DB.systemes.filter(s=>s.marque==="Schüco").forEach(s=>(s.tests||[]).forEach(t=>(t.vitrages||[]).forEach(v=>compos.push(v.composition))));
+  const uniques=[...new Set(compos)], nonLues=uniques.filter(c=>!analyseComposition(c));
+  ok(`Toutes les compositions Schüco de la base sont lues (${uniques.length})`, nonLues.length===0, nonLues.join(", ")||"OK");
+  // Classes vent
+  ok("Classe vent requise : 1100 Pa → V3 · 800 Pa → V2 · 2100 Pa → au-delà de V5", classeVRequise(1100).classe===3&&classeVRequise(800).classe===2&&classeVRequise(2100).classe==="E", classeVRequise(1100).label);
+  ok("Lecture essais AEV : C3→1200 · B2→800 · « 3 »→1200 · 1200/1800→1200 · « — »→rien",
+    pressionCouverteAEV("C3")===1200&&pressionCouverteAEV("B2")===800&&pressionCouverteAEV("3")===1200&&pressionCouverteAEV("1200/1800")===1200&&pressionCouverteAEV("—")===null, "");
+  const fws=INITIAL_DB.systemes.find(s=>s.id==="fws50");
+  ok("AEV façade FWS 50 exploité (essais saisis « 1200/1800 »)", fws&&verifAEV(fws,1100,true).ok===true, fws?verifAEV(fws,1100,true).note:"");
+  const a75=INITIAL_DB.systemes.find(s=>s.id==="aws75ii");
+  ok("AEV châssis AWS 75.II : CCTP V3 couvert (essais C3), CCTP C4 non couvert", verifAEV(a75,2150,false,"A4 E9A V3").ok===true&&verifAEV(a75,2150,false,"A4 E9A C4").ok===false, verifAEV(a75,2150,false,"A4 E9A V3").note);
+  // Châssis composé
+  const pj={...defaultProjet,zone_vent:"2",cat_terrain:"II",hauteur_bat:"12",hauteur_sol:"3"};
+  const elc={id:"t",type:"chassis",soustype:"Fenêtre OB",largeur:"3000",hauteur:"2200",mode_trame:"personnalisee",chassis_compose:true,
+    panneaux:[{largeur:"900",hauteur:"1500",type:"ouvrant",qte:"2"},{largeur:"1200",hauteur:"2200",type:"fixe",qte:"1"}]};
+  const aws=INITIAL_DB.systemes.find(s=>s.id==="aws75ii");
+  const vc=verifVitrage("10/16/44.2",3000,2200,aws,elc,pj);
+  ok("Châssis composé : tableau par partie calculé (flèche et eR connus)", vc&&vc.detail_panneaux&&vc.detail_panneaux.length===2&&vc.detail_panneaux.every(d=>d.fleche_obtenue!=null),
+    vc&&vc.detail_panneaux?vc.detail_panneaux.map(d=>`${d.largeur}×${d.hauteur} : rés. ${d.res_ok?"✓":"✗"} / flèche ${d.fleche_ok?"✓":"✗"}`).join(" · "):"");
+  ok("Châssis composé : verdict global = toutes les parties conformes", vc&&vc.resistance_ok===vc.detail_panneaux.every(d=>d.res_ok)&&vc.fleche_verre_ok===vc.detail_panneaux.every(d=>d.fleche_ok), "");
+  ok("Flèche affichée cohérente avec le verdict", vc&&vc.detail_panneaux.every(d=>d.fleche_ok===(d.fleche_obtenue<=d.fleche_max)), "");
+  // Façade
+  const vf=calcVentElement({id:"f",type:"facade",largeur:"12000",hauteur:"3200",trame:"1350"},pj);
+  ok("Vent façade calculé sur le panneau de trame, pas sur la façade entière", vf&&vf.panneau.largeur===1350, vf?`${vf.panneau.largeur}×${vf.panneau.hauteur} mm → ≥ ${vf.dtu.eRequired} mm`:"");
+  // Allège
+  ok("Allège : 6/16/44.2 accepté · 44.2/16/6 refusé (feuilleté côté extérieur)", verifFeuilleteAllege("6/16/44.2").ok===true&&verifFeuilleteAllege("44.2/16/6").ok===false, "");
+  // Métré
+  const {totaux:M}=metreGlobal([{id:1,type:"chassis",soustype:"Porte-fenêtre",largeur:"2400",hauteur:"2200",larg_fixe:"800"},{id:2,type:"chassis",soustype:"Fenêtre fixe",largeur:"1000",hauteur:"1000"}],{});
+  ok("Métré châssis : vitré fixe + ouvrants = surface totale", proche(M.surf_vitree+M.surf_ouvrants+M.surf_allege,M.surf_total,0.11), `${M.surf_vitree} + ${M.surf_ouvrants} + ${M.surf_allege} = ${M.surf_total} m²`);
+  // Domaine d'emploi
+  const vd=verifDimensions(aws,1300,1600,{type:"chassis",soustype:"Fenêtre OB",largeur:"1300",hauteur:"1600"});
+  ok("Domaine d'emploi AWS 75.II : OB 1 vantail 1300 mm → hors domaine (max 1150)", vd.statut==="hors", vd.texte||"");
+  // Thermique
+  const th=verifThermique(aws,{type:"chassis",soustype:"Fenêtre OB"},{uw_max:"1.4"});
+  ok("Thermique : ligne « Fenêtre 1 vtl » retenue pour une fenêtre 1 vantail", th.cfg&&/^Fen[êe]tre 1 vtl/.test(th.cfg.config), th.note);
+  return T;
+}
+function PageAutotest(){
+  const [res,setRes]=useState(()=>{try{return runAutotests();}catch(e){return [{nom:"Erreur pendant l'autotest",ok:false,detail:String((e&&e.message)||e)}];}});
+  const relancer=()=>{try{setRes(runAutotests());}catch(e){setRes([{nom:"Erreur pendant l'autotest",ok:false,detail:String((e&&e.message)||e)}]);}};
+  const nbOk=res.filter(r=>r.ok).length, tout=nbOk===res.length;
+  return <div>
+    <div style={{...S.card,background:tout?"#f0fdf4":"#fef2f2",border:`1.5px solid ${tout?"#6ee7b7":"#fca5a5"}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+      <div><div style={{fontSize:16,fontWeight:800,color:tout?"#065f46":"#991b1b"}}>{tout?"✓":"✗"} {nbOk} / {res.length} contrôles OK</div>
+        <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>Vérifie les formules et la lecture des données. À relancer après chaque modification du fichier.</div></div>
+      <button onClick={relancer} style={S.btnSecondary}>↻ Relancer</button>
+    </div>
+    <div style={S.card}>
+      {res.map((r,i)=><div key={i} style={{display:"flex",gap:10,padding:"7px 0",borderTop:i?"1px solid #f3f4f6":"none"}}>
+        <span style={{width:20,height:20,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,background:r.ok?"#d1fae5":"#fee2e2",color:r.ok?"#065f46":"#991b1b"}}>{r.ok?"✓":"✗"}</span>
+        <div><div style={{fontSize:13,color:"#1a1a2e"}}>{r.nom}</div>{r.detail&&<div style={{fontSize:11,color:"#6b7280",fontFamily:"monospace"}}>{r.detail}</div>}</div>
+      </div>)}
+    </div>
+    <div style={{...S.card,background:"#f9fafb",fontSize:12,color:"#6b7280"}}>💡 Les 11 exemples chiffrés du NF DTU 39 P4 et ta feuille Excel de référence peuvent être ajoutés ici comme cas de contrôle.</div>
   </div>;
 }
 
@@ -2982,7 +3404,7 @@ function App(){
   const [page,setPage]=useState("projet");
   const [projet,setProjet]=useState(defaultProjet);
   const [toast,setToast]=useState(null);
-  const handleUpdate=(newDB)=>{setDB(newDB);saveDB(newDB);};
+  const refreshDB=()=>setDB(getDB());
   const showToast=(msg,type)=>{setToast({msg,type});setTimeout(()=>setToast(null),2800);};
   // Auto-sauvegarde silencieuse du projet courant s'il a déjà été sauvegardé une fois
   useEffect(()=>{
@@ -3003,12 +3425,13 @@ function App(){
     {id:"projets",label:"Mes projets",icon:"💾"},
     {id:"base",label:"Ma base",icon:"📚"},
     {id:"ajouter",label:"Ajouter système",icon:"＋"},
+    {id:"autotest",label:"Autotest",icon:"🧪"},
   ];
   return <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:"#f8f9fb"}}>
-    <div style={{background:"#1a1a2e",color:"#fff",padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid rgba(255,255,255,0.08)",flexWrap:"wrap",gap:4}}>
+    <div className="no-print" style={{background:"#1a1a2e",color:"#fff",padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid rgba(255,255,255,0.08)",flexWrap:"wrap",gap:4}}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0"}}>
         <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#4ade80,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🪟</div>
-        <div><div style={{fontWeight:800,fontSize:15}}>GlassIQ v2</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Workflow complet — 5 étapes</div></div>
+        <div><div style={{fontWeight:800,fontSize:15}}>GlassIQ v2.5</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Workflow complet — 5 étapes</div></div>
         {projet.nom&&<div style={{marginLeft:12,fontSize:12,color:"rgba(255,255,255,0.5)",fontStyle:"italic"}}>{projet.nom}</div>}
       </div>
       <nav style={{display:"flex",gap:2,flexWrap:"wrap"}}>
@@ -3031,8 +3454,9 @@ function App(){
       {page==="fleche"&&<PageFleche projet={projet}/>}
       {page==="securite"&&<PageSecurite db={db}/>}
       {page==="projets"&&<PageProjets projet={projet} setProjet={setProjet} setPage={setPage} onToast={showToast}/>}
-      {page==="base"&&<PageBase db={db} onUpdate={handleUpdate}/>}
-      {page==="ajouter"&&<PageAjouter db={db} onUpdate={handleUpdate}/>}
+      {page==="base"&&<PageBase db={db}/>}
+      {page==="ajouter"&&<PageAjouter db={db} onChange={refreshDB}/>}
+      {page==="autotest"&&<PageAutotest/>}
     </div>
     {toast&&<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:toast.type==="warn"?"#92400e":"#065f46",color:"#fff",padding:"12px 24px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,0.2)",zIndex:1000}}>{toast.msg}</div>}
   </div>;
