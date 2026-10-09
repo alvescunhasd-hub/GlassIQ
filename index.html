@@ -2237,13 +2237,12 @@ function PageComparateur({db,projet,setProjet,setPage}){
   // Injecte le système retenu dans projet.prescriptions[elId]. Une nouvelle retenue
   // efface les modifications manuelles de ces champs en page Prescription (sinon
   // elles masqueraient le nouveau choix).
-  const utiliser=(sys,best)=>{
-    const elId=el.id;
-    const th=verifThermique(sys,el,projet);
-    const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
-    const ve=calcVentElement(el,projet,sys);
-    const prescription={
-      elId, sysId:sys.id,
+  const prescPour=(e,sys,best,serie)=>{
+    const th=verifThermique(sys,e,projet);
+    const v=verifVitrage(best.composition,+e.largeur||1230,+e.hauteur||1480,sys,e,projet);
+    const ve=calcVentElement(e,projet,sys);
+    return {
+      elId:e.id, sysId:sys.id,
       gamme:`${sys.marque} ${sys.nom}`,
       vitrage:best.composition,
       rw:`${best.rw} dB`,
@@ -2256,13 +2255,27 @@ function PageComparateur({db,projet,setProjet,setPage}){
       epaisseur_reelle:v?`${v.epaisseur_totale} mm`:"",
       poids_m2:v?`${v.poids_m2} kg/m²`:"",
       poids_vantail:v&&v.poids_vantail!=null?`${v.poids_vantail} kg`:"",
+      ...(serie?{serie_depuis:serie}:{}),
     };
-    setProjet(p=>{
-      const ov={...(p.presc_overrides||{})};
-      if(ov[elId]){const o={...ov[elId]};CHAMPS_COMPARATEUR.forEach(k=>{delete o[k];});ov[elId]=o;}
-      return {...p,prescriptions:{...(p.prescriptions||{}),[elId]:prescription},presc_overrides:ov};
-    });
   };
+  const enregistrer=(liste)=>setProjet(p=>{
+    const ov={...(p.presc_overrides||{})};
+    const pr={...(p.prescriptions||{})};
+    liste.forEach(x=>{
+      if(ov[x.elId]){const o={...ov[x.elId]};CHAMPS_COMPARATEUR.forEach(k=>{delete o[k];});ov[x.elId]=o;}
+      pr[x.elId]=x;
+    });
+    return {...p,prescriptions:pr,presc_overrides:ov};
+  });
+  // Injecte le système retenu dans projet.prescriptions[elId]. Une nouvelle retenue
+  // efface les modifications manuelles de ces champs en page Prescription (sinon
+  // elles masqueraient le nouveau choix).
+  const utiliser=(sys,best)=>enregistrer([prescPour(el,sys,best)]);
+  // Série : mêmes éléments que celui analysé (même type, même système au chiffrage —
+  // ou même type d'ouvrage s'il n'y a pas de chiffrage), pas encore prescrits.
+  const groupeDe=e=>e.chiffrage&&e.chiffrage.systeme?e.chiffrage.systeme:(e.type==="facade"?"façade":e.soustype||"");
+  const serie=el?projet.elements.filter(e=>e.id!==el.id&&e.type===el.type&&groupeDe(e)===groupeDe(el)&&!prescs[e.id]):[];
+  const utiliserSerie=(sys,best)=>enregistrer([prescPour(el,sys,best),...serie.map(e=>prescPour(e,sys,best,el.label))]);
 
   // Résumé des éléments déjà confirmés
   const nbConfirmed=projet.elements.filter(e=>prescs[e.id]).length;
@@ -2278,6 +2291,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
     {/* Sélection élément + statut */}
     <div style={{marginBottom:14}}>
       <label style={S.label}>Élément à analyser</label>
+      <div style={{fontSize:11,color:"#6b7280",marginBottom:6}}>Analyse un élément type, puis « ⧉ + N autres » pour retenir le même système et le même vitrage sur tous les éléments du même système non encore prescrits (contrôles DTU 39, poids et feuillure recalculés pour chacun).</div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {projet.elements.map((e,i)=>{
           const done=prescs[e.id];
@@ -2370,6 +2384,9 @@ function PageComparateur({db,projet,setProjet,setPage}){
               <button onClick={()=>utiliser(sys,best,allMatches)} style={{padding:"8px 14px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",border:"none",background:isRetenu?"#059669":"#1a1a2e",color:"#fff",whiteSpace:"nowrap"}}>
                 {isRetenu?"★ Retenu":"✓ Retenir ce système"}
               </button>
+              {serie.length>0&&<button onClick={()=>utiliserSerie(sys,best)} title={"Éléments concernés : "+serie.map(e=>e.label).join(", ")} style={{padding:"8px 12px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",border:"1.5px solid #1a1a2e",background:"#fff",color:"#1a1a2e",whiteSpace:"nowrap"}}>
+                ⧉ + {serie.length} autre{serie.length>1?"s":""} {groupeDe(el)}
+              </button>}
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,columnGap:16}}>
@@ -2550,7 +2567,7 @@ function PagePrescription({projet,setProjet,setPage}){
         id:el.id,label:el.label,dims:el.largeur&&el.hauteur?`${el.largeur}×${el.hauteur}mm`:"",
         orientation:el.orientation||"",usage:el.usage||"",rw_requis:el.ratr?"RA,tr ≥ "+el.ratr+" dB":"",
         type_element:el.type==="facade"?"Façade rideau":"Châssis",
-        gamme:p.gamme||"",vitrage:p.vitrage||"",rw:p.rw||"",rwctr:p.rwctr||"",rapport:p.rapport||"",correction:p.correction||"0 dB",
+        gamme:p.gamme||(el.chiffrage&&el.chiffrage.systeme?el.chiffrage.systeme+" (chiffrage)":""),vitrage:p.vitrage||(el.chiffrage&&el.chiffrage.composition)||"",rw:p.rw||"",rwctr:p.rwctr||"",rapport:p.rapport||"",correction:p.correction||"0 dB",
         controle:projet.controle_ref||"",tl:projet.controle_tl||"",fs:projet.controle_fs!=null&&projet.controle_fs!==""?String(projet.controle_fs):"",ug:projet.controle_ug||"",
         epaisseur_dtu:ve?`${ve.dtu.eRequired} mm`:(p.epaisseur_dtu||""),aev:p.aev||"",uw:p.uw||"",
         epaisseur_reelle:p.epaisseur_reelle||"",poids_m2:p.poids_m2||"",poids_vantail:p.poids_vantail||"",
@@ -2695,7 +2712,7 @@ function PagePrescription({projet,setProjet,setPage}){
       </div>
 
       <div style={{marginTop:16,paddingTop:10,borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",fontSize:10,color:"#9ca3af"}}>
-        <div>GlassIQ v2.5 — Note de choix vitrage & métré</div>
+        <div>GlassIQ v2.6 — Note de choix vitrage & métré</div>
         <div>Généré le {new Date().toLocaleDateString("fr-FR")}{projet.redacteur?" — "+projet.redacteur:""}</div>
       </div>
     </div>
