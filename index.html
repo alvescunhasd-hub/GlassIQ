@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GlassIQ v2.5</title>
+  <title>GlassIQ v2.6</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9fb; }
@@ -182,7 +183,7 @@ function metreGlobal(elements, prescriptions){
   elements.forEach(el=>{
     const k=keyOf(el);
     if(!groups[k])groups[k]={modele:el,count:0,labels:[]};
-    groups[k].count++;
+    groups[k].count+=Math.max(1,parseInt(el.quantite)||1);
     groups[k].labels.push(el.label);
   });
 
@@ -1512,6 +1513,122 @@ const defaultProjet={
   controle_ref:"",controle_tl:"",controle_fs:"",controle_ug:"",
 };
 
+// ── IMPORT DU REPÉRAGE — outil de chiffrage EME (onglet EXPORT GLASSIQ) ─────
+// Un élément par repère : quantité (× nb de modules), L par module, H, type,
+// allège, RA,tr ; le vitrage chiffré est gardé sur l'élément et vérifié au DTU 39.
+const TRANCHES_HAUTEUR={"jusqu'à 8 m":"8","8 à 16 m":"16","16 à 25 m":"25","plus de 25 m":"50"};
+function typeDepuisChiffrage(sysTxt,ouv){
+  const s=String(sysTxt||""),o=String(ouv||"");
+  if(/FWS|fa[cç]ade/i.test(s))return {type:"facade",soustype:/acier/i.test(s)?"Façade rideau CW":"Façade rideau FWS"};
+  let st;
+  if(/^fixe/i.test(o))st="Fenêtre fixe";
+  else if(/oscillo|basculant|soufflet/i.test(o))st="Fenêtre OB";
+  else if(/fran[cç]aise|anglaise/i.test(o))st="Fenêtre OF";
+  else if(/coulissant/i.test(o))st="Coulissant";
+  else if(/porte/i.test(o))st="Porte";
+  else st=/ADS/i.test(s)?"Porte":"Fenêtre OB";
+  return {type:"chassis",soustype:st};
+}
+function lireExportChiffrage(buf){
+  if(typeof XLSX==="undefined")throw new Error("Lecteur Excel non chargé — vérifie la connexion internet puis recharge la page");
+  const wb=XLSX.read(buf,{type:"array"});
+  const sh=wb.Sheets["EXPORT GLASSIQ"];
+  if(!sh)throw new Error("Onglet EXPORT GLASSIQ introuvable — utilise l'outil de chiffrage V10 ou plus récent");
+  const rows=XLSX.utils.sheet_to_json(sh,{header:1,raw:true,defval:""});
+  const hi=rows.findIndex(r=>String(r[0]).trim()==="Repère");
+  if(hi<0)throw new Error("En-têtes de l'onglet EXPORT GLASSIQ introuvables");
+  const H=rows[hi].map(h=>String(h).replace(/\s+/g," ").trim().toLowerCase());
+  const col=n=>H.findIndex(h=>h.startsWith(n.toLowerCase()));
+  const c={rep:col("Repère"),sys:col("Système"),etage:col("Étage"),L:col("L (mm)"),H:col("H (mm)"),qte:col("Quantité"),
+    ouv:col("Type d'ouverture"),parent:col("Repère parent"),mod:col("Nb modules"),compo:col("Composition"),trempe:col("Trempé"),
+    couche:col("Couche"),ep:col("Épaisseur"),poids:col("Poids"),allege:col("Allège"),ratr:col("RA,tr"),ctrl:col("Contrôles")};
+  const v=(r,k)=>c[k]>=0&&r[c[k]]!=null?r[c[k]]:"";
+  const s=(r,k)=>String(v(r,k)).trim();
+  const num=x=>{const n=typeof x==="number"?x:parseFloat(String(x).replace(",","."));return isFinite(n)?n:0;};
+  const lh=rows.slice(0,hi).find(r=>/^hauteur/i.test(String(r[0]).trim()));
+  const hauteur=lh?(TRANCHES_HAUTEUR[String(lh[2]||lh[1]||"").trim().toLowerCase()]||""):"";
+  const els=[];let ignores=0;const base=Date.now();
+  rows.slice(hi+1).forEach((r,k)=>{
+    const rep=s(r,"rep"),L=num(v(r,"L")),Hh=num(v(r,"H"));
+    if(!rep&&!L&&!Hh)return;
+    if(!rep||L<=0||Hh<=0){ignores++;return;}
+    const mod=Math.max(1,Math.round(num(v(r,"mod")))||1);
+    const qte=Math.max(1,Math.round(num(v(r,"qte")))||1)*mod;
+    const t=typeDepuisChiffrage(v(r,"sys"),v(r,"ouv"));
+    const etage=s(r,"etage"),ratr=num(v(r,"ratr")),allege=num(v(r,"allege"));
+    const el={id:base+k,label:rep+(etage?" — "+etage:""),type:t.type,soustype:t.soustype,
+      orientation:"Toutes orientations",usage:"Façade côté rue",ratr:ratr?String(Math.round(ratr)):"",
+      largeur:String(Math.round(L/mod)),hauteur:String(Math.round(Hh)),quantite:String(qte),
+      allege_h:allege?String(Math.round(allege)):"",allege_opaque:false,
+      chiffrage:{repere:rep,systeme:s(r,"sys"),ouverture:s(r,"ouv"),parent:s(r,"parent"),modules:mod,
+        composition:s(r,"compo"),trempe:s(r,"trempe"),couche:s(r,"couche"),epaisseur:num(v(r,"ep"))||null,
+        poids:num(v(r,"poids"))||null,controles:s(r,"ctrl")}};
+    if(t.type==="facade")Object.assign(el,{trame:"",nb_ouvrants:"",type_ouvrant:"Fenêtre OB",mode_trame:"reguliere"});
+    els.push(el);
+  });
+  return {elements:els,ignores,hauteur};
+}
+function ImportChiffrage({projet,setProjet}){
+  const [msg,setMsg]=useState(null);
+  const onFile=e=>{
+    const f=e.target.files[0];if(!f)return;e.target.value="";
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      try{
+        const res=lireExportChiffrage(new Uint8Array(ev.target.result));
+        if(!res.elements.length){setMsg({t:"warn",m:"Aucun repère avec dimensions dans l'onglet EXPORT GLASSIQ — enregistre le fichier Excel après la saisie, puis réessaie."});return;}
+        const n=projet.elements.length;
+        const remplacer=n===0||window.confirm(`Remplacer les ${n} élément(s) actuel(s) par les ${res.elements.length} repère(s) du chiffrage ?\n\nOK = remplacer · Annuler = ajouter à la suite`);
+        setProjet(p=>{
+          const np={...p,elements:remplacer?res.elements:[...p.elements,...res.elements]};
+          if(remplacer){np.prescriptions={};np.presc_overrides={};}
+          if(!p.nom)np.nom=f.name.replace(/\.(xlsx|xlsm)$/i,"");
+          if(!p.hauteur_bat&&res.hauteur)np.hauteur_bat=res.hauteur;
+          return np;
+        });
+        const qte=res.elements.reduce((t,x)=>t+(+x.quantite||1),0);
+        const nbF=res.elements.filter(x=>x.type==="facade").length;
+        setMsg({t:"ok",m:`${res.elements.length} repère(s) importé(s) — ${qte} unité(s)`
+          +(res.ignores?` · ${res.ignores} ligne(s) ignorée(s) (dimensions manquantes)`:"")
+          +(!projet.hauteur_bat&&res.hauteur?` · hauteur du bâtiment ${res.hauteur} m reprise de la tranche Excel (à préciser)`:"")
+          +(nbF?` · ${nbF} façade(s) : renseigner la trame`:"")
+          +" · orientation et usage à compléter"});
+      }catch(err){setMsg({t:"warn",m:err.message||"Fichier illisible"});}
+    };
+    rd.readAsArrayBuffer(f);
+  };
+  return <div style={{marginBottom:12,padding:"10px 12px",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8}}>
+    <label style={{...S.btnSecondary,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,background:"#fff",borderColor:"#fdba74",color:"#9a3412",fontWeight:600}}>
+      📊 Importer le repérage de l'outil de chiffrage (.xlsx)
+      <input type="file" accept=".xlsx,.xlsm" onChange={onFile} style={{display:"none"}}/>
+    </label>
+    <div style={{fontSize:11,color:"#7c2d12",marginTop:5}}>Lit l'onglet EXPORT GLASSIQ (outil de chiffrage V10 et +) : un élément par repère avec quantité, L × H par module, type, allège et RA,tr. Le vitrage chiffré est vérifié au DTU 39 sur chaque élément.</div>
+    {msg&&<div style={{marginTop:6,fontSize:12,padding:"6px 10px",borderRadius:6,background:msg.t==="ok"?"#d1fae5":"#fef3c7",color:msg.t==="ok"?"#065f46":"#92400e"}}>{msg.m}</div>}
+  </div>;
+}
+function ChiffrageInfo({el,projet}){
+  const ch=el.chiffrage||{};
+  const compo=ch.composition;
+  let dtu=null;
+  if(compo){
+    if(!analyseComposition(compo))dtu=<span style={{color:"#b45309"}}>verre spécial ou composition non lue : vérifier sur la fiche fournisseur</span>;
+    else if(el.type!=="facade"&&!el.chassis_compose&&/Plus de 6 m/.test(ch.controles||""))dtu=<span style={{color:"#b45309"}}>DTU 39 non significatif : grand ensemble pris d'un seul vitrage — préciser le Nb de modules dans l'Excel ou cocher « Châssis composé »</span>;
+    else{
+      const r=verifVitrage(compo,+el.largeur||0,+el.hauteur||0,null,el,projet);
+      if(!r||r.resistance_ok==null)dtu=<span style={{color:"#6b7280"}}>DTU 39 : renseigner zone, terrain et hauteur du bâtiment</span>;
+      else{
+        const ok=r.resistance_ok&&r.fleche_verre_ok!==false;
+        dtu=<span style={{color:ok?"#065f46":"#991b1b",fontWeight:600}}>{ok?"✓":"✗"} DTU 39 — résistance {r.resistance_ok?"✓":"✗"} · flèche {r.fleche_verre_ok===false?"✗":r.fleche_verre_ok?"✓":"—"}{r.dtu_verre&&r.dtu_verre.eRequired?` (équiv. ${r.eR_reel} mm / requis ${r.dtu_verre.eRequired} mm)`:""}</span>;
+      }
+    }
+  }
+  return <div style={{flex:1,minWidth:260,fontSize:11,padding:"6px 10px",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:6,color:"#7c2d12",lineHeight:1.6}}>
+    📊 Chiffrage : <strong>{ch.repere}</strong>{ch.systeme?" · "+ch.systeme:""}{ch.ouverture?" · "+ch.ouverture:""}{ch.modules>1?` · ${ch.modules} modules (L par module)`:""}{ch.parent?" · inclus dans "+ch.parent:""}
+    <br/>Vitrage : <span style={{fontFamily:"monospace",fontWeight:600}}>{compo||"non renseigné"}</span>{ch.couche&&ch.couche!=="Aucune"?" · "+ch.couche:""}{ch.trempe&&ch.trempe!=="Non"?" · trempé "+ch.trempe.toLowerCase():""}{dtu?<span> — {dtu}</span>:null}
+    {ch.controles&&ch.controles!=="✓"&&<div style={{color:"#991b1b"}}>⚠ Contrôles Excel : {ch.controles}</div>}
+  </div>;
+}
+
 function ChampTerrain({value,onChange}){
   return <div>
     <label style={S.label}>Catégorie terrain</label>
@@ -1620,6 +1737,10 @@ function PageProjet({projet,setProjet,setPage}){
             <div><label style={{...S.label,fontSize:10}}>Usage</label><select value={el.usage} onChange={e=>updEl(i,"usage",e.target.value)} style={S.input}>{USAGES.map(u=><option key={u}>{u}</option>)}</select></div>
             <div><label style={{...S.label,fontSize:10}}>Type {iF?"façade":"châssis"}</label><select value={el.soustype} onChange={e=>updEl(i,"soustype",e.target.value)} style={S.input}>{sT.map(s=><option key={s}>{s}</option>)}</select></div>
             <div><label style={{...S.label,fontSize:10}}>L × H (mm)</label><div style={{display:"flex",gap:4}}><input type="number" value={el.largeur} placeholder="L" onChange={e=>updEl(i,"largeur",e.target.value)} style={{...S.input,width:"50%"}}/><input type="number" value={el.hauteur} placeholder="H" onChange={e=>updEl(i,"hauteur",e.target.value)} style={{...S.input,width:"50%"}}/></div></div>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}><label style={{...S.label,fontSize:10,margin:0}}>Quantité</label><input type="number" min="1" value={el.quantite||"1"} onChange={e=>updEl(i,"quantite",e.target.value)} style={{...S.input,width:70,textAlign:"center"}}/></div>
+            {el.chiffrage&&<ChiffrageInfo el={el} projet={projet}/>}
           </div>
           {!iF&&<div style={{marginTop:8}}>
             <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#0f766e",cursor:"pointer",fontWeight:600}}>
@@ -1919,6 +2040,7 @@ function PageProjet({projet,setProjet,setPage}){
           {vInfo}
         </div>;
       })}
+      <ImportChiffrage projet={projet} setProjet={setProjet}/>
       <button onClick={addEl} style={{width:"100%",padding:"8px",borderRadius:8,border:"1.5px dashed #d1d5db",background:"none",cursor:"pointer",fontSize:13,color:"#6b7280"}}>+ Ajouter un élément</button>
     </div>
     {/* Données vent */}
@@ -2461,7 +2583,7 @@ function PagePrescription({projet,setProjet,setPage}){
     </div>
     <div style={{background:"#fff",borderRadius:14,padding:"24px 32px",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,paddingBottom:12,borderBottom:"3px solid #1a1a2e"}}>
-        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>🪟 GlassIQ v2.5</div><div style={{fontSize:11,color:"#6b7280"}}>Note de choix vitrage</div></div>
+        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>🪟 GlassIQ v2.6</div><div style={{fontSize:11,color:"#6b7280"}}>Note de choix vitrage</div></div>
         <div style={{textAlign:"right",fontSize:12}}><div style={{fontWeight:700,fontSize:14,color:"#1a1a2e"}}>PRESCRIPTION VITRAGE</div><div style={{color:"#6b7280",marginTop:2}}>{new Date().toLocaleDateString("fr-FR")}</div></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:12,padding:"10px 14px",background:"#f8f9fb",borderRadius:10,border:"1px solid #e5e7eb"}}>
@@ -3431,7 +3553,7 @@ function App(){
     <div className="no-print" style={{background:"#1a1a2e",color:"#fff",padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid rgba(255,255,255,0.08)",flexWrap:"wrap",gap:4}}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0"}}>
         <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#4ade80,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🪟</div>
-        <div><div style={{fontWeight:800,fontSize:15}}>GlassIQ v2.5</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Workflow complet — 5 étapes</div></div>
+        <div><div style={{fontWeight:800,fontSize:15}}>GlassIQ v2.6</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Workflow complet — 5 étapes</div></div>
         {projet.nom&&<div style={{marginLeft:12,fontSize:12,color:"rgba(255,255,255,0.5)",fontStyle:"italic"}}>{projet.nom}</div>}
       </div>
       <nav style={{display:"flex",gap:2,flexWrap:"wrap"}}>
