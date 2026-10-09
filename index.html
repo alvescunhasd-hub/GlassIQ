@@ -255,6 +255,10 @@ function metreGlobal(elements, prescriptions){
 // Seule exception explicite : élément marqué "sans risque de chute" par
 // l'utilisateur (ex. rez-de-chaussée sur terrain naturel, sans vide en contrebas).
 function verifAllege(el){
+  // Élément importé de l'Excel sans allège : inconnue (et non 0 m)
+  if(el.allege_inconnue&&(el.allege_h===""||el.allege_h==null))
+    return {allege_m:null,protection_requise:false,inconnue:true,exigence:"Allège non renseignée",classe_min:null,
+      detail:"Hauteur d'allège absente du repérage Excel — à renseigner pour vérifier la sécurité chute"};
   const allege_mm=+el.allege_h||0;
   const allege_m=allege_mm/1000;
   const sans_risque=!!el.sans_risque_chute;
@@ -1540,7 +1544,7 @@ function lireExportChiffrage(buf){
   const H=rows[hi].map(h=>String(h).replace(/\s+/g," ").trim().toLowerCase());
   const col=n=>H.findIndex(h=>h.startsWith(n.toLowerCase()));
   const c={rep:col("Repère"),sys:col("Système"),etage:col("Étage"),L:col("L (mm)"),H:col("H (mm)"),qte:col("Quantité"),
-    ouv:col("Type d'ouverture"),parent:col("Repère parent"),mod:col("Nb modules"),compo:col("Composition"),trempe:col("Trempé"),
+    ouv:col("Type d'ouverture"),nbo:col("Nb ouvrants"),parent:col("Repère parent"),mod:col("Nb modules"),compo:col("Composition"),trempe:col("Trempé"),
     couche:col("Couche"),ep:col("Épaisseur"),poids:col("Poids"),allege:col("Allège"),ratr:col("RA,tr"),ctrl:col("Contrôles")};
   const v=(r,k)=>c[k]>=0&&r[c[k]]!=null?r[c[k]]:"";
   const s=(r,k)=>String(v(r,k)).trim();
@@ -1559,11 +1563,13 @@ function lireExportChiffrage(buf){
     const el={id:base+k,label:rep+(etage?" — "+etage:""),type:t.type,soustype:t.soustype,
       orientation:"Toutes orientations",usage:"Façade côté rue",ratr:ratr?String(Math.round(ratr)):"",
       largeur:String(Math.round(L/mod)),hauteur:String(Math.round(Hh)),quantite:String(qte),
-      allege_h:allege?String(Math.round(allege)):"",allege_opaque:false,
+      allege_h:allege?String(Math.round(allege)):"",allege_opaque:false,allege_inconnue:!allege,
       chiffrage:{repere:rep,systeme:s(r,"sys"),ouverture:s(r,"ouv"),parent:s(r,"parent"),modules:mod,
         composition:s(r,"compo"),trempe:s(r,"trempe"),couche:s(r,"couche"),epaisseur:num(v(r,"ep"))||null,
         poids:num(v(r,"poids"))||null,controles:s(r,"ctrl")}};
-    if(t.type==="facade")Object.assign(el,{trame:"",nb_ouvrants:"",type_ouvrant:"Fenêtre OB",mode_trame:"reguliere"});
+    const nbo=Math.round(num(v(r,"nbo")));
+    if(t.type==="chassis"&&nbo>0&&t.soustype!=="Fenêtre fixe")el.nb_vantaux=String(Math.max(1,Math.round(nbo/mod)));
+    if(t.type==="facade")Object.assign(el,{trame:"",nb_ouvrants:nbo>0?String(nbo):"",type_ouvrant:"Fenêtre OB",mode_trame:"reguliere"});
     els.push(el);
   });
   return {elements:els,ignores,hauteur};
@@ -2653,7 +2659,7 @@ function PagePrescription({projet,setProjet,setPage}){
             </div>
           </div>
         </div>
-        {(ty._facade||ty._allege.protection_requise||ty._rc3)&&<div style={{padding:"8px 12px",background:"#fafafa",borderTop:"1px solid #e5e7eb",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+        {(ty._facade||ty._allege.protection_requise||ty._allege.inconnue||ty._rc3)&&<div style={{padding:"8px 12px",background:"#fafafa",borderTop:"1px solid #e5e7eb",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
           {ty._facade&&<div style={{display:"flex",gap:14,fontSize:11,color:"#374151",flexWrap:"wrap"}}>
             {ty._facade.mode==="personnalisee"
               ? <span>🏢 <strong>{ty._facade.nb_panneaux_total}</strong> panneaux ({ty._facade.panneaux.length} tailles){ty._facade.nb_meneaux?` · ${ty._facade.nb_meneaux} montants`:""}</span>
@@ -2665,6 +2671,9 @@ function PagePrescription({projet,setProjet,setPage}){
           </div>}
           {ty._allege.protection_requise&&<div style={{fontSize:11,fontWeight:600,color:ty._allege_opaque?"#92400e":"#991b1b",padding:"3px 10px",background:"#fff",borderRadius:6,border:"1px solid #fde68a"}}>
             🛡 {ty._allege_opaque?"Allège opaque — garde-corps assuré par le panneau":"Face intérieure feuilletée ≥ 44.2 (1B1) obligatoire — allège "+ty._allege.allege_m+" m"}
+          </div>}
+          {ty._allege.inconnue&&<div style={{fontSize:11,fontWeight:600,color:"#6b7280",padding:"3px 10px",background:"#fff",borderRadius:6,border:"1px solid #e5e7eb"}}>
+            🛡 Allège non renseignée — sécurité chute à vérifier
           </div>}
           {ty._rc3&&<div style={{fontSize:11,fontWeight:600,color:"#92400e",padding:"3px 10px",background:"#fff",borderRadius:6,border:"1px solid #fde68a"}}>
             ⚠ RC3 requis — hors DTA, capots/serrage renforcés + raidisseurs montants/traverses, PV EN 1627-1630 spécifique à demander au fabricant
