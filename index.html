@@ -226,6 +226,7 @@ function metreGlobal(elements, prescriptions){
       nb_ouvrants_total:nb_ouvrants*g.count,
       poids_m2, poids_total:poids_unit?+(poids_unit*g.count).toFixed(0):null,
       ratr:el.ratr, gamme:presc?presc.gamme:null, vitrage:presc?presc.vitrage:null,
+      geometrie:controleGeometrie(el), // v2.6.4 : signalement, sans modifier le métré
     };
   });
 
@@ -243,6 +244,7 @@ function metreGlobal(elements, prescriptions){
     nb_facades:typologies.filter(t=>t.isFacade).reduce((s,t)=>s+t.count,0),
     nb_chassis:typologies.filter(t=>!t.isFacade).reduce((s,t)=>s+t.count,0),
     poids_total:+typologies.reduce((s,t)=>s+(t.poids_total||0),0).toFixed(0),
+    nb_typologies_incoherentes:typologies.filter(t=>!t.geometrie.ok).length,
   };
   return {typologies,totaux:T};
 }
@@ -309,7 +311,37 @@ const CHASSIS_TYPES = ['Fenêtre OB','Fenêtre OF','Fenêtre fixe','Porte-fenêt
 const FACADE_TYPES = ['Façade rideau FWS','Façade rideau CW','Façade VEC','Façade VEP','Verrière'];
 
 function getTranche(h){const z=parseFloat(h);if(z<=9)return"H9";if(z<=18)return"H18";if(z<=28)return"H28";if(z<=50)return"H50";return"H100";}
-function calcPression(zone,terrain,h){if(!zone||!terrain||!h||parseFloat(h)<=0)return null;return PRESSIONS_DTU39[zone]?.[terrain]?.[getTranche(h)]||null;}
+// ── CONTRÔLE DE LA HAUTEUR AVANT LECTURE DU TABLEAU (v2.6.4) ────────────────
+// Le tableau PRESSIONS_DTU39 couvre 0 < H ≤ 100 m (dernière tranche H100). La
+// hauteur est contrôlée AVANT toute lecture du tableau : absente, non numérique,
+// nulle, négative ou > 100 m → AUCUNE pression (jamais la valeur H100 par défaut),
+// statut explicite « pression non vérifiable ». Tableau et tranches inchangés.
+const HAUTEUR_MAX_TABLEAU=100;
+function lireHauteurBat(h){
+  if(h==null)return {statut:"absente",valeur:null};
+  if(typeof h==="number")return isFinite(h)?{statut:"lue",valeur:h}:{statut:"invalide",valeur:null};
+  const s=String(h).trim();
+  if(!s)return {statut:"absente",valeur:null};
+  if(!/^[-+]?\d+(?:[.,]\d+)?$/.test(s))return {statut:"invalide",valeur:null};
+  return {statut:"lue",valeur:parseFloat(s.replace(",","."))};
+}
+function diagPression(zone,terrain,h){
+  const lh=lireHauteurBat(h), brut=h==null?"":String(h).trim();
+  const fm=x=>String(x).replace(".",",");
+  const nv=(statut,message,court)=>({pression:null,ok:false,statut,message,court,hauteur:lh.valeur});
+  if(lh.statut==="absente")return nv("hauteur_absente","Hauteur du bâtiment non renseignée — pression non vérifiable","hauteur non renseignée");
+  if(lh.statut==="invalide")return nv("hauteur_invalide",`Hauteur du bâtiment « ${brut} » non numérique — pression non vérifiable`,"hauteur non numérique");
+  const H=lh.valeur;
+  if(H<=0)return nv("hauteur_invalide",`Hauteur du bâtiment ${fm(H)} m ${H<0?"négative":"nulle"} — pression non vérifiable`,H<0?"hauteur négative":"hauteur nulle");
+  if(H>HAUTEUR_MAX_TABLEAU)return nv("hors_domaine",`Hauteur du bâtiment ${fm(H)} m > ${HAUTEUR_MAX_TABLEAU} m : hors domaine du tableau disponible — étude spécifique nécessaire`,"hors domaine du tableau (> 100 m)");
+  if(!zone||!terrain)return nv("donnees_vent","Zone de vent ou catégorie de terrain non renseignée — pression non vérifiable","zone / terrain non renseignés");
+  const tranche=getTranche(H);
+  const p=PRESSIONS_DTU39[zone]?.[terrain]?.[tranche];
+  if(!p)return nv("donnees_vent",`Zone ${zone} / terrain ${terrain} absents du tableau — pression non vérifiable`,"zone / terrain hors tableau");
+  return {pression:p,ok:true,statut:"ok",message:`${p} Pa`,court:`${p} Pa`,hauteur:H,tranche};
+}
+// Valeur exploitable ou null (null = non vérifiable : voir diagPression pour le motif)
+function calcPression(zone,terrain,h){return diagPression(zone,terrain,h).pression;}
 
 // ── CLASSES VENT NF EN 12210 — pression d'essai P1 de chaque classe ─────────
 // CORRIGÉ v2.5 : l'ancienne correspondance (≤1200 Pa → classe 2) acceptait un C2
@@ -345,71 +377,180 @@ function classeDepuisV(V){
 }
 // Classe V exigée par le CCTP ("A4 E9A V3" → 3 ; "A4 E9A C3" → 3)
 function classeVExigeeCCTP(aev_min){const m=String(aev_min||"").match(/[VC]\s*([1-5])\b/i);return m?+m[1]:null;}
-// Vent / AEV :
-//  - FAÇADE : pression d'essai déclarée ≥ pression de calcul (règle GlassIQ).
-//  - CHÂSSIS : meilleure classe V testée ≥ classe exigée par le CCTP. À défaut de
+// Vent / AEV (CORRIGÉ v2.6.3 — sélection stricte de l'essai par configuration) :
+//  - Seuls les essais dont la configuration correspond à l'élément sont retenus :
+//    famille (fenêtre / porte-fenêtre / porte / coulissant / fixe), type d'ouverture
+//    (OB / OF…), nombre de vantaux et présence d'un fixe latéral. Un critère absent
+//    du libellé de l'essai n'est pas supposé compatible. Un essai sur une variante
+//    que l'élément ne décrit pas (seuil PMR, ouvrant caché, rénovation…) n'est pas
+//    retenu. Seule justification acceptée pour un libellé incomplet : la mention
+//    explicite « toutes configurations » dans le libellé de l'essai.
+//  - Plusieurs essais compatibles : verdict seulement s'ils concordent (tous
+//    suffisants → conforme ; tous insuffisants → non conforme ; sinon non vérifiable).
+//  - FAÇADE : pression d'essai déclarée ≥ pression de calcul (règle GlassIQ), sur les
+//    seuls essais de façade du même type (rideau / VEC / VEP / verrière), hors
+//    essais d'ouvrant seul.
+//  - CHÂSSIS : classe V de l'essai compatible ≥ classe exigée par le CCTP. À défaut de
 //    CCTP, estimation par la pression DTU 39 (indicatif : la pression DTU 39 sert au
 //    dimensionnement du verre ; la classe exigible se lit dans le FD P20-201).
-function verifAEV(sys,pression,isFacade,aev_min){
-  if(!sys||!Array.isArray(sys.aev)||sys.aev.length===0)return {ok:null,max:null,note:"Pas d'essai AEV"};
+const VARIANTE_CFG=/pmr|seuil|cach[ée]|masqu[ée]|invisible|pompier|\d+\s?kg|renforc|r[ée]novation|galerie|galandage|\bangle\b|imposte|all[èe]ge|panneau|talonnage|minima|alu froid|dormant|sous (gradient|[ée]cart)|m[ée]ca(nique)? sp[ée]cifique|endurance|r[ée]cup[ée]rateur/i;
+const TOUTES_CFG=/toutes?\s+(les\s+)?configurations?|tous\s+types/i;
+// Configuration décrite par un libellé fabricant (essai AEV ou ligne de domaine d'emploi)
+function lireConfigLibelle(txt,sys){
+  const s=String(txt==null?"":txt);
+  const ouv=new Set();
+  if(/coulissant|levant|galandage|\b(mono|bi|tri|ti)?rails?\b/i.test(s))ouv.add("coulissant");
+  if(/\bOB\b|oscillo/i.test(s))ouv.add("OB");
+  if(/\bOF\b|fran[cç]aise/i.test(s)||(/battant/i.test(s)&&!/oscillo/i.test(s)))ouv.add("OF");
+  if(/anglaise/i.test(s))ouv.add("anglaise");
+  if(/italienne/i.test(s))ouv.add("italienne");
+  if(/soufflet/i.test(s))ouv.add("soufflet");
+  if(/basculant/i.test(s))ouv.add("basculant");
+  if(/pivotant/i.test(s))ouv.add("pivotant");
+  // Système coulissant : un libellé sans autre ouverture décrit un coulissant
+  if(!ouv.size&&/coulissant/i.test(String((sys&&sys.famille)||"")))ouv.add("coulissant");
+  let famille=null;
+  if(ouv.has("coulissant"))famille="coulissant";
+  else if(/porte[- ]?fen|\bpf\b/i.test(s))famille="porte-fenetre";
+  else if(/fa[çc]ade|compos[ée]e?s? de|\btrame\b|\bcw\s?\d|\bfws\b|wictec|mur[- ]rideau|verri[èe]re/i.test(s))famille="facade";
+  else if(/^\s*(bloc[- ])?porte\b/i.test(s))famille="porte";
+  else if(/fen[êe]tre/i.test(s))famille="fenetre";
+  else if(/^\s*(partie |ch[âa]ssis |[ée]l[ée]ment )?fixe\b/i.test(s))famille="fixe";
+  const nbs=[...new Set([...s.matchAll(/(\d+)\s*(?:vantaux|vantail|vtx|vtl|vx)\b/gi)].map(m=>+m[1]))];
+  const fixe=/fixe\s*lat|\+\s*fixe/i.test(s)?"lateral":(/fixe/i.test(s)&&famille!=="fixe"&&famille!=="facade"?"autre":null);
+  const v=s.match(VARIANTE_CFG);
+  return {famille,ouv,nbs,fixe,variante:v?v[0]:null,toutes:TOUTES_CFG.test(s),
+    verriere:/verri[èe]re/i.test(s),vec:/\bVEC\b/i.test(s),vep:/\bVEP\b/i.test(s),ouvrantSeul:/(^|—\s*)ouvrant\b/i.test(s)};
+}
+// Configuration de l'élément saisi (châssis)
+function configElement(el,sys){
+  const st=String((el&&el.soustype)||"");
+  const famille=familleElement(el);
+  const ouverture=/coulissant/i.test(st)?"coulissant":/\bOB\b|oscillo/i.test(st)?"OB":/\bOF\b|fran[cç]aise/i.test(st)?"OF":null;
+  return {famille,ouverture,nb:nbVantauxElement(el||{},sys),nbSaisi:+((el&&el.nb_vantaux)||0)>0,fixe:(+((el&&el.larg_fixe)||0))>0?"lateral":null};
+}
+function libConfigElement(ce){
+  const f=LIB_FAMILLE[ce.famille]||"type d'élément non identifié";
+  const o=ce.ouverture&&ce.ouverture!=="coulissant"?` ${ce.ouverture}`:"";
+  const n=ce.famille==="fixe"?"":` ${ce.nb} ${ce.nb>1?"vantaux":"vantail"}${ce.nbSaisi?"":" (par défaut)"}`;
+  return `${f}${o}${n}${ce.fixe?" + fixe latéral":""}`;
+}
+// null si la ligne correspond à l'élément ; sinon la raison de l'écart.
+// mode "aev" : la famille doit figurer dans le libellé de l'essai.
+// mode "dim" : une ligne de domaine sans famille vaut pour le type d'ouverture qu'elle cite.
+function ecartConfig(ce,cl,mode){
+  if(cl.toutes)return null;
+  if(cl.variante)return `variante « ${cl.variante} »`;
+  if(cl.famille){if(cl.famille!==ce.famille)return LIB_FAMILLE[cl.famille]||cl.famille;}
+  else if(mode==="aev")return "famille non indiquée";
+  else if(!cl.ouv.size)return "configuration non indiquée";
+  if(ce.famille!=="fixe"){
+    if(ce.ouverture){
+      if(!cl.ouv.size)return "ouverture non indiquée";
+      if(!cl.ouv.has(ce.ouverture))return `ouverture ${[...cl.ouv].join("/")}`;
+    }else if(cl.ouv.size)return `ouverture ${[...cl.ouv].join("/")} (non précisée sur l'élément)`;
+    if(!cl.nbs.length)return "nombre de vantaux non indiqué";
+    if(!cl.nbs.includes(ce.nb))return `${cl.nbs.join("/")} vantail(x)`;
+  }
+  if((cl.fixe||null)!==(ce.fixe||null))return cl.fixe==="lateral"?"avec fixe latéral":cl.fixe?"avec partie fixe":"sans fixe";
+  return null;
+}
+const refEssaiAEV=a=>`${a.chassis||"essai"}${a.V!=null&&a.V!==""?` [${a.V}]`:""}${a.rapport?` — ${a.rapport}`:""}`;
+const listeRefs=(l,n=3)=>l.slice(0,n).join(" ; ")+(l.length>n?` ; +${l.length-n} autre(s)`:"");
+function verifAEV(sys,pression,isFacade,aev_min,el){
+  if(!sys||!Array.isArray(sys.aev)||sys.aev.length===0)return {ok:null,max:null,note:"Pas d'essai AEV",essais:[]};
+  const lignes=sys.aev.map(a=>({a,cl:lireConfigLibelle(a.chassis,sys)}));
+  const dispo=listeRefs(lignes.map(x=>refEssaiAEV(x.a)));
+  if(!el||typeof el!=="object")return {ok:null,max:null,note:`Configuration de l'élément non transmise — essais disponibles : ${dispo}`,essais:[]};
   if(isFacade){
-    if(!pression)return {ok:null,max:null,note:"Pression non calculée"};
-    const vals=sys.aev.map(a=>pressionCouverteAEV(a.V)).filter(v=>v!=null);
-    if(!vals.length)return {ok:null,max:null,note:"Pas d'essai exploitable"};
-    const max=Math.max(...vals);
-    return {ok:max>=pression,max,note:`essai ${max} / requis ${pression} Pa`};
+    if(!pression)return {ok:null,max:null,note:"Pression non calculée",essais:[]};
+    const st=String(el.soustype||"");
+    const typeF=/verri[èe]re/i.test(st)?"verriere":/\bVEC\b/i.test(st)?"VEC":/\bVEP\b/i.test(st)?"VEP":"rideau";
+    const libF={verriere:"verrière",VEC:"VEC",VEP:"VEP",rideau:"façade rideau"}[typeF];
+    const sysFacade=/fa[çc]ade/i.test(String(sys.famille||""));
+    const compat=lignes.filter(({cl})=>!cl.ouvrantSeul&&(cl.famille==="facade"||sysFacade)&&
+      (typeF==="verriere"?cl.verriere:typeF==="VEC"?cl.vec:typeF==="VEP"?cl.vep:!(cl.verriere||cl.vec||cl.vep)));
+    const refs=compat.map(x=>refEssaiAEV(x.a));
+    if(!compat.length)return {ok:null,max:null,note:`Aucun essai de ${libF} (essais d'ouvrant seul exclus) — essais disponibles : ${dispo}`,essais:[]};
+    const exp=compat.map(x=>({...x,p:pressionCouverteAEV(x.a.V)})).filter(x=>x.p!=null);
+    if(!exp.length)return {ok:null,max:null,note:`Essai(s) de ${libF} sans pression exploitable : ${listeRefs(refs)}`,essais:refs};
+    const ps=exp.map(x=>x.p), pmin=Math.min(...ps), pmax=Math.max(...ps);
+    const rx=listeRefs(exp.map(x=>refEssaiAEV(x.a)));
+    if(exp.every(x=>x.p>=pression))return {ok:true,max:pmin,note:`essai ${pmin} / requis ${pression} Pa — ${rx}`,essais:refs};
+    if(exp.every(x=>x.p<pression))return {ok:false,max:pmax,note:`essai ${pmax} / requis ${pression} Pa — ${rx}`,essais:refs};
+    return {ok:null,max:pmin,note:`Essais de ${libF} divergents (${pmin} à ${pmax} Pa) / requis ${pression} Pa — à confirmer avec le fabricant : ${rx}`,essais:refs};
   }
-  const classes=sys.aev.map(a=>classeDepuisV(a.V)).filter(v=>v!=null);
-  if(!classes.length)return {ok:null,max:null,note:"Pas d'essai exploitable"};
-  const best=Math.max(...classes);
-  const req=classeVExigeeCCTP(aev_min);
-  if(req)return {ok:best>=req,max:best,note:`essai V${best} / CCTP V${req}`};
-  if(pression){
-    const cv=classeVRequise(pression);
-    const reqP=cv.classe==="E"?6:cv.classe;
-    return {ok:best>=reqP,max:best,note:`essai V${best} / estimé ${cv.classe==="E"?"> V5":"V"+cv.classe}`};
+  const ce=configElement(el,sys), libEl=libConfigElement(ce);
+  const ev=lignes.map(x=>({...x,ecart:ecartConfig(ce,x.cl,"aev")}));
+  const compat=ev.filter(x=>!x.ecart);
+  const refs=compat.map(x=>refEssaiAEV(x.a));
+  if(!compat.length){
+    const variantes=ev.filter(x=>/^variante/.test(x.ecart)&&ecartConfig(ce,{...x.cl,variante:null},"aev")===null);
+    return {ok:null,max:null,essais:[],note:variantes.length
+      ?`Aucun essai AEV sur la configuration ${libEl} — essai(s) sur variante non retenu(s) : ${listeRefs(variantes.map(x=>refEssaiAEV(x.a)))}`
+      :`Aucun essai AEV pour ${libEl} — essais disponibles : ${dispo}`};
   }
-  return {ok:null,max:best,note:`essai V${best} — exigence non précisée`};
+  const exp=compat.map(x=>({...x,c:classeDepuisV(x.a.V)})).filter(x=>x.c!=null);
+  if(!exp.length)return {ok:null,max:null,note:`Essai(s) compatible(s) sans classe V exploitable : ${listeRefs(refs)}`,essais:refs};
+  const cs=exp.map(x=>x.c), cmin=Math.min(...cs), cmax=Math.max(...cs);
+  const rx=listeRefs(exp.map(x=>refEssaiAEV(x.a)));
+  const lib=cmin===cmax?`V${cmin}`:`V${cmin} à V${cmax}`;
+  let req=classeVExigeeCCTP(aev_min), reqLib=req?`CCTP V${req}`:null;
+  if(!req&&pression){const cv=classeVRequise(pression);req=cv.classe==="E"?6:cv.classe;reqLib=`estimé ${cv.classe==="E"?"> V5":"V"+cv.classe}`;}
+  if(!req)return {ok:null,max:cmin,note:`essai ${lib} — exigence non précisée — ${rx}`,essais:refs};
+  if(cs.every(c=>c>=req))return {ok:true,max:cmin,note:`essai ${lib} / ${reqLib} — ${rx}`,essais:refs};
+  if(cs.every(c=>c<req))return {ok:false,max:cmax,note:`essai ${lib} / ${reqLib} — ${rx}`,essais:refs};
+  return {ok:null,max:cmin,note:`Essais compatibles divergents (${lib}) / ${reqLib} — à confirmer avec le fabricant : ${rx}`,essais:refs};
 }
 
 const A3T=[[0.3,0.686],[0.5,1.143],[0.667,1.514],[1.0,2.0],[1.5,2.286],[2.0,2.357],[5.0,2.386]];
 const A4T=[[0.0,2.1143],[0.1,2.1143],[0.2,2.1000],[0.3,2.1000],[0.4,1.8714],[0.5,1.6429],[0.6,1.4143],[0.7,1.1857],[0.8,0.9714],[0.9,0.8000],[1.0,0.6571]];
 function interp(t,x){if(x<=t[0][0])return t[0][1];if(x>=t[t.length-1][0])return t[t.length-1][1];for(let i=0;i<t.length-1;i++){if(x>=t[i][0]&&x<=t[i+1][0]){const f=(x-t[i][0])/(t[i+1][0]-t[i][0]);return t[i][1]+f*(t[i+1][1]-t[i][1]);}}return t[t.length-1][1];}
 // Vérifie les dimensions d'un châssis contre le domaine d'emploi du DTA.
-// AVERTISSEMENT PUR — ne bloque jamais le calcul. Absence de données = pas de vérif.
-// CORRIGÉ v2.5 : la ligne est choisie selon le nombre de vantaux, le fixe latéral
-// et le type d'ouverture (OB / OF) ; les champs L/H sont acceptés comme l_max/h_max.
+// AVERTISSEMENT PUR — ne bloque jamais le calcul.
+// CORRIGÉ v2.6.3 : seules les lignes compatibles (ouverture, nombre de vantaux, fixe
+// latéral, famille si indiquée) sont retenues, sans repli sur une ligne d'une autre
+// configuration ni choix de la ligne la plus permissive. Statuts :
+//   "aucune"         pas de domaine saisi / non applicable (façade, composé, fixe)
+//   "non_verifiable" domaine saisi mais aucune ligne compatible, ou lignes compatibles discordantes
+//   "hors"           dépasse la (les) ligne(s) compatible(s)
+//   "ok"             respecte la (les) ligne(s) compatible(s)
 function verifDimensions(sys,larg,haut,el){
   const aucune={statut:"aucune",texte:null};
   if(!sys||!Array.isArray(sys.dimensions_max)||sys.dimensions_max.length===0)return aucune;
   if(!larg||!haut||!el||typeof el!=="object")return aucune;
   // Le domaine d'emploi concerne les châssis ouvrants simples
   if(el.type==="facade"||el.chassis_compose||el.soustype==="Fenêtre fixe")return aucune;
+  // v2.6.4 : pas de verdict sur une géométrie impossible
+  {const g=controleGeometrie(el);if(!g.ok)return {statut:"non_verifiable",ligne:null,lignes:[],couleur:"#991b1b",bg:"#fef2f2",texte:`Domaine d'emploi non vérifiable : géométrie incohérente — ${g.message}`};}
   const lignes=sys.dimensions_max
-    .map(d=>({type:d.type||"",h_max:+(d.h_max!=null?d.h_max:d.H)||0,l_max:+(d.l_max!=null?d.l_max:d.L)||0}))
-    .filter(d=>d.h_max>0&&d.l_max>0&&!/soufflet/i.test(d.type));
+    .map(d=>({type:d.type||"",h_max:+(d.h_max!=null?d.h_max:d.H)||0,l_max:+(d.l_max!=null?d.l_max:d.L)||0,...(d.poids_ref!=null?{poids_ref:d.poids_ref}:{})}))
+    .filter(d=>d.h_max>0&&d.l_max>0);
   if(!lignes.length)return aucune;
-  const st=el.soustype||"";
-  const nv=nbVantauxElement(el,sys);
-  const avecFixe=(+el.larg_fixe||0)>0;
-  let cand=lignes;
-  const parNv=cand.filter(d=>nv>=2?/2 vantaux/i.test(d.type):/1 vantail/i.test(d.type));
-  if(parNv.length)cand=parNv;
-  const parFixe=cand.filter(d=>/fixe/i.test(d.type)===avecFixe);
-  if(parFixe.length)cand=parFixe;
-  const ouv=/\bOB\b/.test(st)?/OB/:(/\bOF\b|porte-?fen/i.test(st)?/OF|fran[cç]aise/i:null);
-  if(ouv){const p=cand.filter(d=>ouv.test(d.type));if(p.length)cand=p;}
-  // S'il reste plusieurs lignes : la plus permissive (pour ne pas alerter à tort)
-  const ligne=cand.reduce((b,d)=>(!b||d.h_max*d.l_max>b.h_max*b.l_max)?d:b,null);
-  if(!ligne)return aucune;
-  const depH=haut>ligne.h_max, depL=larg>ligne.l_max;
-  if(depH||depL){
-    const details=[];
-    if(depL)details.push(`largeur ${larg} > ${ligne.l_max} mm`);
-    if(depH)details.push(`hauteur ${haut} > ${ligne.h_max} mm`);
-    return {statut:"hors",ligne,texte:`Hors domaine d'emploi (${ligne.type}) : ${details.join(", ")} — à valider avec le fabricant`,couleur:"#9a3412",bg:"#fff7ed"};
-  }
-  return {statut:"ok",ligne,texte:`Dans le domaine d'emploi (${ligne.type} : max L ${ligne.l_max} × H ${ligne.h_max} mm)`,couleur:"#065f46",bg:"#f0fdf4"};
+  const ce=configElement(el,sys), libEl=libConfigElement(ce);
+  const fmt=d=>`${d.type} : max L ${d.l_max} × H ${d.h_max} mm`;
+  const ev=lignes.map(d=>({...d,ecart:ecartConfig(ce,lireConfigLibelle(d.type,sys),"dim")}));
+  const cand=ev.filter(d=>!d.ecart).map(({ecart,...d})=>d);
+  // Lignes de la même configuration mais sur une variante que l'élément ne précise pas
+  const variantes=ev.filter(d=>/^variante/.test(d.ecart)&&ecartConfig(ce,{...lireConfigLibelle(d.type,sys),variante:null},"dim")===null);
+  const gris={couleur:"#4b5563",bg:"#f3f4f6"};
+  const dep=d=>{const x=[];if(larg>d.l_max)x.push(`largeur ${larg} > ${d.l_max} mm`);if(haut>d.h_max)x.push(`hauteur ${haut} > ${d.h_max} mm`);return x;};
+  if(!cand.length)return {statut:"non_verifiable",ligne:null,lignes:[],...gris,
+    texte:variantes.length
+      ?`Domaine d'emploi non vérifiable : ligne(s) fabricant sur variante seulement pour ${libEl} — ${variantes.map(fmt).join(" ; ")}`
+      :`Domaine d'emploi non vérifiable : aucune ligne fabricant pour ${libEl} — lignes disponibles : ${ev.map(fmt).join(" ; ")}`};
+  const hors=cand.filter(d=>dep(d).length), dans=cand.filter(d=>!dep(d).length);
+  const varOk=variantes.filter(d=>!dep(d).length);
+  if(!dans.length&&varOk.length)return {statut:"non_verifiable",ligne:null,lignes:cand,...gris,
+    texte:`Domaine d'emploi non vérifiable : dépassé pour ${hors.map(fmt).join(" ; ")} · respecté seulement avec variante ${varOk.map(fmt).join(" ; ")} — à préciser avec le fabricant`};
+  if(!hors.length)return {statut:"ok",ligne:cand[0],lignes:cand,couleur:"#065f46",bg:"#f0fdf4",
+    texte:`Dans le domaine d'emploi (${cand.map(fmt).join(" ; ")})`};
+  if(!dans.length)return {statut:"hors",ligne:cand[0],lignes:cand,couleur:"#9a3412",bg:"#fff7ed",
+    texte:cand.length===1
+      ?`Hors domaine d'emploi (${cand[0].type}) : ${dep(cand[0]).join(", ")} — à valider avec le fabricant`
+      :`Hors domaine d'emploi : ${cand.map(d=>`${d.type} (${dep(d).join(", ")})`).join(" ; ")} — à valider avec le fabricant`};
+  return {statut:"non_verifiable",ligne:null,lignes:cand,...gris,
+    texte:`Domaine d'emploi non vérifiable : lignes fabricant discordantes pour ${libEl} — respecté pour ${dans.map(fmt).join(" ; ")} · dépassé pour ${hors.map(fmt).join(" ; ")} — à préciser avec le fabricant`};
 }
 
 // Statut de validité d'un DTA à partir de sa date "JJ/MM/AAAA".
@@ -586,7 +727,77 @@ function nbVantauxElement(el,sys){
   const defautFamille=/coulissant|porte-?fen/i.test(famille)?2:1;
   return Math.max(1,+el.nb_vantaux||(sys&&sys.vantaux_defaut)||defautSoustype||defautFamille);
 }
+// ── CONTRÔLE DE LA GÉOMÉTRIE SAISIE (v2.6.4) ───────────────────────────────
+// Une géométrie impossible n'est jamais corrigée en silence : elle est signalée
+// (valeurs saisies citées) et aucun calcul (panneaux, DTU 39, poids, domaine
+// d'emploi) n'est conduit dessus. Les géométries valides ne sont pas modifiées.
+// complet=false : largeur ou hauteur pas encore saisie (comportement inchangé).
+function valeurSaisie(v){
+  if(v==null)return null;
+  if(typeof v==="number")return isFinite(v)?v:NaN;
+  const s=String(v).trim();
+  if(!s)return null;
+  const n=Number(s);
+  return isFinite(n)?n:NaN;
+}
+function controleGeometrie(el){
+  if(!el||typeof el!=="object")return {ok:false,complet:false,erreurs:["élément absent"],message:"élément absent"};
+  const err=[];
+  const brut=v=>`« ${String(v).trim()} »`;
+  const cote=(nom,raw,{min0=false,entier=false}={})=>{
+    const v=valeurSaisie(raw);
+    if(v===null)return null;
+    if(Number.isNaN(v)){err.push(`${nom} ${brut(raw)} non numérique`);return NaN;}
+    if(min0?v<0:v<=0){err.push(`${nom} ${brut(raw)} : doit être ${min0?"≥ 0":"> 0"}`);return NaN;}
+    if(entier&&!Number.isInteger(v)){err.push(`${nom} ${brut(raw)} : doit être un nombre entier`);return NaN;}
+    return v;
+  };
+  const L=cote("Largeur",el.largeur), H=cote("Hauteur",el.hauteur);
+  const Lok=typeof L==="number"&&L>0, Hok=typeof H==="number"&&H>0;
+  cote("Hauteur d'allège",el.allege_h,{min0:true});
+  const perso=el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length>0;
+  if(perso){
+    // Panneaux personnalisés : chaque ligne entamée doit être complète, positive et
+    // contenue dans l'élément ; la somme des surfaces ne peut dépasser L × H.
+    let nbComplets=0, surf=0;
+    el.panneaux.forEach((p,k)=>{
+      const nom=`Panneau ${k+1}${p&&p.label?` (${p.label})`:""}`;
+      const vl=valeurSaisie(p&&p.largeur), vh=valeurSaisie(p&&p.hauteur);
+      if(vl===null&&vh===null)return; // ligne vide : ignorée (inchangé)
+      const n0=err.length;
+      const pl=cote(`${nom} : largeur`,p.largeur), ph=cote(`${nom} : hauteur`,p.hauteur);
+      if(vl===null)err.push(`${nom} : largeur non renseignée`);
+      if(vh===null)err.push(`${nom} : hauteur non renseignée`);
+      const q=cote(`${nom} : quantité`,p.qte,{entier:true});
+      if(err.length>n0)return;
+      if(Lok&&pl>L)err.push(`${nom} : largeur ${pl} mm > largeur de l'élément ${L} mm`);
+      if(Hok&&ph>H)err.push(`${nom} : hauteur ${ph} mm > hauteur de l'élément ${H} mm`);
+      nbComplets++; surf+=pl*ph*(q||1);
+    });
+    if(!nbComplets&&!err.length)err.push("Panneaux personnalisés : aucune ligne complète (compléter ou supprimer les lignes)");
+    if(Lok&&Hok&&nbComplets&&surf>L*H*1.005)err.push(`Panneaux personnalisés : surface totale ${(surf/1e6).toFixed(2)} m² > surface de l'élément ${(L*H/1e6).toFixed(2)} m² (${L} × ${H} mm)`);
+  }else if(el.type==="facade"){
+    const tr=cote("Trame",el.trame), hp=cote("Hauteur de panneau",el.haut_panneau);
+    cote("Nombre d'ouvrants",el.nb_ouvrants,{min0:true,entier:true});
+    const trEff=typeof tr==="number"?tr:(valeurSaisie(el.trame)===null?1350:null);
+    if(Lok&&trEff!=null&&trEff>L)err.push(`Trame ${trEff} mm${valeurSaisie(el.trame)===null?" (valeur par défaut)":""} > largeur de la façade ${L} mm`);
+    if(Hok&&typeof hp==="number"&&hp>H)err.push(`Hauteur de panneau ${hp} mm > hauteur de la façade ${H} mm`);
+    const al=valeurSaisie(el.allege_h);
+    if(el.allege_opaque&&Hok&&typeof al==="number"&&al>=H)err.push(`Allège opaque ${al} mm ≥ hauteur de la façade ${H} mm : plus de partie vitrée`);
+  }else if(el.soustype==="Fenêtre fixe"){
+    cote("Nombre de montants",el.nb_montants,{min0:true,entier:true});
+    cote("Nombre de traverses",el.nb_traverses,{min0:true,entier:true});
+  }else{
+    // Châssis ouvrant : un ouvrant doit rester présent à côté du fixe latéral.
+    const nv=cote("Nombre de vantaux",el.nb_vantaux,{entier:true});
+    const lf=cote("Largeur du fixe latéral",el.larg_fixe,{min0:true});
+    if(Lok&&typeof lf==="number"&&lf>=L)err.push(`Largeur du fixe latéral ${lf} mm ${lf>L?">":"="} largeur totale ${L} mm : aucune place pour l'ouvrant prévu (${el.soustype||"châssis ouvrant"})`);
+  }
+  return {ok:err.length===0,complet:Lok&&Hok,erreurs:err,message:err.join(" ; ")};
+}
 function panneauxCalcul(el,sys){
+  // v2.6.4 : géométrie impossible → aucun panneau (plus de correction silencieuse)
+  if(!controleGeometrie(el).ok)return [];
   const L=+el.largeur||0, H=+el.hauteur||0;
   if(!L||!H)return [];
   // 1) Panneaux personnalisés (façade ou châssis composé)
@@ -654,31 +865,178 @@ function epaisseurDTUProjet(projet){
   const vals=(projet.elements||[]).map(el=>calcVentElement(el,projet)).filter(Boolean).map(r=>r.dtu.eRequired);
   return vals.length?Math.max(...vals)+" mm":"";
 }
-// Thermique : ligne du catalogue correspondant au type d'élément (fenêtre / PF,
-// 1 ou 2 vantaux) et au Ug du vitrage choisi. CORRIGÉ v2.5 : avant, il suffisait
-// qu'UNE configuration quelconque du catalogue passe pour afficher "Conforme".
+// Thermique — CORRIGÉ v2.6.1, complété v2.6.2. Une ligne du catalogue ne sert à
+// déclarer la conformité (ok:true) ou la non-conformité (ok:false) que si elle
+// correspond VRAIMENT à l'élément :
+//   1. même famille (fenêtre / porte-fenêtre / porte / coulissant / fixe / façade) ;
+//   2. même nombre de vantaux (lignes « 1 vtl », « 2 vtx »…) ;
+//   3. même Ug que le vitrage prévu (± 0,05). Un essai à Ug différent — plus faible
+//      OU plus élevé — n'est pas la configuration testée : indicatif seulement ;
+//   4. toutes les variantes restantes (classe Thi, intercalaire…), que l'élément ne
+//      précise pas, doivent donner le même verdict ;
+//   5. mêmes dimensions que la DIMENSION DE RÉFÉRENCE de l'essai, dans la précision
+//      des données (« 1.25x1.48 » = ± 5 mm ; « 1.5x3.0 » = ± 50 mm). Le Uw catalogue
+//      est celui de cette dimension : pour une autre dimension il faut un calcul
+//      (EN ISO 10077-1) — GlassIQ n'en fait pas et n'applique aucune règle de
+//      transposition. Le rapport périmètre / surface est affiché à titre
+//      d'information sur la tendance, jamais comme justification.
+// Faute de correspondance justifiée : ok:null, la valeur catalogue reste indicative.
+// v2.6.2 : toutes les valeurs numériques passent par nombreThermique() (virgule ou
+// point décimal, « 1,1 W/m²K » accepté, valeurs illisibles ou incohérentes refusées).
+
+// Conversion numérique robuste : nombre fini, ou texte « 1,1 » / « 1.1 » / « 1,1 W/m²K ».
+// Refusé (null) : vide, texte non numérique, nombre incomplet (« 1, » « ,5 » « 1. »),
+// plusieurs séparateurs (« 1,1,1 » « 1.234,5 »), unité autre que W/m²K.
+function nombreThermique(v){
+  if(typeof v==="number")return isFinite(v)?v:null;
+  if(v==null)return null;
+  const s=String(v).replace(/ /g," ").trim();
+  const m=s.match(/^(-?\d+(?:[.,]\d+)?)\s*(?:w\s*\/\s*\(?\s*m\s*(?:²|2)\s*[.·]?\s*k\s*\)?)?$/i);
+  if(!m)return null;
+  const n=parseFloat(m[1].replace(",","."));
+  return isFinite(n)?n:null;
+}
+// Plages de cohérence : en dehors, la valeur est refusée (saisie erronée probable)
+const PLAGE_UG=[0.1,6], PLAGE_UW=[0.1,10];
+const dansPlage=(n,[a,b])=>n!=null&&n>=a&&n<=b;
+function familleThermique(txt){
+  const s=String(txt||"").toLowerCase();
+  if(!s.trim())return null;
+  if(/sous imposte|ensemble|compos[ée]/.test(s))return "compose";
+  if(/porte[- ]?fen|\bpf\b/.test(s))return "porte-fenetre";
+  if(/galandage|coulissant|levant|tirail/.test(s))return "coulissant";
+  if(/fa[çc]ade|\bfws\b|\bcw\s?\d|mur[- ]rideau|wictec/.test(s))return "facade";
+  if(/^\s*(bloc[- ])?porte\b/.test(s))return "porte";
+  if(/^\s*(bloc[- ])?fen[êe]tre/.test(s))return /fixe/.test(s)?"fixe":"fenetre";
+  if(/^\s*([ée]l[ée]ment |ch[âa]ssis )?fixe\b/.test(s)&&!/ouvrant/.test(s))return "fixe";
+  return null;
+}
+// Précision d'une cote écrite dans le libellé (« 1.25 » → ± 0,005 m ; « 1.5 » → ± 0,05 m)
+const precisionCote=txt=>{const d=(String(txt).split(/[.,]/)[1]||"").length;return 0.5*Math.pow(10,-d);};
+function lireLigneThermique(t){
+  const cfg=String(t.config||"");
+  let ug=nombreThermique(t.ug);
+  if(ug==null){const m=cfg.match(/ug\s*([0-9]+[.,][0-9]+)/i);ug=m?nombreThermique(m[1]):null;}
+  if(!dansPlage(ug,PLAGE_UG))ug=null;
+  let nv=null;
+  const mOu=cfg.match(/(\d)\s*ou\s*(\d)\s*(vtx|vantaux)/i);
+  if(mOu)nv=[+mOu[1],+mOu[2]];
+  else{const m=cfg.match(/(\d)\s*(vtl|vtx|vantaux|vantail)\b/i);if(m)nv=[+m[1]];}
+  const d=cfg.match(/(\d+[.,]\d+)\s*[x×]\s*(\d+[.,]\d+)/);
+  const ref=d?{L:nombreThermique(d[1]),H:nombreThermique(d[2]),tolL:precisionCote(d[1]),tolH:precisionCote(d[2])}:null;
+  return {t,config:cfg,uw:nombreThermique(t.uw),ug,famille:familleThermique(cfg),nv,ref};
+}
+function familleElement(el){
+  if(!el)return null;
+  if(el.type==="facade")return "facade";
+  const st=String(el.soustype||"");
+  if(/fixe/i.test(st))return "fixe";
+  if(/porte[- ]?fen/i.test(st))return "porte-fenetre";
+  if(/coulissant/i.test(st))return "coulissant";
+  if(/^porte/i.test(st))return "porte";
+  if(/fen[êe]tre/i.test(st))return "fenetre";
+  return null;
+}
+const LIB_FAMILLE={"fenetre":"fenêtre","porte-fenetre":"porte-fenêtre","porte":"porte","coulissant":"coulissant","fixe":"châssis fixe","facade":"façade"};
 function verifThermique(sys,el,projet){
-  const th=((sys&&sys.thermique)||[]).filter(t=>typeof t.uw==="number"&&isFinite(t.uw));
-  if(!th.length)return {ok:null,cfg:null,note:"Données thermiques manquantes"};
-  let cand=th;
-  if(el&&el.type!=="facade"){
-    const estPorte=/porte/i.test(el.soustype||"");
-    const byKind=cand.filter(t=>estPorte?/porte/i.test(t.config):/^fen[êe]tre/i.test(t.config));
-    if(byKind.length)cand=byKind;
-    const nv=nbVantauxElement(el,sys);
-    const byNv=cand.filter(t=>nv>=2?/2 vtx|2 vantaux/i.test(t.config):/1 vtl|1 vantail/i.test(t.config));
-    if(byNv.length)cand=byNv;
+  const tout=((sys&&sys.thermique)||[]).map(lireLigneThermique).filter(x=>dansPlage(x.uw,PLAGE_UW));
+  const res=(ok,cfg,court,note,extra)=>({ok,cfg:cfg?{...cfg.t,uw:cfg.uw,ug:cfg.ug!=null?cfg.ug:cfg.t.ug}:null,court,note,indicatif:ok===null&&!!cfg,...(extra||{})});
+  if(!tout.length)return res(null,null,"Données thermiques manquantes","Données thermiques manquantes ou illisibles au catalogue de ce système");
+  const lignes=tout;
+  const fam=familleElement(el);
+  const libF=LIB_FAMILLE[fam]||"élément";
+  const pire=l=>l.reduce((b,x)=>(!b||x.uw>b.uw)?x:b,null);
+  const fmt=v=>v==null?"?":String(v).replace(".",",");
+  const lister=l=>[...new Set(l.map(x=>x.config))].slice(0,3).join(" ; ")+(l.length>3?" …":"");
+  const cands=l=>({candidats:l.map(x=>x.t)});
+  // Exigence Uw max et Ug du vitrage : saisies éventuellement avec une virgule
+  const brut=v=>v==null?"":String(v).trim();
+  const uwMaxTxt=brut(projet&&projet.uw_max), ugTxt=brut(projet&&projet.controle_ug);
+  const uwMax=nombreThermique(uwMaxTxt), ugVit=nombreThermique(ugTxt);
+
+  // ── 1. Châssis composé : aucune ligne catalogue ne le représente
+  if(el&&el.type!=="facade"&&(el.chassis_compose||(el.mode_trame==="personnalisee"&&Array.isArray(el.panneaux)&&el.panneaux.length))){
+    return res(null,null,"Châssis composé : Uw à calculer",
+      "Châssis composé : aucune ligne catalogue ne le représente — Uw à calculer (EN ISO 10077-1). Lignes disponibles, indicatives : "+lister(lignes),cands(lignes));
   }
-  const ugVit=parseFloat(projet&&projet.controle_ug);
-  let ugNote="";
-  if(ugVit>0){
-    // Une config testée avec un Ug égal ou moins bon reste du côté de la sécurité
-    const byUg=cand.filter(t=>typeof t.ug==="number"&&t.ug>=ugVit-1e-9);
-    if(byUg.length)cand=byUg; else ugNote=` — aucune config au Ug ${ugVit}, valeur catalogue`;
+  // ── 2. Famille
+  const parFam=lignes.filter(x=>x.famille&&x.famille===fam);
+  if(!fam||!parFam.length){
+    return res(null,null,`Aucun essai « ${libF} » au catalogue`,
+      `Aucune ligne thermique « ${libF} » pour ce système : résultat non transposable. Lignes disponibles, indicatives : ${lister(lignes)}`,cands(lignes));
   }
-  const best=cand.reduce((b,t)=>(!b||t.uw<b.uw)?t:b,null);
-  const uwMax=parseFloat(projet&&projet.uw_max);
-  return {ok:uwMax>0?best.uw<=uwMax:null,cfg:best,note:`Uw ${best.uw} W/m²K · ${best.config}${ugNote}`};
+  // ── 3. Nombre de vantaux (sans objet pour fixe / façade)
+  let cand=parFam, nvNote="";
+  if(fam!=="fixe"&&fam!=="facade"){
+    const nvExplicite=+(el&&el.nb_vantaux)>0;
+    const nv=nbVantauxElement(el||{},sys);
+    if(!nvExplicite)nvNote=` (${nv} ${nv>1?"vantaux":"vantail"} par défaut — préciser le nombre de vantaux)`;
+    cand=parFam.filter(x=>x.nv&&x.nv.includes(nv));
+    if(!cand.length){
+      const ind=pire(parFam);
+      return res(null,ind,`Pas d'essai ${libF} ${nv} vtx`,
+        `Aucune ligne « ${libF} ${nv} ${nv>1?"vantaux":"vantail"} »${nvNote} : la ligne ${ind.config} (Uw ${fmt(ind.uw)}) ne s'applique pas — indicatif seulement`,cands(parFam));
+    }
+  }
+  // ── 4. Ug du vitrage prévu : seul un essai au même Ug est la configuration testée
+  const ugsCat=[...new Set(cand.map(x=>x.ug).filter(v=>v!=null))].sort();
+  if(!ugTxt||!dansPlage(ugVit,PLAGE_UG)){
+    const ind=pire(cand);
+    const lu=!ugTxt?"Ug du vitrage non renseigné (étape Contrôle solaire)":`Ug du vitrage illisible ou incohérent (« ${ugTxt} »)`;
+    return res(null,ind,!ugTxt?"Ug du vitrage non renseigné":"Ug du vitrage illisible",
+      `${lu} : choix de ligne impossible. Catalogue ${libF}${nvNote} : Uw ${fmt(Math.min(...cand.map(x=>x.uw)))}–${fmt(Math.max(...cand.map(x=>x.uw)))} W/m²K selon Ug ${ugsCat.map(fmt).join(" / ")||"?"} — indicatif`,cands(cand));
+  }
+  const sel=cand.filter(x=>x.ug!=null&&Math.abs(x.ug-ugVit)<=0.05);
+  if(!sel.length){
+    const ind=pire(cand);
+    const sens=ugsCat.length&&ugsCat.every(u=>u<ugVit)?"obtenu avec un vitrage plus performant"
+              :ugsCat.length&&ugsCat.every(u=>u>ugVit)?"obtenu avec un vitrage moins performant (tendance favorable, mais configuration non testée)"
+              :"obtenu avec un autre vitrage";
+    return res(null,ind,`Pas d'essai à Ug ${fmt(ugVit)}`,
+      `Aucun essai à Ug ${fmt(ugVit)} (catalogue : Ug ${ugsCat.map(fmt).join(" / ")||"non indiqué"}) : un résultat ${sens} n'est pas transposable — Uw ${fmt(ind.uw)} indicatif`,cands(cand));
+  }
+  if(!uwMaxTxt||!dansPlage(uwMax,PLAGE_UW)){
+    const ind=pire(sel);
+    return res(null,ind,!uwMaxTxt?"Uw max non précisé":"Uw max illisible",
+      `${!uwMaxTxt?"Uw max non précisé au CCTP":`Uw max illisible ou incohérent (« ${uwMaxTxt} »)`} — catalogue : ${ind.config}, Uw ${fmt(ind.uw)} W/m²K (indicatif)`,cands(sel));
+  }
+  // ── 5. Variantes non précisées par l'élément (Thi, intercalaire…) : verdict unanime exigé
+  const passe=sel.filter(x=>x.uw<=uwMax+1e-9), echoue=sel.filter(x=>x.uw>uwMax+1e-9);
+  if(passe.length&&echoue.length){
+    const ind=pire(sel);
+    return res(null,ind,"Dépend de la variante",
+      `Conforme seulement avec : ${lister(passe)} — non conforme avec : ${lister(echoue)}. Préciser la variante (classe Thi, intercalaire) pour conclure`,cands(sel));
+  }
+  // ── 6. Dimension de référence de l'essai = dimensions de l'élément (précision des données)
+  const L=nombreThermique(el&&el.largeur), H=nombreThermique(el&&el.hauteur);
+  const Lm=L>0?L/1000:null, Hm=H>0?H/1000:null;
+  const ref=pire(sel);
+  const txtRef=x=>x.ref?`${fmt(x.ref.L)} × ${fmt(x.ref.H)} m`:"dimension non indiquée";
+  const txtEl=Lm&&Hm?`${Lm.toFixed(2).replace(".",",")} × ${Hm.toFixed(2).replace(".",",")} m`:"dimensions non saisies";
+  const base=`${ref.config} : Uw ${fmt(ref.uw)} W/m²K`;
+  const verdictCat=echoue.length?`> ${fmt(uwMax)}`:`≤ ${fmt(uwMax)}`;
+  let raison=null;
+  if(fam==="facade"||sel.some(x=>!x.ref||x.ref.L==null||x.ref.H==null))raison="dimension de référence de l'essai non indiquée au catalogue";
+  else if(!(Lm&&Hm))raison="dimensions de l'élément non saisies";
+  else{
+    const ecarts=sel.filter(x=>Math.abs(Lm-x.ref.L)>x.ref.tolL+1e-9||Math.abs(Hm-x.ref.H)>x.ref.tolH+1e-9);
+    if(ecarts.length){
+      // Information seulement : part de cadre relative (périmètre / surface) — aucune valeur probante
+      const pa=(a,b)=>2*(a+b)/(a*b), r=ecarts[0].ref, ratio=pa(Lm,Hm)/pa(r.L,r.H)-1;
+      const tendance=Math.abs(ratio)<0.005?"comparable":ratio>0?`plus élevée d'environ ${Math.round(ratio*100)} %`:`plus faible d'environ ${Math.round(-ratio*100)} %`;
+      raison=`élément ${txtEl} ≠ dimension de référence ${txtRef(ecarts[0])} (information : part de cadre périmètre / surface ${tendance} — ce rapport n'est pas une justification)`;
+    }
+  }
+  if(raison){
+    return res(null,ref,"Dimension ≠ référence : Uw à calculer",
+      `${base} ${verdictCat} à la dimension de référence ${txtRef(ref)}, mais ${raison}. Valeur catalogue indicative — calcul EN ISO 10077-1 requis pour conclure${nvNote}`,
+      {...cands(sel),dimension_ref:ref.ref,dimension_element:Lm&&Hm?{L:Lm,H:Hm}:null});
+  }
+  const extra={...cands(sel),dimension_ref:ref.ref,dimension_element:{L:Lm,H:Hm}};
+  if(!echoue.length)return res(true,ref,`Uw cat. ${fmt(ref.uw)} ≤ ${fmt(uwMax)} (réf. ${txtRef(ref)})`,
+    `${base} ≤ ${fmt(uwMax)} — élément aux dimensions de référence de l'essai (${txtRef(ref)}). Valeur catalogue, pas un Uw calculé${nvNote}`,extra);
+  return res(false,ref,`Uw cat. ${fmt(ref.uw)} > ${fmt(uwMax)}`,
+    `${base} > ${fmt(uwMax)} — élément aux dimensions de référence de l'essai (${txtRef(ref)})${nvNote}`,extra);
 }
 
 // ── VÉRIFICATION D'UNE COMPOSITION SUR UN ÉLÉMENT ──────────────────────────
@@ -1459,33 +1817,118 @@ function getDB(){
 function getControles(){try{const r=localStorage.getItem("glassiq_v2_ctrl");return r?JSON.parse(r):INITIAL_CONTROLES;}catch{return INITIAL_CONTROLES;}}
 
 // ── GESTION DES PROJETS (sauvegarde / chargement) ──────────────────────────
-function getProjets(){try{const r=localStorage.getItem("glassiq_v2_projets");return r?JSON.parse(r):[];}catch{return [];}}
-function saveProjets(list){try{localStorage.setItem("glassiq_v2_projets",JSON.stringify(list));return true;}catch{return false;}}
+// CORRIGÉ v2.6.5 : chaque écriture est contrôlée (exception, quota, relecture) et
+// chaque opération renvoie {ok, erreur, liste…} ; l'interface n'annonce un succès
+// que si ok===true. Lecture : un contenu illisible (JSON invalide) ou mal structuré
+// (pas une liste, entrées non objets) n'est JAMAIS traité comme une liste vide :
+// toute écriture est alors refusée, les données restent en place, les projets
+// lisibles restent consultables et exportables. Format et clé inchangés.
+const CLE_PROJETS="glassiq_v2_projets";
+function messageErreurStockage(e){
+  const n=String((e&&e.name)||""), m=String((e&&e.message)||"");
+  if(/quota/i.test(n)||/quota/i.test(m)||(e&&(e.code===22||e.code===1014)))return "espace de stockage du navigateur plein (quota dépassé)";
+  if(/security/i.test(n))return "stockage du navigateur bloqué (navigation privée ou paramètres de sécurité)";
+  return "écriture refusée par le navigateur"+(m?` (${m})`:"");
+}
+// Lecture contrôlée : {ok, statut, projets (lisibles), erreur, brut}
+//   statut : "vide" | "ok" | "indisponible" | "json_invalide" | "structure_invalide"
+function lireProjets(){
+  let brut;
+  try{brut=localStorage.getItem(CLE_PROJETS);}
+  catch(e){return {ok:false,statut:"indisponible",projets:[],brut:null,erreur:"Stockage du navigateur inaccessible — "+messageErreurStockage(e)};}
+  if(brut==null)return {ok:true,statut:"vide",projets:[],brut:null};
+  let data;
+  try{data=JSON.parse(brut);}
+  catch(e){return {ok:false,statut:"json_invalide",projets:[],brut,erreur:"Les projets enregistrés dans ce navigateur sont illisibles (JSON invalide). Aucune écriture n'est faite pour ne pas les écraser."};}
+  if(!Array.isArray(data)){
+    const un=data&&typeof data==="object"&&(data.elements||data.nom||data._pid)?[data]:[];
+    return {ok:false,statut:"structure_invalide",projets:un,brut,erreur:`Les données enregistrées ne sont pas une liste de projets (${data===null?"null":typeof data}). Aucune écriture n'est faite pour ne pas les écraser.`};
+  }
+  const lisibles=data.filter(p=>p&&typeof p==="object"&&!Array.isArray(p));
+  if(lisibles.length!==data.length)return {ok:false,statut:"structure_invalide",projets:lisibles,brut,
+    erreur:`${data.length-lisibles.length} entrée(s) sur ${data.length} ne sont pas des projets. Aucune écriture n'est faite pour ne pas les écraser.`};
+  return {ok:true,statut:"ok",projets:data,brut};
+}
+// Écriture contrôlée : {ok, erreur}. Relecture pour vérifier que les données sont bien en place.
+function ecrireProjets(list){
+  if(!Array.isArray(list))return {ok:false,erreur:"liste de projets invalide"};
+  let txt;
+  try{txt=JSON.stringify(list);}catch(e){return {ok:false,erreur:"projet impossible à enregistrer (données non sérialisables)"};}
+  try{localStorage.setItem(CLE_PROJETS,txt);}catch(e){return {ok:false,erreur:messageErreurStockage(e)};}
+  try{if(localStorage.getItem(CLE_PROJETS)!==txt)return {ok:false,erreur:"vérification après écriture : données relues différentes"};}
+  catch(e){return {ok:false,erreur:"vérification après écriture impossible — "+messageErreurStockage(e)};}
+  return {ok:true};
+}
+// Compatibilité : mêmes signatures qu'avant (getProjets ne renvoie que des projets lisibles et n'écrit jamais)
+function getProjets(){return lireProjets().projets;}
+function saveProjets(list){return ecrireProjets(list).ok;}
 function uid(){return "P"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+const refusLecture=lec=>({ok:false,erreur:lec.erreur,liste:lec.projets,lecture:lec});
+// Sauvegarde : {ok, projet (copie enregistrée), liste} ou {ok:false, erreur, liste}.
+// Le projet passé n'est jamais modifié : en cas d'échec, ni _pid ni dates ne changent.
 function sauverProjet(projet){
-  const list=getProjets();
+  const lec=lireProjets();
+  if(!lec.ok)return refusLecture(lec);
+  const list=lec.projets.slice();
   const now=new Date().toISOString();
   let p={...projet};
   if(!p._pid){p._pid=uid();p._cree=now;}
   p._maj=now;
   const idx=list.findIndex(x=>x._pid===p._pid);
   if(idx>=0)list[idx]=p; else list.push(p);
-  saveProjets(list);
-  return p;
+  const w=ecrireProjets(list);
+  if(!w.ok)return {ok:false,erreur:w.erreur,liste:lec.projets};
+  return {ok:true,projet:p,liste:list};
 }
 function supprimerProjet(pid){
-  const list=getProjets().filter(x=>x._pid!==pid);
-  saveProjets(list);
-  return list;
+  const lec=lireProjets();
+  if(!lec.ok)return refusLecture(lec);
+  if(!pid||!lec.projets.some(x=>x._pid===pid))return {ok:false,erreur:"projet introuvable dans le stockage",liste:lec.projets};
+  const list=lec.projets.filter(x=>x._pid!==pid);
+  const w=ecrireProjets(list);
+  if(!w.ok)return {ok:false,erreur:w.erreur,liste:lec.projets};
+  return {ok:true,liste:list};
 }
 function dupliquerProjet(pid){
-  const list=getProjets();
-  const src=list.find(x=>x._pid===pid);
-  if(!src)return list;
+  const lec=lireProjets();
+  if(!lec.ok)return refusLecture(lec);
+  const src=pid?lec.projets.find(x=>x._pid===pid):null;
+  if(!src)return {ok:false,erreur:"projet introuvable dans le stockage",liste:lec.projets};
   const copie={...JSON.parse(JSON.stringify(src)),_pid:uid(),_cree:new Date().toISOString(),_maj:new Date().toISOString(),nom:(src.nom||"Projet")+" (copie)"};
-  list.push(copie);
-  saveProjets(list);
-  return list;
+  const list=[...lec.projets,copie];
+  const w=ecrireProjets(list);
+  if(!w.ok)return {ok:false,erreur:w.erreur,liste:lec.projets};
+  return {ok:true,liste:list,copie};
+}
+// Import d'une liste de projets : {ok, nb, liste} ou {ok:false, erreur, liste}
+function importerProjets(arr){
+  const lec=lireProjets();
+  if(!lec.ok)return refusLecture(lec);
+  const list=lec.projets.slice();
+  const ajout=arr.map(p0=>{
+    const p={...p0};
+    if(!p._pid||list.find(x=>x._pid===p._pid))p._pid=uid();
+    p._importe=new Date().toISOString();
+    list.push(p);
+    return p;
+  });
+  const w=ecrireProjets(list);
+  if(!w.ok)return {ok:false,erreur:w.erreur,liste:lec.projets};
+  return {ok:true,nb:ajout.length,liste:list};
+}
+// Remise en service d'un stockage illisible, à la demande explicite de l'utilisateur :
+// le contenu brut est d'abord COPIÉ sous une clé d'archive (rien n'est supprimé), puis
+// seule la liste des projets lisibles est écrite. Échec de l'archive → rien n'est écrit.
+function archiverEtReparerProjets(){
+  const lec=lireProjets();
+  if(lec.ok)return {ok:false,erreur:"le stockage est déjà lisible : aucune action nécessaire",liste:lec.projets};
+  if(lec.statut==="indisponible")return refusLecture(lec);
+  const cle=CLE_PROJETS+"_archive_"+new Date().toISOString().replace(/[:.]/g,"-");
+  try{localStorage.setItem(cle,lec.brut);if(localStorage.getItem(cle)!==lec.brut)throw new Error("relecture de l'archive différente");}
+  catch(e){return {ok:false,erreur:"archivage des données illisibles impossible — "+messageErreurStockage(e)+" ; rien n'a été modifié",liste:lec.projets};}
+  const w=ecrireProjets(lec.projets);
+  if(!w.ok)return {ok:false,erreur:w.erreur+" (archive conservée sous "+cle+")",liste:lec.projets};
+  return {ok:true,cle,liste:lec.projets};
 }
 
 
@@ -1612,6 +2055,19 @@ function ImportChiffrage({projet,setProjet}){
     {msg&&<div style={{marginTop:6,fontSize:12,padding:"6px 10px",borderRadius:6,background:msg.t==="ok"?"#d1fae5":"#fef3c7",color:msg.t==="ok"?"#065f46":"#92400e"}}>{msg.m}</div>}
   </div>;
 }
+function BandeauPression({diag,style}){
+  if(!diag||diag.ok)return null;
+  const grave=diag.statut==="hors_domaine"||diag.statut==="hauteur_invalide";
+  return <div style={{padding:"8px 14px",borderRadius:8,fontSize:12,fontWeight:600,background:grave?"#fef2f2":"#f3f4f6",color:grave?"#991b1b":"#4b5563",border:`1px solid ${grave?"#fecaca":"#e5e7eb"}`,...(style||{})}}>
+    {grave?"⛔ ":"ℹ "}Pression DTU 39 non vérifiable — {diag.message}{grave?" · résistance et flèche du vitrage non vérifiées, aucune conformité vent déclarée":""}
+  </div>;
+}
+function BandeauGeometrie({geo,style}){
+  if(!geo||geo.ok)return null;
+  return <div style={{padding:"8px 14px",borderRadius:8,fontSize:12,fontWeight:600,background:"#fef2f2",color:"#991b1b",border:"1px solid #fecaca",...(style||{})}}>
+    ⛔ Géométrie incohérente — {geo.message}. Aucun calcul (vitrages, DTU 39, poids, domaine d'emploi) n'est conduit sur cette saisie : corriger les valeurs.
+  </div>;
+}
 function ChiffrageInfo({el,projet}){
   const ch=el.chiffrage||{};
   const compo=ch.composition;
@@ -1621,7 +2077,7 @@ function ChiffrageInfo({el,projet}){
     else if(el.type!=="facade"&&!el.chassis_compose&&/Plus de 6 m/.test(ch.controles||""))dtu=<span style={{color:"#b45309"}}>DTU 39 non significatif : grand ensemble pris d'un seul vitrage — préciser le Nb de modules dans l'Excel ou cocher « Châssis composé »</span>;
     else{
       const r=verifVitrage(compo,+el.largeur||0,+el.hauteur||0,null,el,projet);
-      if(!r||r.resistance_ok==null)dtu=<span style={{color:"#6b7280"}}>DTU 39 : renseigner zone, terrain et hauteur du bâtiment</span>;
+      if(!r||r.resistance_ok==null){const g=controleGeometrie(el),dp=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);dtu=!g.ok?<span style={{color:"#991b1b",fontWeight:600}}>DTU 39 non vérifiable : géométrie incohérente ({g.message})</span>:!dp.ok&&dp.statut!=="hauteur_absente"&&dp.statut!=="donnees_vent"?<span style={{color:"#991b1b",fontWeight:600}}>DTU 39 non vérifiable : {dp.message}</span>:<span style={{color:"#6b7280"}}>DTU 39 : renseigner zone, terrain et hauteur du bâtiment</span>;}
       else{
         const ok=r.resistance_ok&&r.fleche_verre_ok!==false;
         dtu=<span style={{color:ok?"#065f46":"#991b1b",fontWeight:600}}>{ok?"✓":"✗"} DTU 39 — résistance {r.resistance_ok?"✓":"✗"} · flèche {r.fleche_verre_ok===false?"✗":r.fleche_verre_ok?"✓":"—"}{r.dtu_verre&&r.dtu_verre.eRequired?` (équiv. ${r.eR_reel} mm / requis ${r.dtu_verre.eRequired} mm)`:""}</span>;
@@ -2044,6 +2500,7 @@ function PageProjet({projet,setProjet,setPage}){
             </div>;
           })()}
           {vInfo}
+          <BandeauGeometrie geo={controleGeometrie(el)} style={{marginTop:8}}/>
         </div>;
       })}
       <ImportChiffrage projet={projet} setProjet={setProjet}/>
@@ -2069,6 +2526,7 @@ function PageProjet({projet,setProjet,setPage}){
         <div><label style={S.label}>Type de verre (ε3, Art.8 DTU 39)</label><select value={projet.type_verre||"recuit"} onChange={e=>upd("type_verre",e.target.value)} style={S.input}>{Object.entries(EPS3_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
         <div style={{fontSize:11,color:"#9ca3af",alignSelf:"center"}}>Détermine ε3 (coefficient de résistance). <strong style={{color:"#991b1b"}}>Composition MIXTE (ex. 44.2 recuit + monolithe trempé) : sélectionner le type le PLUS DÉFAVORABLE présent (ici recuit)</strong> — la méthode DTU 39 applique le ε3 du composant le moins résistant à toute la composition (cf. exemples officiels "ε3max"). Sélectionner "trempé" alors qu'une seule face l'est surestime la résistance.</div>
       </div>
+      {!pression&&<BandeauPression diag={diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat)} style={{marginTop:12}}/>}
       {pression&&<div style={{marginTop:12,padding:"10px 16px",background:"#1a1a2e",borderRadius:10,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.55)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m</div></div>}
     </div>
     {/* Récapitulatif */}
@@ -2118,6 +2576,7 @@ function PageVent({projet,setProjet,setPage}){
       <div><label style={S.label}>Hauteur vitrage/sol — calcul vent (m)</label><input type="number" value={projet.hauteur_sol} onChange={e=>upd("hauteur_sol",e.target.value)} placeholder="3" step="0.5" style={S.input}/></div>
       <div><label style={S.label}>Type de vitrage</label><select value={projet.type_vitrage} onChange={e=>upd("type_vitrage",e.target.value)} style={S.input}><option value="isolant_2lam">Double — 2 feuilletés</option><option value="isolant_lamine">Double — 1 mono + 1 feuilleté</option><option value="isolant_mono">Double — 2 monolithiques</option><option value="simple_lamine">Simple feuilleté</option></select></div>
     </div>
+    {!pression&&<BandeauPression diag={diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat)} style={{marginBottom:14}}/>}
     {pression&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m / {projet.hauteur_bat?getTranche(projet.hauteur_bat):""}</div></div>}
     <button onClick={calculer} disabled={!pression} style={S.btnPrimary}>💨 Calculer l'épaisseur DTU 39 pour chaque élément</button>
     {results&&<div style={{marginTop:20}}>
@@ -2136,8 +2595,9 @@ function PageVent({projet,setProjet,setPage}){
         return <div key={i} style={{...S.card,borderLeft:`3px solid ${el.type==="facade"?"#7c3aed":"#0d9488"}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:dtu?12:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><Badge color={el.type==="facade"?"purple":"teal"}>{el.type==="facade"?"Façade rideau":"Châssis"}</Badge><span style={{fontWeight:700}}>{el.label}</span><span style={{fontSize:12,color:"#6b7280"}}>{el.largeur}×{el.hauteur}mm</span></div>
-            {dtu?<div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#6b7280"}}>Épaisseur verre mini</div><div style={{fontSize:20,fontWeight:800,color:"#059669"}}>≥ {dtu.eRequired} mm</div></div>:<Badge color="gray">Dimensions non saisies</Badge>}
+            {dtu?<div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#6b7280"}}>Épaisseur verre mini</div><div style={{fontSize:20,fontWeight:800,color:"#059669"}}>≥ {dtu.eRequired} mm</div></div>:controleGeometrie(el).ok?<Badge color="gray">Dimensions non saisies</Badge>:<Badge color="red">Géométrie incohérente</Badge>}
           </div>
+          {!dtu&&<BandeauGeometrie geo={controleGeometrie(el)} style={{marginTop:8}}/>}
           {dtu&&<div>
             <div style={{fontSize:11,color:"#6b7280",marginBottom:6}}>Calculé sur le vitrage le plus défavorable : <strong>{r.panneau.largeur}×{r.panneau.hauteur} mm</strong>{r.panneau.label?` (${r.panneau.label})`:""}{r.nb>1?` — ${r.nb} vitrages différents vérifiés`:""}</div>
             <div style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:8,marginBottom:8,fontSize:13,color:"#065f46"}}>
@@ -2176,9 +2636,11 @@ function PageComparateur({db,projet,setProjet,setPage}){
   const el=projet.elements[selEl]||projet.elements[0];
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   const ventEl=el?calcVentElement(el,projet):null;
+  const geoEl=el?controleGeometrie(el):null;
+  const pDiag=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
 
   const chercher=async()=>{
-    if(!el)return;
+    if(!el||!controleGeometrie(el).ok)return;
     setLoading(true);
     await new Promise(r=>setTimeout(r,200));
     const ratr=parseInt(el.ratr)||36;
@@ -2223,8 +2685,8 @@ function PageComparateur({db,projet,setProjet,setPage}){
       }).sort((a,b)=>a.k!==b.k?a.k-b.k:a.m.rc-b.m.rc);
       const best=evals[0].m, vBest=evals[0].v, allege_ok=evals[0].al;
       const th=verifThermique(sys,el,projet);
-      const uw_ok=parseFloat(projet.uw_max)>0?th.ok:null;
-      const aev=verifAEV(sys,pression,el.type==="facade",projet.aev_min);
+      const uw_ok=String(projet.uw_max==null?"":projet.uw_max).trim()?th.ok:null;
+      const aev=verifAEV(sys,pression,el.type==="facade",projet.aev_min,el);
       const dta=statutDTA(sys.validite);
       const dta_ok=dta.statut==="expire"?false:dta.statut==="inconnu"?null:true;
       const vd=verifDimensions(sys,+el.largeur,+el.hauteur,el);
@@ -2234,7 +2696,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
       const resistance_ok=vBest?vBest.resistance_ok:null;
       const fleche_verre_ok=vBest?vBest.fleche_verre_ok:null;
       const ko=[uw_ok,aev.ok,ep_ok,poids_ok,resistance_ok,fleche_verre_ok,dta_ok,dim_ok,allege_ok].filter(c=>c===false).length;
-      solutions.push({sys,best,allMatches:matches,uw_ok,th,aev_ok:aev.ok,aev_note:aev.note,ep_ok,poids_ok,resistance_ok,fleche_verre_ok,dta_ok,dim_ok,allege_ok,ko});
+      solutions.push({sys,best,allMatches:matches,uw_ok,th,aev_ok:aev.ok,aev_note:aev.note,ep_ok,poids_ok,resistance_ok,fleche_verre_ok,dta_ok,dim_ok,dim_statut:vd.statut,allege_ok,ko});
     }
     solutions.sort((a,b)=>a.ko!==b.ko?a.ko-b.ko:a.best.rc-b.best.rc);
     setResults(solutions);setLoading(false);
@@ -2245,7 +2707,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
   // elles masqueraient le nouveau choix).
   const prescPour=(e,sys,best,serie)=>{
     const th=verifThermique(sys,e,projet);
-    const v=verifVitrage(best.composition,+e.largeur||1230,+e.hauteur||1480,sys,e,projet);
+    const v=controleGeometrie(e).ok?verifVitrage(best.composition,+e.largeur||1230,+e.hauteur||1480,sys,e,projet):null;
     const ve=calcVentElement(e,projet,sys);
     return {
       elId:e.id, sysId:sys.id,
@@ -2255,7 +2717,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
       rwctr:`${best.rc} dB`,
       rapport:best.test.rapport,
       correction:best.corr!==0?`${best.corr} dB`:"0 dB",
-      uw:th.cfg?`${th.cfg.uw} W/m²K`:"",
+      uw:th.cfg?`${th.cfg.uw} W/m²K ${th.ok===true?"(catalogue, dim. de réf.)":th.ok===false?"(catalogue — dépasse Uw max)":"(indicatif, non vérifié)"}`:"",
       aev:sys.aev&&sys.aev.length>0?sys.aev.map(a=>`${a.A}/${a.E}/${a.V}`).join(" | "):"",
       epaisseur_dtu:ve?`${ve.dtu.eRequired} mm`:"",
       epaisseur_reelle:v?`${v.epaisseur_totale} mm`:"",
@@ -2311,14 +2773,16 @@ function PageComparateur({db,projet,setProjet,setPage}){
 
     {el&&<div style={{...S.card,background:"#f9fafb",marginBottom:14}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
-        <Stat label="RA,tr requis" value={`≥ ${el.ratr} dB`} hi/><Stat label="Uw max" value={projet.uw_max?`≤ ${projet.uw_max}`:"Non précisé"}/><Stat label="g max" value={projet.g_max?`≤ ${projet.g_max}`:"Non précisé"}/><Stat label="Pression vent" value={pression?`${pression} Pa`:"Non calculée"}/><Stat label="Épaisseur DTU 39" value={ventEl?`≥ ${ventEl.dtu.eRequired} mm`:"Non calculée"}/>
+        <Stat label="RA,tr requis" value={`≥ ${el.ratr} dB`} hi/><Stat label="Uw max" value={projet.uw_max?`≤ ${projet.uw_max}`:"Non précisé"}/><Stat label="g max" value={projet.g_max?`≤ ${projet.g_max}`:"Non précisé"}/><Stat label="Pression vent" value={pression?`${pression} Pa`:pDiag.statut==="hors_domaine"?"Hors domaine (> 100 m)":"Non vérifiable"}/><Stat label="Épaisseur DTU 39" value={ventEl?`≥ ${ventEl.dtu.eRequired} mm`:"Non calculée"}/>
       </div>
       {prescs[el.id]&&<div style={{marginTop:10,padding:"8px 12px",background:"#d1fae5",borderRadius:8,fontSize:12,color:"#065f46",fontWeight:600}}>
         ✓ Système retenu : <strong>{prescs[el.id].gamme}</strong> — {prescs[el.id].vitrage} — RA,tr {prescs[el.id].rwctr}
       </div>}
     </div>}
 
-    <button onClick={chercher} disabled={loading||!el} style={S.btnPrimary}>{loading?"Analyse…":"⚖ Analyser les systèmes compatibles"}</button>
+    <BandeauGeometrie geo={geoEl} style={{marginBottom:10}}/>
+    <BandeauPression diag={pDiag} style={{marginBottom:10}}/>
+    <button onClick={chercher} disabled={loading||!el||(geoEl&&!geoEl.ok)} style={S.btnPrimary}>{loading?"Analyse…":"⚖ Analyser les systèmes compatibles"}</button>
 
     {/* ── VÉRIFICATEUR DE VITRAGE LIBRE ─────────────────────────────────────
         Teste N'IMPORTE QUELLE composition (même non testée en base) sur l'élément
@@ -2327,7 +2791,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
     {el&&(()=>{
       const sysV=db.systemes.find(s=>s.id===vlibre.sysId)||null;
       let res=null;
-      if(vlibre.compo.trim()){
+      if(vlibre.compo.trim()&&geoEl&&geoEl.ok){
         res=verifVitrage(vlibre.compo.trim(),+el.largeur||1230,+el.hauteur||1480,sysV,el,{...projet,type_verre:vlibre.verre});
       }
       const sysList=db.systemes.filter(s=>{
@@ -2358,18 +2822,20 @@ function PageComparateur({db,projet,setProjet,setPage}){
             const anyFail=checks.some(c=>c===false);
             const allEval=res.dtu_verre&&sysV;
             return <div style={{padding:"8px 12px",borderRadius:6,fontWeight:700,fontSize:13,background:anyFail?"#fef2f2":allEval?"#f0fdf4":"#f9fafb",color:anyFail?"#991b1b":allEval?"#065f46":"#6b7280"}}>
-              {!sysV?"⚠ Choisis un système pour vérifier la feuillure et le poids":anyFail?"✗ Cette composition NE convient PAS (voir critères en rouge)":allEval?"✓ Composition compatible (résistance, flèche, poids, feuillure)":"Renseigne la pression de vent (étape vent) pour la vérif résistance/flèche"}
+              {!sysV?"⚠ Choisis un système pour vérifier la feuillure et le poids":anyFail?"✗ Cette composition NE convient PAS (voir critères en rouge)":allEval?"✓ Composition compatible (résistance, flèche, poids, feuillure)":pDiag.ok?"Renseigne la pression de vent (étape vent) pour la vérif résistance/flèche":`Pression non vérifiable — ${pDiag.message} : résistance / flèche non vérifiées`}
             </div>;
           })()}
         </div>}
-        {vlibre.compo.trim()&&!res&&<div style={{fontSize:12,color:"#991b1b"}}>Composition non reconnue — format attendu verre/lame/verre, ex. 44.2 · 6/16/44.2s · 10/12/44.2 Ac · 1010.4/16/8</div>}
+        {vlibre.compo.trim()&&geoEl&&!geoEl.ok&&<BandeauGeometrie geo={geoEl}/>}
+        {vlibre.compo.trim()&&!res&&geoEl&&geoEl.ok&&<div style={{fontSize:12,color:"#991b1b"}}>Composition non reconnue — format attendu verre/lame/verre, ex. 44.2 · 6/16/44.2s · 10/12/44.2 Ac · 1010.4/16/8</div>}
       </div>;
     })()}
 
-    {results&&<div style={{marginTop:20}}>
+    {results&&geoEl&&geoEl.ok&&<div style={{marginTop:20}}>
+      <BandeauPression diag={pDiag} style={{marginBottom:10}}/>
       <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}><strong>{results.length}</strong> système{results.length>1?"s":""} conforme{results.length>1?"s":""} acoustiquement — triés par conformité globale</div>
-      {results.map(({sys,best:bestAlgo,allMatches,uw_ok,th,aev_ok,aev_note,dta_ok,dim_ok,allege_ok,ko},i)=>{
-        const allOk=ko===0;const bc=allOk?"#6ee7b7":ko>=2?"#fca5a5":"#fde68a";const bg=allOk?"#f0fdf4":ko>=2?"#fff1f2":"#fffbeb";
+      {results.map(({sys,best:bestAlgo,allMatches,uw_ok,th,aev_ok,aev_note,dta_ok,dim_ok,dim_statut,allege_ok,ko},i)=>{
+        const allOk=ko===0&&pDiag.ok;const bc=allOk?"#6ee7b7":ko>=2?"#fca5a5":"#fde68a";const bg=allOk?"#f0fdf4":ko>=2?"#fff1f2":"#fffbeb";
         const pr=prescs[el.id];
         const isRetenu=!!pr&&(pr.sysId?pr.sysId===sys.id:pr.gamme===`${sys.marque} ${sys.nom}`);
         // Si ce système est retenu, on affiche la composition RÉELLEMENT choisie par
@@ -2383,7 +2849,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
               <span style={{width:26,height:26,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:isRetenu?"#059669":allOk?"#d1fae5":ko>=2?"#fee2e2":"#fef3c7",color:isRetenu?"#fff":undefined}}>{isRetenu?"★":allOk?"✓":ko>=2?"✗":"⚠"}</span>
               <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>{sys.marque} {sys.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{sys.famille} · DTA: {sys.dta||"—"} · Feuillure: {sys.epaisseur_min}–{sys.epaisseur_max}mm</div>
               {(()=>{const st=statutDTA(sys.validite);return <div style={{display:"inline-block",marginTop:4,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:st.couleur,background:st.bg,border:`1px solid ${st.couleur}33`}}>{st.statut==="expire"?"⛔ ":st.statut==="bientot"?"⚠ ":st.statut==="inconnu"?"? ":"✓ "}{st.texte}</div>;})()}
-              {(()=>{const vd=verifDimensions(sys,+el.largeur,+el.hauteur,el);if(vd.statut==="aucune")return null;return <div style={{display:"inline-block",marginTop:4,marginLeft:6,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:vd.couleur,background:vd.bg,border:`1px solid ${vd.couleur}33`}}>{vd.statut==="hors"?"📐 ⚠ ":"📐 ✓ "}{vd.texte}</div>;})()}</div>
+              {(()=>{const vd=verifDimensions(sys,+el.largeur,+el.hauteur,el);if(vd.statut==="aucune")return null;return <div style={{display:"inline-block",marginTop:4,marginLeft:6,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:vd.couleur,background:vd.bg,border:`1px solid ${vd.couleur}33`}}>{vd.statut==="hors"?"📐 ⚠ ":vd.statut==="non_verifiable"?"📐 ? ":"📐 ✓ "}{vd.texte}</div>;})()}</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
               <div style={{textAlign:"right"}}><div style={{fontFamily:"monospace",fontWeight:700,fontSize:13,color:"#374151"}}>{best.composition}</div><div style={{fontSize:12,color:"#059669"}}>RA,tr {best.rc} dB{best.corr!==0?` (corrigé ${best.corr} dB)`:""}</div><div style={{fontSize:11,color:"#6b7280"}}>Rapport {best.test.rapport}</div></div>
@@ -2397,13 +2863,13 @@ function PageComparateur({db,projet,setProjet,setPage}){
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,columnGap:16}}>
             <CheckRow label="Acoustique RA,tr" ok={true} note={`${best.rc} dB ≥ ${el.ratr} dB`}/>
-            <CheckRow label="Thermique Uw" ok={uw_ok} note={!(parseFloat(projet.uw_max)>0)?"Uw max non précisé":th&&th.cfg?`Uw ${th.cfg.uw} / max ${projet.uw_max}`:"Données manquantes"}/>
+            <CheckRow label="Thermique Uw" ok={uw_ok} note={!String(projet.uw_max==null?"":projet.uw_max).trim()?"Uw max non précisé":th?th.court:"Données manquantes"}/>
             <CheckRow label={el.type==="facade"?"Vent — essai façade":"Vent — classe V"} ok={aev_ok} note={aev_note}/>
             <CheckRow label="Épaisseur feuillure" ok={vCard?vCard.feuillure_ok:null} note={vCard?`${vCard.epaisseur_totale} mm (${sys.epaisseur_min}–${sys.epaisseur_max})`:"Non vérifiable"}/>
             <CheckRow label="Validité DTA" ok={dta_ok} note={dta_ok===null?"Non renseignée":dta_ok?"Valide":"Expiré"}/>
-            <CheckRow label="Domaine d'emploi" ok={dim_ok} note={dim_ok===null?"Non vérifié":dim_ok?"Dans le domaine":"Hors domaine"}/>
+            <CheckRow label="Domaine d'emploi" ok={dim_ok} note={dim_ok===null?(dim_statut==="non_verifiable"?"Non vérifiable":"Non vérifié"):dim_ok?"Dans le domaine":"Hors domaine"}/>
           </div>
-          {th&&th.cfg&&parseFloat(projet.uw_max)>0&&<div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>Thermique — config de référence : {th.note}</div>}
+          {th&&th.note&&String(projet.uw_max==null?"":projet.uw_max).trim()&&<div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>Thermique — {th.ok===true?"valeur catalogue (non calculée pour l'élément)":th.ok===false?"non conforme":"non vérifiable, indicatif"} : {th.note}</div>}
           {/* Vérification physique : poids vantail + épaisseur réelle vs feuillure */}
           {(()=>{
             const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
@@ -2430,7 +2896,8 @@ function PageComparateur({db,projet,setProjet,setPage}){
                   {v.feuillure_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Épaisseur incompatible feuillure</div>}
                   {v.resistance_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Résistance au vent insuffisante (Art.8)</div>}
                   {v.fleche_verre_ok===false&&<div style={{fontSize:11,color:"#991b1b",fontWeight:600,lineHeight:1.4}}>⚠ Flèche du vitrage excessive (Art.9)</div>}
-                  {v.poids_ok!==false&&v.feuillure_ok!==false&&v.resistance_ok!==false&&v.fleche_verre_ok!==false&&<div style={{fontSize:11,color:"#059669",fontWeight:600,lineHeight:1.4}}>✓ Faisabilité mécanique OK</div>}
+                  {v.poids_ok!==false&&v.feuillure_ok!==false&&(v.resistance_ok==null||v.fleche_verre_ok==null)&&<div style={{fontSize:11,color:"#6b7280",fontWeight:600,lineHeight:1.4}}>? Résistance / flèche non vérifiées{pDiag.ok?"":` — ${pDiag.court}`}</div>}
+                  {v.poids_ok!==false&&v.feuillure_ok!==false&&v.resistance_ok!=null&&v.fleche_verre_ok!=null&&v.resistance_ok!==false&&v.fleche_verre_ok!==false&&<div style={{fontSize:11,color:"#059669",fontWeight:600,lineHeight:1.4}}>✓ Faisabilité mécanique OK</div>}
                 </div>
               </div>
               {/* Résistance & flèche du vitrage — NF DTU 39 P4 Art.8-9 */}
@@ -2565,6 +3032,7 @@ function PagePrescription({projet,setProjet,setPage}){
   const sup=projet.presc_lignes_sup||[];
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   const epProjet=epaisseurDTUProjet(projet);
+  const pDiag=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   const typos=[
     ...projet.elements.map(el=>{
       const p=prescs[el.id]||{};
@@ -2615,6 +3083,7 @@ function PagePrescription({projet,setProjet,setPage}){
         <div><div style={{fontSize:10,color:"#9ca3af",marginBottom:1}}>MOE</div><div style={{fontSize:12,color:"#374151"}}>{projet.moe||"—"}</div></div>
         <div><div style={{fontSize:10,color:"#9ca3af",marginBottom:1}}>RÉDACTEUR</div><div style={{fontSize:12,color:"#374151"}}>{projet.redacteur||"—"}</div></div>
       </div>
+      {!pression&&<BandeauPression diag={pDiag} style={{marginBottom:12}}/>}
       {pression&&<div style={{marginBottom:12,padding:"10px 14px",background:"#f0f9ff",borderRadius:10,border:"1px solid #bae6fd"}}>
         <div style={{fontSize:10,fontWeight:700,color:"#0369a1",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>💨 Données vent</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
@@ -2712,7 +3181,7 @@ function PagePrescription({projet,setProjet,setPage}){
         <div style={{fontSize:11,fontWeight:700,color:"#92400e",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>⚖ Référentiel réglementaire & normatif</div>
         <div style={{fontSize:11,color:"#78350f",lineHeight:1.7}}>
           <div><strong>Performance thermique & solaire</strong> — exigences du CCTP / de l'étude thermique : Uw ≤ {projet.uw_max||"—"} W/m².K · facteur solaire g ≤ {projet.g_max||"—"} · TL ≥ {projet.tl_min||"—"}%.</div>
-          <div><strong>Résistance au vent</strong> — NF DTU 39 P4 : pression de calcul {pression||"—"} Pa (région {projet.zone_vent}, catégorie de terrain {projet.cat_terrain}, hauteur {projet.hauteur_bat} m). Épaisseur et flèche vérifiées sur chaque vitrage (panneau de trame, vantail, partie de châssis composé).</div>
+          <div><strong>Résistance au vent</strong> — NF DTU 39 P4 : pression de calcul {pression?`${pression} Pa`:`non vérifiable (${pDiag.message})`} (région {projet.zone_vent}, catégorie de terrain {projet.cat_terrain}, hauteur {projet.hauteur_bat} m). Épaisseur et flèche vérifiées sur chaque vitrage (panneau de trame, vantail, partie de châssis composé).</div>
           <div><strong>Étanchéité AEV</strong> — NF EN 12152/12154 (façades) ou NF EN 14351-1 / NF EN 12210 (fenêtres) : classement minimum requis {projet.aev_min||"—"}.</div>
           <div><strong>Acoustique</strong> — RA,tr justifié par PV d'essais en laboratoire (indices NF EN ISO 717-1) ; correction forfaitaire de −1 à −3 dB appliquée quand la surface dépasse celle de l'essai.</div>
           <div><strong>Sécurité des personnes</strong> — NF DTU 39 P5 et NF EN 12600 : face intérieure feuilletée ≥ 44.2 (classe 1B1) en allège vitrée &lt; 1 m avec risque de chute ; garde-corps NF P01-012 / P01-013.</div>
@@ -2730,15 +3199,23 @@ function PagePrescription({projet,setProjet,setPage}){
 
 // ── PAGE MÉTRÉ GLOBAL ──────────────────────────────────────────────────────
 function PageProjets({projet,setProjet,setPage,onToast}){
-  const [list,setList]=useState(()=>getProjets());
+  // v2.6.5 : la liste affichée est toujours relue depuis le stockage après chaque
+  // opération ; un message de succès n'est affiché que si l'écriture a réussi.
+  const [lecture,setLecture]=useState(()=>lireProjets());
+  const list=lecture.projets;
   const [confirmDel,setConfirmDel]=useState(null);
-  const refresh=()=>setList(getProjets());
+  const [confirmRep,setConfirmRep]=useState(false);
+  const [erreur,setErreur]=useState(null);
+  const refresh=()=>setLecture(lireProjets());
+  const echec=(quoi,r)=>{const m=`${quoi} : échec — ${r.erreur}.`;setErreur(m);refresh();onToast&&onToast("⚠ "+m,"err");};
 
   const sauver=()=>{
     if(!projet.nom){onToast&&onToast("Donne d'abord un nom au projet (étape 1)","warn");setPage("projet");return;}
-    const saved=sauverProjet(projet);
+    const r=sauverProjet(projet);
+    if(!r.ok){echec(`Projet « ${projet.nom} » NON enregistré`,r);return;}
+    const saved=r.projet;
     setProjet(p=>({...p,_pid:saved._pid,_cree:saved._cree,_maj:saved._maj}));
-    refresh();
+    setErreur(null);refresh();
     onToast&&onToast("Projet \""+saved.nom+"\" sauvegardé ✓","ok");
   };
   const charger=(p)=>{
@@ -2746,8 +3223,29 @@ function PageProjets({projet,setProjet,setPage,onToast}){
     onToast&&onToast("Projet \""+p.nom+"\" chargé","ok");
     setPage("projet");
   };
-  const dupliquer=(pid)=>{setList(dupliquerProjet(pid));onToast&&onToast("Projet dupliqué","ok");};
-  const supprimer=(pid)=>{setList(supprimerProjet(pid));setConfirmDel(null);onToast&&onToast("Projet supprimé","warn");};
+  const dupliquer=(pid)=>{
+    const r=dupliquerProjet(pid);
+    if(!r.ok){echec("Duplication NON enregistrée (aucune copie créée)",r);return;}
+    setErreur(null);refresh();onToast&&onToast("Projet dupliqué","ok");
+  };
+  const supprimer=(pid)=>{
+    setConfirmDel(null);
+    const r=supprimerProjet(pid);
+    if(!r.ok){echec("Suppression NON effectuée (le projet est conservé)",r);return;}
+    setErreur(null);refresh();onToast&&onToast("Projet supprimé","warn");
+  };
+  const reparer=()=>{
+    setConfirmRep(false);
+    const r=archiverEtReparerProjets();
+    if(!r.ok){echec("Remise en service du stockage NON effectuée",r);return;}
+    setErreur(null);refresh();onToast&&onToast(`Données d'origine archivées (${r.cle}) — ${r.liste.length} projet(s) lisible(s) remis en service`,"ok");
+  };
+  const telechargerBrut=()=>{
+    const blob=new Blob([lecture.brut==null?"":lecture.brut],{type:"text/plain"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download="GlassIQ_projets_donnees_brutes.txt";a.click();URL.revokeObjectURL(url);
+  };
   const nouveau=()=>{
     setProjet({...defaultProjet,elements:[],_pid:null});
     onToast&&onToast("Nouveau projet vierge","ok");
@@ -2763,7 +3261,7 @@ function PageProjets({projet,setProjet,setPage,onToast}){
     a.click();URL.revokeObjectURL(url);
   };
   const exporterTout=()=>{
-    const blob=new Blob([JSON.stringify(getProjets(),null,2)],{type:"application/json"});
+    const blob=new Blob([JSON.stringify(lireProjets().projets,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
     a.href=url;a.download="GlassIQ_tous_projets.json";a.click();URL.revokeObjectURL(url);
@@ -2774,16 +3272,12 @@ function PageProjets({projet,setProjet,setPage,onToast}){
     reader.onload=(ev)=>{
       try{
         const data=JSON.parse(ev.target.result);
-        const arr=Array.isArray(data)?data:[data];
-        const cur=getProjets();
-        arr.forEach(p=>{
-          if(!p._pid)p._pid=uid();
-          if(cur.find(x=>x._pid===p._pid))p._pid=uid();
-          p._importe=new Date().toISOString();
-          cur.push(p);
-        });
-        saveProjets(cur);refresh();
-        onToast&&onToast(arr.length+" projet(s) importé(s) ✓","ok");
+        const arr=(Array.isArray(data)?data:[data]).filter(p=>p&&typeof p==="object"&&!Array.isArray(p));
+        if(!arr.length){onToast&&onToast("Fichier invalide : aucun projet lisible","warn");return;}
+        const r=importerProjets(arr);
+        if(!r.ok){echec("Import NON enregistré",r);return;}
+        setErreur(null);refresh();
+        onToast&&onToast(r.nb+" projet(s) importé(s) ✓","ok");
       }catch(err){onToast&&onToast("Fichier invalide","warn");}
     };
     reader.readAsText(file);
@@ -2797,6 +3291,23 @@ function PageProjets({projet,setProjet,setPage,onToast}){
       <div style={{fontSize:14,fontWeight:700,color:"#1e40af",marginBottom:4}}>💾 Mes projets — sauvegarde & chargement</div>
       <div style={{fontSize:12,color:"#1e40af"}}>Sauvegarde tes affaires, retrouve-les, duplique-les. Exporte en fichier pour sauvegarder ailleurs ou partager avec un collègue.</div>
     </div>
+
+    {erreur&&<div role="alert" style={{...S.card,marginBottom:14,background:"#fef2f2",border:"1.5px solid #fca5a5",color:"#991b1b",fontSize:13,fontWeight:600}}>
+      ⛔ {erreur} Les données déjà enregistrées n'ont pas été modifiées.{projet&&(projet.nom||(projet.elements||[]).length)?" Le projet en cours reste ouvert : exporte-le en fichier (⬇) pour ne pas perdre tes modifications.":""}
+      <button onClick={()=>setErreur(null)} style={{...S.btnSecondary,fontSize:11,marginLeft:10,padding:"3px 10px"}}>Fermer</button>
+    </div>}
+    {!lecture.ok&&<div role="alert" style={{...S.card,marginBottom:14,background:"#fff7ed",border:"1.5px solid #fdba74",color:"#9a3412",fontSize:13}}>
+      <div style={{fontWeight:700,marginBottom:4}}>⚠ Stockage des projets illisible — sauvegarde, suppression, duplication et import bloqués</div>
+      <div style={{fontSize:12}}>{lecture.erreur}</div>
+      <div style={{fontSize:12,marginTop:4}}>{lecture.projets.length?`${lecture.projets.length} projet(s) lisible(s) affiché(s) ci-dessous en lecture : charger ou exporter reste possible.`:"Aucun projet lisible n'a pu être extrait."} Les données d'origine restent en place tant que tu ne demandes pas leur remise en service.</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+        {lecture.brut!=null&&<button onClick={telechargerBrut} style={{...S.btnSecondary,fontSize:12}}>⬇ Télécharger les données brutes</button>}
+        {lecture.projets.length>0&&<button onClick={exporterTout} style={{...S.btnSecondary,fontSize:12}}>⬇ Exporter les projets lisibles</button>}
+        {lecture.statut!=="indisponible"&&(confirmRep
+          ?<button onClick={reparer} style={{...S.btnSecondary,fontSize:12,background:"#fee2e2",border:"1.5px solid #fca5a5",color:"#991b1b"}}>Confirmer : archiver les données d'origine et ne garder que les {lecture.projets.length} projet(s) lisible(s) ?</button>
+          :<button onClick={()=>setConfirmRep(true)} style={{...S.btnSecondary,fontSize:12}}>Remettre le stockage en service…</button>)}
+      </div>
+    </div>}
 
     {/* Actions projet courant */}
     <div style={{...S.card,marginBottom:14}}>
@@ -2825,13 +3336,13 @@ function PageProjets({projet,setProjet,setPage,onToast}){
     </div>
 
     {/* Liste des projets */}
-    <div style={{fontSize:12,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>{list.length} projet{list.length>1?"s":""} enregistré{list.length>1?"s":""}</div>
-    {list.length===0&&<div style={{...S.card,textAlign:"center",color:"#9ca3af",fontSize:13}}>Aucun projet enregistré. Sauvegarde ton projet en cours pour le retrouver ici.</div>}
-    {list.slice().sort((a,b)=>(b._maj||"").localeCompare(a._maj||"")).map(p=>{
+    <div style={{fontSize:12,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>{list.length} projet{list.length>1?"s":""} {lecture.ok?`enregistré${list.length>1?"s":""}`:`lisible${list.length>1?"s":""} (lecture seule)`}</div>
+    {list.length===0&&lecture.ok&&<div style={{...S.card,textAlign:"center",color:"#9ca3af",fontSize:13}}>Aucun projet enregistré. Sauvegarde ton projet en cours pour le retrouver ici.</div>}
+    {list.slice().sort((a,b)=>String(b._maj||"").localeCompare(String(a._maj||""))).map((p,ip)=>{
       const nbEl=p.elements?p.elements.length:0;
       const nbPresc=p.prescriptions?Object.keys(p.prescriptions).length:0;
       const isCurrent=p._pid===projet._pid;
-      return <div key={p._pid} style={{...S.card,marginBottom:8,border:isCurrent?"2px solid #059669":"1px solid #e5e7eb"}}>
+      return <div key={p._pid||"sans-id-"+ip} style={{...S.card,marginBottom:8,border:isCurrent?"2px solid #059669":"1px solid #e5e7eb"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
           <div style={{flex:1,minWidth:200}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -2843,11 +3354,11 @@ function PageProjets({projet,setProjet,setPage,onToast}){
           </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <button onClick={()=>charger(p)} style={{...S.btnPrimary,padding:"7px 14px",fontSize:12}}>Charger</button>
-            <button onClick={()=>dupliquer(p._pid)} style={{...S.btnSecondary,fontSize:12}}>Dupliquer</button>
+            <button onClick={()=>dupliquer(p._pid)} disabled={!lecture.ok} style={{...S.btnSecondary,fontSize:12}}>Dupliquer</button>
             <button onClick={()=>exporter(p)} style={{...S.btnSecondary,fontSize:12}}>⬇</button>
             {confirmDel===p._pid
-              ? <button onClick={()=>supprimer(p._pid)} style={{...S.btnSecondary,fontSize:12,background:"#fee2e2",borderColor:"#fca5a5",color:"#991b1b"}}>Confirmer ?</button>
-              : <button onClick={()=>setConfirmDel(p._pid)} style={{...S.btnSecondary,fontSize:12,color:"#991b1b"}}>Supprimer</button>}
+              ? <button onClick={()=>supprimer(p._pid)} style={{...S.btnSecondary,fontSize:12,background:"#fee2e2",border:"1.5px solid #fca5a5",color:"#991b1b"}}>Confirmer ?</button>
+              : <button onClick={()=>setConfirmDel(p._pid)} disabled={!lecture.ok} style={{...S.btnSecondary,fontSize:12,color:"#991b1b"}}>Supprimer</button>}
           </div>
         </div>
       </div>;
@@ -2898,6 +3409,7 @@ function PageMetre({projet}){
         ))}
       </div>
 
+      {T.nb_typologies_incoherentes>0&&<div style={{marginBottom:10,padding:"8px 14px",borderRadius:8,fontSize:12,fontWeight:600,background:"#fef2f2",color:"#991b1b",border:"1px solid #fecaca"}}>⛔ {T.nb_typologies_incoherentes} typologie{T.nb_typologies_incoherentes>1?"s":""} à géométrie incohérente : surfaces et totaux non fiables tant que la saisie n'est pas corrigée (détail dans le tableau).</div>}
       {/* Tableau par typologie */}
       <div style={{fontSize:11,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Détail par typologie ({T.nb_typologies} type{T.nb_typologies>1?"s":""} sur {T.nb_elements} élément{T.nb_elements>1?"s":""})</div>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
@@ -2906,7 +3418,7 @@ function PageMetre({projet}){
           <tr key={i} style={{background:i%2===0?"#fff":"#f9fafb",borderLeft:`3px solid ${t.isFacade?"#7c3aed":"#0d9488"}`}}>
             <td style={{padding:"7px 10px",fontWeight:800,fontSize:14}}>{t.count}×</td>
             <td style={{padding:"7px 10px"}}><Badge color={t.isFacade?"purple":"teal"}>{t.isFacade?"Façade":"Châssis"}</Badge><div style={{fontSize:10,color:"#6b7280",marginTop:2}}>{typeOuvrantLabel(t.el)}</div></td>
-            <td style={{padding:"7px 10px",fontFamily:"monospace"}}>{t.el.largeur}×{t.el.hauteur}{t.isFacade&&t.el.trame?<div style={{fontSize:10,color:"#9ca3af"}}>trame {t.el.trame}mm</div>:""}</td>
+            <td style={{padding:"7px 10px",fontFamily:"monospace"}}>{t.el.largeur}×{t.el.hauteur}{t.isFacade&&t.el.trame?<div style={{fontSize:10,color:"#9ca3af"}}>trame {t.el.trame}mm</div>:""}{!t.geometrie.ok&&<div style={{fontSize:10,color:"#991b1b",fontWeight:700,fontFamily:"inherit"}}>⛔ Géométrie incohérente — métré non fiable : {t.geometrie.message}</div>}</td>
             <td style={{padding:"7px 10px",fontWeight:600}}>{t.ratr} dB</td>
             <td style={{padding:"7px 10px"}}>{t.surf_unit} m²</td>
             <td style={{padding:"7px 10px",fontWeight:700}}>{t.surf_total} m²</td>
@@ -2944,6 +3456,7 @@ function PageFleche({projet}){
   const libCrit=critere==="200_15"?"L/200 ≤ 15 mm":"L/"+critere;
   const e=+entraxe||0, Lp=+portee||0;
   const valide=!!pression&&e>0&&Lp>0;
+  const pDiag=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   // Résultats recalculés en direct (changement de critère / entraxe pris en compte)
   const results=show&&valide?profilesCompatibles(systeme,pression,e,Lp,critere):null;
 
@@ -2988,6 +3501,7 @@ function PageFleche({projet}){
       <div><label style={S.label}>Critère de flèche</label><select value={critere} onChange={ev=>setCritere(ev.target.value)} style={S.input}><option value="200">L/200 (usuel)</option><option value="200_15">L/200 plafonné à 15 mm</option><option value="175">L/175</option></select></div>
     </div>
 
+    {!pression&&<BandeauPression diag={pDiag} style={{marginBottom:14}}/>}
     {valide&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression vent</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{pression} Pa</div></div>
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Charge linéique meneau</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{(pression*e/1000).toFixed(2)} N/mm</div></div>
@@ -3473,6 +3987,14 @@ function runAutotests(){
   const p0=calcPression("2","0","12"), pIV=calcPression("2","IV","12");
   ok("Terrain : cat. 0 (mer) plus exposée que cat. IV (urbain dense)", p0>pIV, `cat. 0 → ${p0} Pa · cat. IV → ${pIV} Pa`);
   ok("Terrain : libellé cat. 0 = mer, cat. IV ≠ mer", /mer/i.test(TERRAINS["0"])&&!/mer/i.test(TERRAINS["IV"]), TERRAINS["0"]);
+  // v2.6.4 : domaine du tableau de pressions et géométrie
+  const d101=diagPression("1","II",101);
+  ok("Pression : 100 m → tranche H100 (2650 Pa) ; 101 m → hors domaine du tableau, aucune valeur", calcPression("1","II",100)===2650&&calcPression("1","II",101)===null&&d101.statut==="hors_domaine", d101.message);
+  ok("Pression : hauteur négative, nulle, absente ou non numérique → non vérifiable", [-5,0,"","abc",null].every(h=>calcPression("1","II",h)===null&&!diagPression("1","II",h).ok), "");
+  const gFx=controleGeometrie({type:"chassis",soustype:"Fenêtre OB",largeur:"1000",hauteur:"1500",larg_fixe:"1200"});
+  ok("Géométrie : fixe latéral 1200 mm sur châssis 1000 mm → erreur, aucun panneau calculé", !gFx.ok&&/1200/.test(gFx.message)&&/1000/.test(gFx.message)&&panneauxCalcul({type:"chassis",soustype:"Fenêtre OB",largeur:"1000",hauteur:"1500",larg_fixe:"1200"}).length===0, gFx.message);
+  const pOk=panneauxCalcul({type:"chassis",soustype:"Fenêtre OB",largeur:"1000",hauteur:"1500",larg_fixe:"400"});
+  ok("Géométrie : fixe latéral 400 mm sur 1000 mm → ouvrant 600 + fixe 400 (inchangé)", pOk.length===2&&pOk[0].largeur===600&&pOk[1].largeur===400, pOk.map(x=>x.largeur+"×"+x.hauteur).join(" + "));
   // Continuité des formules e1
   const a4=calcDTU39(1000,2499,1000,2,2,"isolant_2lam",10).e1, b4=calcDTU39(1000,2501,1000,2,2,"isolant_2lam",10).e1;
   ok("e1 4 appuis : raccord des 2 formules à L/l = 2,5 (écart < 1 %)", proche(a4,b4,0.01*b4), `${a4} / ${b4} mm`);
@@ -3497,9 +4019,31 @@ function runAutotests(){
   ok("Lecture essais AEV : C3→1200 · B2→800 · « 3 »→1200 · 1200/1800→1200 · « — »→rien",
     pressionCouverteAEV("C3")===1200&&pressionCouverteAEV("B2")===800&&pressionCouverteAEV("3")===1200&&pressionCouverteAEV("1200/1800")===1200&&pressionCouverteAEV("—")===null, "");
   const fws=INITIAL_DB.systemes.find(s=>s.id==="fws50");
-  ok("AEV façade FWS 50 exploité (essais saisis « 1200/1800 »)", fws&&verifAEV(fws,1100,true).ok===true, fws?verifAEV(fws,1100,true).note:"");
+  const elFws={type:"facade",soustype:"Façade rideau FWS"};
+  ok("AEV façade FWS 50 exploité (essais saisis « 1200/1800 »)", fws&&verifAEV(fws,1100,true,"",elFws).ok===true, fws?verifAEV(fws,1100,true,"",elFws).note:"");
   const a75=INITIAL_DB.systemes.find(s=>s.id==="aws75ii");
-  ok("AEV châssis AWS 75.II : CCTP V3 couvert (essais C3), CCTP C4 non couvert", verifAEV(a75,2150,false,"A4 E9A V3").ok===true&&verifAEV(a75,2150,false,"A4 E9A C4").ok===false, verifAEV(a75,2150,false,"A4 E9A V3").note);
+  const elOF={type:"chassis",soustype:"Fenêtre OF"}, elOB={type:"chassis",soustype:"Fenêtre OB"};
+  ok("AEV châssis AWS 75.II fenêtre OF 1 vtl : CCTP V3 couvert (essai C3), CCTP C4 non couvert", verifAEV(a75,2150,false,"A4 E9A V3",elOF).ok===true&&verifAEV(a75,2150,false,"A4 E9A C4",elOF).ok===false, verifAEV(a75,2150,false,"A4 E9A V3",elOF).note);
+  ok("AEV châssis AWS 75.II fenêtre OB 1 vtl : seul l'essai OB (C2) compte → CCTP V3 non couvert", verifAEV(a75,2150,false,"A4 E9A V3",elOB).ok===false, verifAEV(a75,2150,false,"A4 E9A V3",elOB).note);
+  // AEV / domaine d'emploi : sélection stricte par configuration (v2.6.3)
+  const sysAEV={id:"t",famille:"Fenêtre",aev:[{chassis:"Fenêtre OB 1 vtl",dims:"1200x1500",V:"C3",rapport:"ESSAI-A"},{chassis:"Porte-fenêtre 2 vtx",dims:"1600x2200",V:"C2",rapport:"ESSAI-B"}]};
+  const elPF2={type:"chassis",soustype:"Porte-fenêtre",nb_vantaux:"2",largeur:"1600",hauteur:"2200"};
+  const qA1=verifAEV(sysAEV,800,false,"A4 E9A V3",elPF2);
+  ok("AEV : essai OB 1 vtl C3 non utilisé pour une porte-fenêtre 2 vtx (essai PF 2 vtx C2 / CCTP V3 → non conforme)", qA1.ok===false&&/ESSAI-B/.test(qA1.note)&&!/ESSAI-A/.test(qA1.note), qA1.note);
+  const qA2=verifAEV(sysAEV,800,false,"A4 E9A V3",{type:"chassis",soustype:"Fenêtre OB",largeur:"1200",hauteur:"1400"});
+  ok("AEV : essai compatible et suffisant → conforme", qA2.ok===true&&/ESSAI-A/.test(qA2.note), qA2.note);
+  const qA3=verifAEV({id:"t",famille:"Fenêtre",aev:[{chassis:"Ouvrant battant",V:"C4",rapport:"X"}]},800,false,"A4 E9A V3",elOB);
+  ok("AEV : essai sans configuration identifiable → non vérifiable", qA3.ok===null, qA3.note);
+  const qA4=verifAEV(sysAEV,800,false,"A4 E9A V3",{type:"chassis",soustype:"Porte-fenêtre",nb_vantaux:"1"});
+  ok("AEV : aucune configuration correspondante → non vérifiable, essais disponibles cités", qA4.ok===null&&/ESSAI-A/.test(qA4.note)&&/ESSAI-B/.test(qA4.note), qA4.note);
+  const sysDim={id:"t",famille:"Fenêtre",dimensions_max:[{type:"1 vantail OB",L:1200,H:1800},{type:"2 vantaux OF",L:2400,H:2400}]};
+  const elOB2={type:"chassis",soustype:"Fenêtre OB",nb_vantaux:"2",largeur:"2000",hauteur:"2200"};
+  const qD1=verifDimensions(sysDim,2000,2200,elOB2);
+  ok("Domaine : fenêtre OB 2 vtx avec seulement des lignes OB 1 vtl / OF 2 vtx → non vérifiable", qD1.statut==="non_verifiable"&&/1200/.test(qD1.texte)&&/2400/.test(qD1.texte), qD1.texte);
+  const sysDim2={id:"t",famille:"Fenêtre",dimensions_max:[{type:"2 vantaux OB",L:2100,H:2300},{type:"2 vantaux OF",L:2400,H:2400}]};
+  const qD2=verifDimensions(sysDim2,2000,2200,elOB2), qD3=verifDimensions(sysDim2,2200,2200,{...elOB2,largeur:"2200"});
+  ok("Domaine : ligne OB 2 vtx correspondante respectée → dans le domaine ; dépassée → hors domaine (sans repli sur OF)", qD2.statut==="ok"&&qD3.statut==="hors"&&/2 vantaux OB/.test(qD3.texte), qD2.texte+" | "+qD3.texte);
+  ok("AEV / domaine : absence de données → non vérifiable", verifAEV({id:"t",aev:[]},800,false,"V3",elOB).ok===null&&verifDimensions({id:"t",dimensions_max:[]},1000,1000,elOB).statut==="aucune", "");
   // Châssis composé
   const pj={...defaultProjet,zone_vent:"2",cat_terrain:"II",hauteur_bat:"12",hauteur_sol:"3"};
   const elc={id:"t",type:"chassis",soustype:"Fenêtre OB",largeur:"3000",hauteur:"2200",mode_trame:"personnalisee",chassis_compose:true,
@@ -3524,6 +4068,35 @@ function runAutotests(){
   // Thermique
   const th=verifThermique(aws,{type:"chassis",soustype:"Fenêtre OB"},{uw_max:"1.4"});
   ok("Thermique : ligne « Fenêtre 1 vtl » retenue pour une fenêtre 1 vantail", th.cfg&&/^Fen[êe]tre 1 vtl/.test(th.cfg.config), th.note);
+  const sysT=l=>({id:"t",famille:"Fenêtre",thermique:l});
+  const t1=verifThermique(sysT([{ug:1.1,config:"Fenêtre 1 vtl 1.25x1.48",uw:1.3}]),{type:"chassis",soustype:"Porte-fenêtre",nb_vantaux:"2",largeur:"1530",hauteur:"2180"},{uw_max:"1.6",controle_ug:"1.1"});
+  ok("Thermique : PF 2 vantaux avec seulement un essai fenêtre 1 vtl → non vérifiable (ok:null)", t1.ok===null, t1.note);
+  const t2=verifThermique(sysT([{ug:0.8,config:"Fenêtre 1 vtl 1.25x1.48 (Ug0.8)",uw:1.2}]),{type:"chassis",soustype:"Fenêtre OB",nb_vantaux:"1",largeur:"1250",hauteur:"1480"},{uw_max:"1.4",controle_ug:"1.1"});
+  ok("Thermique : vitrage Ug 1,1 avec seulement un essai à Ug 0,8 → non vérifiable (ok:null)", t2.ok===null, t2.note);
+  const elF={type:"chassis",soustype:"Fenêtre OB",nb_vantaux:"1",largeur:"1250",hauteur:"1480"};
+  const sF=sysT([{ug:1.1,config:"Fenêtre 1 vtl 1.25x1.48",uw:1.3}]);
+  const t3a=verifThermique(sF,elF,{uw_max:"1.4",controle_ug:"1.1"}), t3b=verifThermique(sF,elF,{uw_max:"1.2",controle_ug:"1.1"});
+  ok("Thermique : configuration correspondante → conforme (1,3 ≤ 1,4) / non conforme (1,3 > 1,2)", t3a.ok===true&&t3b.ok===false, t3a.note+" | "+t3b.note);
+  const t4=verifThermique(sysT([]),elF,{uw_max:"1.4",controle_ug:"1.1"});
+  ok("Thermique : aucune donnée thermique → ok:null", t4.ok===null&&t4.cfg===null, t4.note);
+  // v2.6.2 — dimensions de référence et virgules décimales
+  const pT=(ug,max)=>({uw_max:max,controle_ug:ug});
+  const elD=(L,H,o)=>({type:"chassis",soustype:"Fenêtre OB",nb_vantaux:"1",largeur:String(L),hauteur:String(H),...(o||{})});
+  const t5=verifThermique(sF,elD(2500,3000),pT("1.1","1.4")), t6=verifThermique(sF,elD(600,600),pT("1.1","1.4"));
+  ok("Thermique : fenêtre 2500 × 3000 et 600 × 600, catalogue 1,25 × 1,48 → ok:null (pas de transposition)", t5.ok===null&&t6.ok===null&&t5.cfg&&t5.cfg.uw===1.3, t5.court+" | "+t6.court);
+  const v1=verifThermique(sF,elF,pT("1,1","1,4")), v2=verifThermique(sF,elF,pT("1,1","1,2")), v3=verifThermique(sF,elD(2500,3000),pT("1,1","1,4"));
+  ok("Thermique : Ug « 1,1 » / Uw max « 1,4 » = mêmes verdicts que 1.1 / 1.4 (true · false · null)", v1.ok===true&&v2.ok===false&&v3.ok===null, v1.court+" | "+v2.court);
+  const v4=verifThermique(sF,elF,pT("1.1 W/m²K",1.4)), v5=verifThermique(sF,elF,pT(1.1,"1,4"));
+  ok("Thermique : valeurs déjà stockées (« 1.1 W/m²K », nombres) toujours lues", v4.ok===true&&v5.ok===true, v4.court);
+  const t7=verifThermique(sysT([{ug:1.4,config:"Fenêtre 1 vtl 1.25x1.48",uw:1.35}]),elF,pT("1.1","1.4"));
+  ok("Thermique : essai à un autre Ug (1,4 pour 1,1 prévu) → ok:null, indicatif", t7.ok===null&&t7.cfg, t7.court);
+  const t8=verifThermique(sF,elD(1530,1480,{nb_vantaux:"2"}),pT("1.1","1.4"));
+  ok("Thermique : nombre de vantaux non correspondant → ok:null", t8.ok===null, t8.court);
+  const t9=[verifThermique(sF,elF,pT("","1.4")),verifThermique(sF,elF,pT("1.1","")),verifThermique(sF,{type:"chassis",soustype:"Fenêtre OB",nb_vantaux:"1"},pT("1.1","1.4")),
+            verifThermique(sF,elF,pT("1,1,1","1.4")),verifThermique(sF,elF,pT("1.1","abc")),verifThermique(sF,elF,pT("-1","1.4"))];
+  ok("Thermique : Ug, Uw max ou dimensions manquants, illisibles ou incohérents → ok:null", t9.every(r=>r.ok===null), t9.map(r=>r.court).join(" | "));
+  const nT=[["1,1",1.1],["1.1",1.1],[1.1,1.1],["1,1 W/m²K",1.1],[" 2 ",2],["",null],["abc",null],["1,",null],[",5",null],["1.234,5",null],["1,1,1",null],[NaN,null]];
+  ok("Conversion numérique thermique : virgule et point acceptés, saisies incomplètes refusées", nT.every(([v,a])=>nombreThermique(v)===a), nT.filter(([v,a])=>nombreThermique(v)!==a).map(([v])=>String(v)).join(", "));
   return T;
 }
 function PageAutotest(){
@@ -3553,11 +4126,13 @@ function App(){
   const [projet,setProjet]=useState(defaultProjet);
   const [toast,setToast]=useState(null);
   const refreshDB=()=>setDB(getDB());
-  const showToast=(msg,type)=>{setToast({msg,type});setTimeout(()=>setToast(null),2800);};
-  // Auto-sauvegarde silencieuse du projet courant s'il a déjà été sauvegardé une fois
+  const showToast=(msg,type)=>{setToast({msg,type});setTimeout(()=>setToast(null),type==="err"?6000:2800);};
+  // Auto-sauvegarde du projet courant s'il a déjà été sauvegardé une fois.
+  // v2.6.5 : un échec n'est plus silencieux (bandeau tant que l'écriture échoue).
+  const [erreurAuto,setErreurAuto]=useState(null);
   useEffect(()=>{
     if(projet._pid&&projet.nom){
-      const t=setTimeout(()=>{sauverProjet(projet);},1500);
+      const t=setTimeout(()=>{const r=sauverProjet(projet);setErreurAuto(r.ok?null:r.erreur);},1500);
       return ()=>clearTimeout(t);
     }
   },[projet]);
@@ -3593,6 +4168,7 @@ function App(){
       </div>
     </div>
     <div style={{maxWidth:960,margin:"0 auto",padding:"22px 16px"}}>
+      {erreurAuto&&<div role="alert" className="no-print" style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:"#fef2f2",border:"1.5px solid #fca5a5",color:"#991b1b",fontSize:13,fontWeight:600}}>⛔ Sauvegarde automatique impossible — {erreurAuto}. Les dernières modifications de « {projet.nom} » ne sont PAS enregistrées dans le navigateur ; le projet reste ouvert. Exporte-le en fichier depuis « Mes projets ».</div>}
       {page==="projet"&&<PageProjet projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="vent"&&<PageVent projet={projet} setProjet={setProjet} setPage={setPage}/>}
       {page==="comparateur"&&<PageComparateur db={db} projet={projet} setProjet={setProjet} setPage={setPage}/>}
@@ -3606,7 +4182,7 @@ function App(){
       {page==="ajouter"&&<PageAjouter db={db} onChange={refreshDB}/>}
       {page==="autotest"&&<PageAutotest/>}
     </div>
-    {toast&&<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:toast.type==="warn"?"#92400e":"#065f46",color:"#fff",padding:"12px 24px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,0.2)",zIndex:1000}}>{toast.msg}</div>}
+    {toast&&<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:toast.type==="err"?"#991b1b":toast.type==="warn"?"#92400e":"#065f46",color:"#fff",padding:"12px 24px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,0.2)",zIndex:1000}}>{toast.msg}</div>}
   </div>;
 }
 
