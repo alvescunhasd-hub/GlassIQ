@@ -3,16 +3,153 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GlassIQ v2.6</title>
+  <title>GlassIQ v2.7</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
+    /* ── GlassIQ v2.7 — socle visuel (présentation uniquement) ── */
+    :root{
+      --bg:#f4f6f9; --surface:#ffffff; --line:#e3e7ee; --line2:#eef1f5;
+      --txt:#101828; --txt2:#475467; --txt3:#8a94a6;
+      --navy:#0f1b2d; --navy2:#17263c; --navy3:#22344f; --accent:#1f5fbf; --accent-bg:#eef4fd;
+      --ok:#067647; --ok-bg:#ecfdf3; --ok-bd:#abefc6;
+      --ko:#b42318; --ko-bg:#fef3f2; --ko-bd:#fecdca;
+      --warn:#b54708; --warn-bg:#fffaeb; --warn-bd:#fedf89;
+      --nv:#475467; --nv-bg:#f2f4f7; --nv-bd:#d0d5dd;
+      --info:#175cd3; --info-bg:#eff8ff; --info-bd:#b2ddff;
+      --radius:10px; --shadow:0 1px 2px rgba(16,24,40,.05);
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9fb; }
+    html,body{ background: var(--bg); }
+    body { font-family: Inter, "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--txt); font-size:13px; -webkit-font-smoothing:antialiased; }
     select, input, textarea, button { font-family: inherit; }
-    @media print { nav, .no-print { display: none !important; } body { background: white !important; } }
+    input, select, textarea { font-variant-numeric: tabular-nums; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid rgba(31,95,191,.28) !important; outline-offset: 0; border-color: #84adea !important; }
+    button { transition: filter .12s ease, background-color .12s ease; }
+    button:hover:not(:disabled) { filter: brightness(.96); }
+    button:disabled { opacity: .5; cursor: not-allowed !important; }
+    table { font-variant-numeric: tabular-nums; }
+    details > summary { cursor: pointer; list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    .fade { animation: gq-fade .12s ease-out; }
+    @keyframes gq-fade { from { opacity: .4; } to { opacity: 1; } }
+
+    /* Structure */
+    .gq-app { display: flex; min-height: 100vh; }
+    .gq-sb { width: 228px; flex: 0 0 228px; background: var(--navy); color: #c3cddb; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; z-index: 30; transition: width .12s ease, flex-basis .12s ease; }
+    .gq-sb.min { width: 60px; flex-basis: 60px; }
+    .gq-brand { display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px; border-bottom: 1px solid rgba(255,255,255,.07); min-height: 58px; }
+    .gq-logo { width: 30px; height: 30px; border-radius: 7px; background: #1f5fbf; color: #fff; display: flex; align-items: center; justify-content: center; flex: 0 0 30px; }
+    .gq-brand-t { font-weight: 700; font-size: 14.5px; color: #fff; letter-spacing: .01em; }
+    .gq-brand-s { font-size: 10.5px; color: #7d8ba1; }
+    .gq-sb-nav { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 6px 0 10px; }
+    .gq-grp { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #6b7a90; padding: 14px 18px 5px; white-space: nowrap; }
+    .gq-item { display: flex; align-items: center; gap: 10px; width: calc(100% - 16px); margin: 1px 8px; padding: 7px 10px; border-radius: 7px; color: #c3cddb; background: none; border: 0; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; white-space: nowrap; position: relative; }
+    .gq-item:hover { background: rgba(255,255,255,.06); color: #fff; filter: none; }
+    .gq-item.on { background: var(--navy3); color: #fff; }
+    .gq-item.on::before { content: ""; position: absolute; left: -8px; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0; background: #5b9bff; }
+    .gq-item svg { flex: 0 0 16px; opacity: .9; }
+    .gq-cnt { margin-left: auto; font-size: 10.5px; background: rgba(255,255,255,.1); color: #dbe4f0; border-radius: 9px; padding: 0 6px; line-height: 17px; }
+    .gq-sb-foot { border-top: 1px solid rgba(255,255,255,.07); padding: 8px 0; }
+    .gq-sb.min .gq-lbl, .gq-sb.min .gq-brand-txt, .gq-sb.min .gq-cnt { display: none; }
+    .gq-sb.min .gq-grp { text-align: center; padding: 12px 0 4px; font-size: 0; }
+    .gq-sb.min .gq-grp::after { content: "·"; font-size: 14px; }
+    .gq-sb.min .gq-item { justify-content: center; padding: 8px 0; }
+    .gq-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .gq-top { position: sticky; top: 0; z-index: 20; height: 54px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 14px; padding: 0 18px; }
+    .gq-top-p { min-width: 0; flex: 0 1 230px; }
+    .gq-top-n { font-weight: 650; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gq-top-s { font-size: 11px; color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gq-parcours { display: flex; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0; justify-content: center; }
+    .gq-step { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 7px; border: 0; background: none; cursor: pointer; color: var(--txt3); font-size: 12px; font-weight: 550; white-space: nowrap; }
+    .gq-step:hover { background: var(--line2); filter: none; }
+    .gq-step .n { width: 19px; height: 19px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; background: var(--line2); color: var(--txt2); border: 1px solid var(--line); }
+    .gq-step.fait .n { background: var(--accent-bg); color: var(--accent); border-color: #c5d8f6; }
+    .gq-step.on { color: var(--txt); }
+    .gq-step.on .n { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .gq-sep { width: 14px; height: 1px; background: var(--line); flex: 0 0 auto; }
+    .gq-next { flex: 0 0 auto; }
+    .gq-save { display: flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; color: var(--txt2); }
+    .gq-save .d { width: 8px; height: 8px; border-radius: 50%; background: var(--txt3); }
+    .gq-save.ok .d { background: #12b76a; } .gq-save.ko { color: var(--ko); border-color: var(--ko-bd); background: var(--ko-bg); } .gq-save.ko .d { background: var(--ko); }
+    .gq-save.mod .d { background: #f79009; } .gq-save.cours .d { background: var(--info); animation: gq-pulse 1s ease-in-out infinite; }
+    @keyframes gq-pulse { 50% { opacity: .35; } }
+    .gq-ws { display: flex; gap: 16px; padding: 18px 20px 40px; align-items: flex-start; width: 100%; max-width: 1440px; margin: 0 auto; }
+    .gq-content { flex: 1 1 auto; min-width: 0; max-width: 1000px; margin: 0 auto; }
+    .gq-ph { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .gq-ph h1 { font-size: 19px; font-weight: 680; letter-spacing: -.01em; color: var(--txt); }
+    .gq-ph p { font-size: 12.5px; color: var(--txt2); margin-top: 2px; }
+    .gq-kicker { font-size: 10.5px; font-weight: 700; color: var(--txt3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 3px; }
+
+    /* Liste des éléments */
+    .gq-els { width: 244px; flex: 0 0 244px; position: sticky; top: 72px; max-height: calc(100vh - 90px); display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .gq-els-h { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line2); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--txt2); }
+    .gq-els-l { overflow-y: auto; padding: 4px; }
+    .gq-el { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; text-align: left; border: 1px solid transparent; background: none; border-radius: 8px; padding: 7px 9px; cursor: pointer; color: var(--txt); }
+    .gq-el:hover { background: #f7f9fc; filter: none; }
+    .gq-el.on { background: var(--accent-bg); border-color: #c5d8f6; }
+    .gq-el-n { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gq-el-m { grid-column: 1 / -1; font-size: 11px; color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gq-el-s { grid-column: 1 / -1; font-size: 11px; color: var(--txt2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gq-elsel { display: none; margin-bottom: 12px; gap: 8px; align-items: center; }
+    @media (max-width: 1180px) { .gq-els { display: none; } .gq-elsel { display: flex; } }
+
+    /* États */
+    .gq-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600; border: 1px solid var(--nv-bd); background: var(--nv-bg); color: var(--nv); white-space: nowrap; }
+    .gq-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; background: var(--txt3); display: inline-block; }
+    .st-ok { --c: var(--ok); --b: var(--ok-bg); --d: var(--ok-bd); } .st-ko { --c: var(--ko); --b: var(--ko-bg); --d: var(--ko-bd); }
+    .st-rc { --c: var(--warn); --b: var(--warn-bg); --d: var(--warn-bd); } .st-nv { --c: var(--nv); --b: var(--nv-bg); --d: var(--nv-bd); }
+    .st-in { --c: var(--info); --b: var(--info-bg); --d: var(--info-bd); }
+    .gq-chip.st-ok, .gq-chip.st-ko, .gq-chip.st-rc, .gq-chip.st-nv, .gq-chip.st-in { color: var(--c); background: var(--b); border-color: var(--d); }
+    .gq-dot.st-ok { background: #12b76a; } .gq-dot.st-ko { background: #f04438; } .gq-dot.st-rc { background: #f79009; } .gq-dot.st-nv { background: #98a2b3; } .gq-dot.st-in { background: #2e90fa; }
+    .gq-synth { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px 12px; margin-bottom: 14px; }
+    .gq-synth-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .gq-synth-c { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .gq-synth-d { margin-top: 8px; border-top: 1px solid var(--line2); padding-top: 6px; }
+    .gq-row { display: grid; grid-template-columns: 170px 120px 1fr; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line2); font-size: 12px; }
+    .gq-row:last-child { border-bottom: 0; }
+    @media (max-width: 760px) { .gq-row { grid-template-columns: 1fr; gap: 2px; } }
+
+    /* Tableau de bord */
+    .gq-kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 14px; }
+    .gq-kpi { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
+    .gq-kpi-l { font-size: 11px; color: var(--txt2); font-weight: 600; }
+    .gq-kpi-v { font-size: 20px; font-weight: 700; margin-top: 4px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gq-kpi-s { font-size: 11px; color: var(--txt3); margin-top: 2px; }
+    .gq-grid2 { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 14px; }
+    @media (max-width: 1100px) { .gq-grid2 { grid-template-columns: 1fr; } .gq-kpis { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    .gq-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+    .gq-tbl th { text-align: left; font-size: 10.5px; color: var(--txt3); font-weight: 650; text-transform: uppercase; letter-spacing: .05em; padding: 6px 6px; border-bottom: 1px solid var(--line); }
+    .gq-tbl td { padding: 7px 6px; border-bottom: 1px solid var(--line2); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gq-tbl tr.clic { cursor: pointer; } .gq-tbl tr.clic:hover td { background: #f8fafd; }
+    @media (max-width: 900px) { .gq-tbl .opt { display: none; } }
+    .gq-alert { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line2); font-size: 12.5px; }
+    .gq-alert:last-child { border-bottom: 0; }
+    .gq-link { background: none; border: 0; color: var(--accent); font-weight: 600; cursor: pointer; font-size: 12px; padding: 0; white-space: nowrap; }
+
+    /* Toasts */
+    .gq-toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); color: #fff; padding: 10px 18px; border-radius: 9px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 24px rgba(16,24,40,.18); z-index: 1000; max-width: min(720px, calc(100vw - 32px)); }
+
+    @media (max-width: 1100px) {
+      .gq-sb { width: 60px; flex-basis: 60px; }
+      .gq-sb .gq-lbl, .gq-sb .gq-brand-txt, .gq-sb .gq-cnt, .gq-sb .gq-toggle { display: none; }
+      .gq-sb .gq-grp { text-align: center; padding: 12px 0 4px; font-size: 0; }
+      .gq-sb .gq-grp::after { content: "·"; font-size: 14px; }
+      .gq-sb .gq-item { justify-content: center; padding: 8px 0; }
+      .gq-step .l { display: none; }
+      .gq-ws { padding: 14px 14px 36px; }
+    }
+    @media (max-width: 1500px) { .gq-top.act .gq-step:not(.on) .l { display: none; } }
+    @media (max-width: 1240px) { .gq-step:not(.on) .l { display: none; } }
+    @media (max-width: 860px) { .gq-top-p { display: none; } .gq-parcours { justify-content: flex-start; } }
+    @media print {
+      nav, .no-print, .gq-sb, .gq-top, .gq-els, .gq-elsel, .gq-synth, .gq-ph { display: none !important; }
+      body, html { background: white !important; }
+      .gq-ws { padding: 0; display: block; max-width: none; }
+      .gq-content { max-width: none; }
+    }
   </style>
 </head>
 <body>
@@ -21,11 +158,11 @@
 const { useState, useEffect } = React;
 
 const S = {
-  label: { display:"block", fontSize:12, fontWeight:700, color:"#374151", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:6 },
-  input: { width:"100%", padding:"9px 12px", borderRadius:8, fontSize:13, border:"1.5px solid #e5e7eb", outline:"none", background:"#fff", color:"#1a1a2e", boxSizing:"border-box", fontFamily:"inherit" },
-  btnPrimary: { padding:"10px 22px", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer", background:"#1a1a2e", color:"#fff", border:"none" },
-  btnSecondary: { padding:"8px 16px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", background:"#f3f4f6", color:"#374151", border:"1.5px solid #e5e7eb" },
-  card: { background:"#fff", borderRadius:12, border:"1px solid #e5e7eb", padding:"16px 18px", marginBottom:14 },
+  label: { display:"block", fontSize:11, fontWeight:650, color:"#475467", letterSpacing:"0.03em", textTransform:"uppercase", marginBottom:5 },
+  input: { width:"100%", padding:"8px 10px", borderRadius:7, fontSize:13, border:"1px solid #d0d5dd", outline:"none", background:"#fff", color:"#101828", boxSizing:"border-box", minWidth:0 },
+  btnPrimary: { padding:"9px 18px", borderRadius:7, fontSize:13, fontWeight:650, cursor:"pointer", background:"#0f1b2d", color:"#fff", border:"1px solid transparent" },
+  btnSecondary: { padding:"7px 14px", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer", background:"#fff", color:"#344054", border:"1px solid #d0d5dd" },
+  card: { background:"#fff", borderRadius:10, border:"1px solid #e3e7ee", padding:"16px 18px", marginBottom:14, boxShadow:"0 1px 2px rgba(16,24,40,.05)" },
 };
 
 const PRESSIONS_DTU39 = {
@@ -2100,24 +2237,16 @@ function ChampTerrain({value,onChange}){
   </div>;
 }
 
-function StepBar({current,setPage}){
-  const steps=[{id:"projet",n:1,label:"Projet CCTP"},{id:"vent",n:2,label:"Calcul vent"},{id:"comparateur",n:3,label:"Comparateur"},{id:"controle",n:4,label:"Solaire"},{id:"prescription",n:5,label:"Prescription"}];
-  return <div style={{display:"flex",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:4}}>
-    {steps.map((s,i)=><React.Fragment key={s.id}>
-      <div onClick={()=>setPage(s.id)} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",opacity:current===s.n?1:0.6}}>
-        <div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,background:current===s.n?"#1a1a2e":current>s.n?"#d1fae5":"#f3f4f6",color:current===s.n?"#fff":current>s.n?"#065f46":"#6b7280"}}>{current>s.n?"✓":s.n}</div>
-        <span style={{fontSize:12,fontWeight:current===s.n?700:400,color:current===s.n?"#1a1a2e":"#6b7280",whiteSpace:"nowrap"}}>{s.label}</span>
-      </div>
-      {i<steps.length-1&&<div style={{flex:1,height:1,background:"#e5e7eb",margin:"0 6px",minWidth:8}}></div>}
-    </React.Fragment>)}
-  </div>;
-}
+// v2.7 : le parcours de travail est affiché dans la barre haute (BarreHaute).
+function StepBar(){return null;}
 
 // ── PAGE 1 : PROJET / CCTP ────────────────────────────────────────────────
-function PageProjet({projet,setProjet,setPage}){
+function PageProjet({projet,setProjet,setPage,section="tout",elActif,setElActif}){
+  // v2.7 : section "cctp" (Projet & CCTP) ou "elements" (Éléments et géométries) — mêmes champs, même état projet.
+  const voitCCTP=section!=="elements", voitEls=section!=="cctp";
   const upd=(k,v)=>setProjet(p=>({...p,[k]:v}));
   const updEl=(i,k,v)=>setProjet(p=>({...p,elements:p.elements.map((e,idx)=>idx===i?{...e,[k]:v}:e)}));
-  const addEl=()=>setProjet(p=>({...p,elements:[...p.elements,{id:Date.now(),label:`Élément ${p.elements.length+1}`,type:"chassis",orientation:"Est",usage:"Façade côté rue",ratr:"36",soustype:"Fenêtre OB",largeur:"1200",hauteur:"1480"}]}));
+  const addEl=()=>{const id=Date.now();setProjet(p=>({...p,elements:[...p.elements,{id,label:`Élément ${p.elements.length+1}`,type:"chassis",orientation:"Est",usage:"Façade côté rue",ratr:"36",soustype:"Fenêtre OB",largeur:"1200",hauteur:"1480"}]}));setElActif&&setElActif(id);};
   const removeEl=(i)=>setProjet(p=>({...p,elements:p.elements.filter((_,idx)=>idx!==i)}));
   const setType=(i,type)=>setProjet(p=>({...p,elements:p.elements.map((e,idx)=>idx===i?{...e,type,soustype:type==="facade"?FACADE_TYPES[0]:CHASSIS_TYPES[0]}:e)}));
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
@@ -2135,8 +2264,9 @@ function PageProjet({projet,setProjet,setPage}){
   };
   return <div>
     <StepBar current={1} setPage={setPage}/>
+    {voitCCTP&&<React.Fragment>
     <div style={{marginBottom:14,display:"flex",justifyContent:"flex-end"}}>
-      <button onClick={chargerDemo} style={{...S.btnSecondary,background:"#f5f3ff",borderColor:"#c4b5fd",color:"#5b21b6"}}>⚡ Charger l'exemple de démo</button>
+      <button onClick={chargerDemo} style={S.btnSecondary}>⚡ Charger l'exemple de démo</button>
     </div>
     {/* Infos projet */}
     <div style={S.card}>
@@ -2165,8 +2295,9 @@ function PageProjet({projet,setProjet,setPage}){
         <div><label style={S.label}>TL minimum (%)</label><input type="number" value={projet.tl_min} onChange={e=>upd("tl_min",e.target.value)} placeholder="ex : 50" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Luminosité imposée</div></div>
       </div>
     </div>
+    </React.Fragment>}
     {/* Éléments */}
-    <div style={S.card}>
+    {voitEls&&<div style={S.card}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:10,borderBottom:"1px solid #f3f4f6"}}>
         <div style={{width:30,height:30,borderRadius:8,background:"#d1fae5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🏗</div>
         <div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>Éléments de façade — châssis & façades rideau</div><div style={{fontSize:12,color:"#6b7280"}}>La vérification vent s'adapte automatiquement selon le type</div></div>
@@ -2175,7 +2306,9 @@ function PageProjet({projet,setProjet,setPage}){
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#6b7280"}}><div style={{width:10,height:10,background:"#7c3aed",borderRadius:2}}></div><span><strong style={{color:"#5b21b6"}}>Façade rideau</strong> — pression AEV obligatoire</span></div>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#6b7280"}}><div style={{width:10,height:10,background:"#0d9488",borderRadius:2}}></div><span><strong style={{color:"#0f766e"}}>Châssis</strong> — vérification classement V/C</span></div>
       </div>
+      {section==="elements"&&projet.elements.length===0&&<div style={{padding:"18px 4px",fontSize:13,color:"#475467"}}>Aucun élément pour l'instant : ajoute une fenêtre, une porte-fenêtre, un coulissant ou une façade rideau, ou importe le repérage de l'outil de chiffrage.</div>}
       {projet.elements.map((el,i)=>{
+        if(section==="elements"&&elActif&&el.id!==elActif.id)return null;
         const iF=el.type==="facade";
         const bc=iF?"#7c3aed":"#0d9488";
         const sT=iF?FACADE_TYPES:CHASSIS_TYPES;
@@ -2505,9 +2638,9 @@ function PageProjet({projet,setProjet,setPage}){
       })}
       <ImportChiffrage projet={projet} setProjet={setProjet}/>
       <button onClick={addEl} style={{width:"100%",padding:"8px",borderRadius:8,border:"1.5px dashed #d1d5db",background:"none",cursor:"pointer",fontSize:13,color:"#6b7280"}}>+ Ajouter un élément</button>
-    </div>
+    </div>}
     {/* Données vent */}
-    <div style={S.card}>
+    {voitCCTP&&<div style={S.card}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,paddingBottom:10,borderBottom:"1px solid #f3f4f6"}}>
         <div style={{width:30,height:30,borderRadius:8,background:"#bfdbfe",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>💨</div>
         <div><div style={{fontSize:14,fontWeight:700,color:"#1a1a2e"}}>Données vent — communes au projet</div><div style={{fontSize:12,color:"#6b7280"}}>DTU 39 P4</div></div>
@@ -2528,9 +2661,9 @@ function PageProjet({projet,setProjet,setPage}){
       </div>
       {!pression&&<BandeauPression diag={diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat)} style={{marginTop:12}}/>}
       {pression&&<div style={{marginTop:12,padding:"10px 16px",background:"#1a1a2e",borderRadius:10,display:"flex",alignItems:"center",gap:16}}><div style={{fontSize:12,color:"rgba(255,255,255,0.55)"}}>Pression DTU 39</div><div style={{fontSize:24,fontWeight:800,color:"#fff"}}>{pression} Pa</div><div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Zone {projet.zone_vent} / {projet.cat_terrain} / H={projet.hauteur_bat}m</div></div>}
-    </div>
+    </div>}
     {/* Récapitulatif */}
-    <div style={{...S.card,background:"#f0fdf4",border:"1.5px solid #6ee7b7"}}>
+    {voitCCTP&&<div style={{...S.card,background:"#f0fdf4",border:"1.5px solid #6ee7b7"}}>
       <div style={{fontSize:14,fontWeight:700,color:"#065f46",marginBottom:12}}>✅ Récapitulatif — ce que GlassIQ va vérifier pour chaque élément</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
         {[["Uw max",projet.uw_max?projet.uw_max+" W/m²K":"Non saisi"],["g max",projet.g_max||"Non saisi"],["TL min",projet.tl_min?projet.tl_min+"%":"Non saisi"],["AEV CCTP",projet.aev_min||"Non précisé"],["Éléments",projet.elements.length]].map(([l,v])=><div key={l} style={{background:"#fff",borderRadius:8,padding:"10px 12px",textAlign:"center",border:"1px solid #d1fae5"}}><div style={{fontSize:15,fontWeight:700,color:"#1a1a2e"}}>{v}</div><div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{l}</div></div>)}
@@ -2539,10 +2672,9 @@ function PageProjet({projet,setProjet,setPage}){
         {projet.elements.map((el,i)=>{const r=parseInt(el.ratr)||0;const col=r>=42?"red":r>=38?"amber":r>=34?"green":"blue";return <Badge key={i} color={col}>{el.label} — {el.type==="facade"?"Façade":"Châssis"} — RA,tr ≥ {el.ratr} dB</Badge>;})}
       </div>
       <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-        <button onClick={()=>{setProjet(p=>({...p,pression_pa:pression}));setPage("vent");}} style={{...S.btnPrimary,background:"#059669"}}>💨 Étape 2 — Calcul vent →</button>
-        <span style={{fontSize:12,color:"#065f46"}}>Les données saisies ici alimentent toutes les étapes suivantes</span>
+        <span style={{fontSize:12,color:"#065f46"}}>Les données saisies ici alimentent toutes les étapes suivantes — suite du parcours : « Configurer les éléments » (barre du haut).</span>
       </div>
-    </div>
+    </div>}
   </div>;
 }
 
@@ -2552,7 +2684,7 @@ function PageProjet({projet,setProjet,setPage}){
 // à chaque modification des paramètres (plus de valeur figée).
 function PageVent({projet,setProjet,setPage}){
   const upd=(k,v)=>setProjet(p=>({...p,[k]:v}));
-  const [show,setShow]=useState(false);
+  const [show,setShow]=useEtatModule("vent.afficher",false);
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   const results=show&&pression?projet.elements.map(el=>({el,r:calcVentElement(el,projet)})):null;
   const cv=classeVRequise(pression);
@@ -2618,7 +2750,6 @@ function PageVent({projet,setProjet,setPage}){
           </div>}
         </div>;
       })}
-      <div style={{display:"flex",gap:12,marginTop:14}}><button onClick={()=>setPage("comparateur")} style={{...S.btnPrimary,background:"#4f46e5"}}>⚖ Étape 3 — Choisir le système →</button></div>
     </div>}
   </div>;
 }
@@ -2627,13 +2758,19 @@ function PageVent({projet,setProjet,setPage}){
 const CHAMPS_COMPARATEUR=["gamme","vitrage","rw","rwctr","rapport","correction","uw","aev","epaisseur_dtu","epaisseur_reelle","poids_m2","poids_vantail"];
 
 // ── PAGE 3 : COMPARATEUR MULTI-CRITÈRES ───────────────────────────────────
-function PageComparateur({db,projet,setProjet,setPage}){
-  const [results,setResults]=useState(null);
+function PageComparateur({db,projet,setProjet,setPage,elActif,setElActif,analyses,setAnalyse,empDB}){
+  // v2.7 : élément actif partagé avec les autres modules ; résultats conservés par
+  // élément pendant la session et invalidés dès que leurs données d'entrée changent.
   const [loading,setLoading]=useState(false);
-  const [selEl,setSelEl]=useState(0);
   const prescs=projet.prescriptions||{};// système retenu = lu dans le projet (persistant)
-  const [vlibre,setVlibre]=useState({compo:"",sysId:"",verre:"recuit"});// vérificateur de vitrage libre
-  const el=projet.elements[selEl]||projet.elements[0];
+  const [vlibre,setVlibre]=useEtatModule("comparateur.vlibre",{compo:"",sysId:"",verre:"recuit"});// vérificateur de vitrage libre
+  const el=elActif||projet.elements[0];
+  const selEl=Math.max(0,projet.elements.findIndex(e=>el&&e.id===el.id));
+  const empCourante=el?empreinteAnalyse(el,projet,empDB):null;
+  const analyse=el&&analyses?analyses[el.id]:null;
+  const resultatsObsoletes=!!(analyse&&analyse.emp!==empCourante);
+  const results=analyse&&!resultatsObsoletes?analyse.results:null;
+  const setResults=v=>{if(el)setAnalyse(el.id,v==null?null:{results:v,emp:empreinteAnalyse(el,projet,empDB)});};
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   const ventEl=el?calcVentElement(el,projet):null;
   const geoEl=el?controleGeometrie(el):null;
@@ -2724,6 +2861,8 @@ function PageComparateur({db,projet,setProjet,setPage}){
       poids_m2:v?`${v.poids_m2} kg/m²`:"",
       poids_vantail:v&&v.poids_vantail!=null?`${v.poids_vantail} kg`:"",
       ...(serie?{serie_depuis:serie}:{}),
+      // v2.7 : empreinte des données déterminantes au moment du choix (champ facultatif)
+      _empreinte:empreintePrescription(e,projet,sys,{sysId:sys.id,vitrage:best.composition}),
     };
   };
   const enregistrer=(liste)=>setProjet(p=>{
@@ -2756,20 +2895,8 @@ function PageComparateur({db,projet,setProjet,setPage}){
       <div style={{fontSize:12,color:"#3730a3"}}>Sélectionne l'élément, analyse, puis clique <strong>"✓ Retenir ce système"</strong> — la prescription se remplit automatiquement.</div>
     </div>
 
-    {/* Sélection élément + statut */}
-    <div style={{marginBottom:14}}>
-      <label style={S.label}>Élément à analyser</label>
-      <div style={{fontSize:11,color:"#6b7280",marginBottom:6}}>Analyse un élément type, puis « ⧉ + N autres » pour retenir le même système et le même vitrage sur tous les éléments du même système non encore prescrits (contrôles DTU 39, poids et feuillure recalculés pour chacun).</div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {projet.elements.map((e,i)=>{
-          const done=prescs[e.id];
-          return <button key={i} onClick={()=>{setSelEl(i);setResults(null);}} style={{padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",border:"1.5px solid",background:selEl===i?"#1a1a2e":done?"#f0fdf4":"#f9fafb",color:selEl===i?"#fff":done?"#065f46":"#374151",borderColor:selEl===i?"#1a1a2e":done?"#6ee7b7":"#e5e7eb"}}>
-            {done?"✓ ":""}{e.label} <span style={{fontSize:11,opacity:0.7}}>RA,tr {e.ratr} dB</span>
-          </button>;
-        })}
-      </div>
-      {nbConfirmed>0&&<div style={{marginTop:8,fontSize:12,color:"#065f46"}}>{nbConfirmed}/{projet.elements.length} élément{nbConfirmed>1?"s":""} confirmé{nbConfirmed>1?"s":""}</div>}
-    </div>
+    {/* Sélection élément : liste latérale commune (v2.7) */}
+    {nbConfirmed>0&&<div style={{marginBottom:10,fontSize:12,color:"#065f46"}}>{nbConfirmed}/{projet.elements.length} élément{nbConfirmed>1?"s":""} confirmé{nbConfirmed>1?"s":""} · « ⧉ + N autres » retient le même système et le même vitrage sur les éléments du même système non encore prescrits (contrôles DTU 39, poids et feuillure recalculés pour chacun).</div>}
 
     {el&&<div style={{...S.card,background:"#f9fafb",marginBottom:14}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
@@ -2831,10 +2958,14 @@ function PageComparateur({db,projet,setProjet,setPage}){
       </div>;
     })()}
 
+    {resultatsObsoletes&&<div role="status" style={{marginTop:16,padding:"10px 14px",borderRadius:10,background:"#fffaeb",border:"1px solid #fedf89",color:"#93370d",fontSize:13,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+      <span style={{flex:1,minWidth:220}}><strong>À recalculer</strong> — les données de « {el.label} », du CCTP, du vent ou de la base ont changé depuis la dernière analyse. Les anciens résultats sont masqués pour ne pas être lus comme actuels.</span>
+      <button onClick={chercher} disabled={loading||(geoEl&&!geoEl.ok)} style={S.btnPrimary}>Relancer l'analyse</button>
+    </div>}
     {results&&geoEl&&geoEl.ok&&<div style={{marginTop:20}}>
       <BandeauPression diag={pDiag} style={{marginBottom:10}}/>
       <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}><strong>{results.length}</strong> système{results.length>1?"s":""} conforme{results.length>1?"s":""} acoustiquement — triés par conformité globale</div>
-      {results.map(({sys,best:bestAlgo,allMatches,uw_ok,th,aev_ok,aev_note,dta_ok,dim_ok,dim_statut,allege_ok,ko},i)=>{
+      {(()=>{const estRet=sy=>{const pr=prescs[el.id];return pr&&(pr.sysId?pr.sysId===sy.id:pr.gamme===`${sy.marque} ${sy.nom}`)?1:0;};return results.slice().sort((a,b)=>estRet(b.sys)-estRet(a.sys));})().map(({sys,best:bestAlgo,allMatches,uw_ok,th,aev_ok,aev_note,dta_ok,dim_ok,dim_statut,allege_ok,ko},i)=>{
         const allOk=ko===0&&pDiag.ok;const bc=allOk?"#6ee7b7":ko>=2?"#fca5a5":"#fde68a";const bg=allOk?"#f0fdf4":ko>=2?"#fff1f2":"#fffbeb";
         const pr=prescs[el.id];
         const isRetenu=!!pr&&(pr.sysId?pr.sysId===sys.id:pr.gamme===`${sys.marque} ${sys.nom}`);
@@ -2861,7 +2992,27 @@ function PageComparateur({db,projet,setProjet,setPage}){
               </button>}
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,columnGap:16}}>
+          {/* v2.7 : lecture rapide — un état par critère (démontré / non conforme / sans preuve) */}
+          {(()=>{
+            const crit=[["Acoustique",true],["Thermique Uw",uw_ok],[el.type==="facade"?"Vent (essai façade)":"Vent (classe V)",aev_ok],["Feuillure",vCard?vCard.feuillure_ok:null],["Poids",vCard?vCard.poids_ok:null],["Résistance DTU 39",vCard?vCard.resistance_ok:null],["Flèche DTU 39",vCard?vCard.fleche_verre_ok:null],["Domaine d'emploi",dim_ok],["DTA",dta_ok]];
+            if(allege_ok!=null)crit.push(["Allège",allege_ok]);
+            const nKo=crit.filter(c=>c[1]===false).length, nNv=crit.filter(c=>c[1]==null).length;
+            const ko=[];
+            if(uw_ok===false&&th)ko.push(`Thermique : ${th.court||th.note}`);
+            if(aev_ok===false)ko.push(`Vent / AEV : ${aev_note}`);
+            if(dim_ok===false)ko.push(`Domaine d'emploi : ${verifDimensions(sys,+el.largeur,+el.hauteur,el).texte}`);
+            if(dta_ok===false)ko.push(`DTA : ${statutDTA(sys.validite).texte}`);
+            return <div style={{marginBottom:8}}>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+                {crit.map(([l,v])=><Etat key={l} etat={etatDe(v)}>{l}</Etat>)}
+              </div>
+              <div style={{fontSize:11.5,marginTop:6,color:nKo?"#b42318":nNv?"#475467":"#067647",fontWeight:600}}>{nKo?`${nKo} critère${nKo>1?"s":""} non conforme${nKo>1?"s":""}`:""}{nKo&&nNv?" · ":""}{nNv?`${nNv} critère${nNv>1?"s":""} sans preuve (non vérifiable)`:""}{!nKo&&!nNv?"Conformité démontrée sur tous les critères évalués":""}</div>
+              {ko.map((t,k)=><div key={k} style={{fontSize:11.5,color:"#b42318",marginTop:3}}>✗ {t}</div>)}
+            </div>;
+          })()}
+          <details>
+          <summary style={{fontSize:12,fontWeight:600,color:"#1f5fbf",padding:"4px 0"}}>▸ Détail des contrôles et justificatifs (notes AEV, domaine, thermique, DTA)</summary>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:8,columnGap:16}}>
             <CheckRow label="Acoustique RA,tr" ok={true} note={`${best.rc} dB ≥ ${el.ratr} dB`}/>
             <CheckRow label="Thermique Uw" ok={uw_ok} note={!String(projet.uw_max==null?"":projet.uw_max).trim()?"Uw max non précisé":th?th.court:"Données manquantes"}/>
             <CheckRow label={el.type==="facade"?"Vent — essai façade":"Vent — classe V"} ok={aev_ok} note={aev_note}/>
@@ -2870,6 +3021,7 @@ function PageComparateur({db,projet,setProjet,setPage}){
             <CheckRow label="Domaine d'emploi" ok={dim_ok} note={dim_ok===null?(dim_statut==="non_verifiable"?"Non vérifiable":"Non vérifié"):dim_ok?"Dans le domaine":"Hors domaine"}/>
           </div>
           {th&&th.note&&String(projet.uw_max==null?"":projet.uw_max).trim()&&<div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>Thermique — {th.ok===true?"valeur catalogue (non calculée pour l'élément)":th.ok===false?"non conforme":"non vérifiable, indicatif"} : {th.note}</div>}
+          </details>
           {/* Vérification physique : poids vantail + épaisseur réelle vs feuillure */}
           {(()=>{
             const v=verifVitrage(best.composition,+el.largeur||1230,+el.hauteur||1480,sys,el,projet);
@@ -2981,7 +3133,6 @@ function PageComparateur({db,projet,setProjet,setPage}){
       })}
       <div style={{display:"flex",gap:10,marginTop:10,flexWrap:"wrap",alignItems:"center"}}>
         {allConfirmed&&<div style={{fontSize:13,color:"#059669",fontWeight:600}}>✓ Tous les éléments ont un système retenu</div>}
-        <button onClick={()=>setPage("prescription")} style={{...S.btnPrimary,background:"#059669"}}>📄 Étape 5 — Voir la prescription →</button>
       </div>
     </div>}
   </div>;
@@ -3026,7 +3177,7 @@ function PageControleSolaire({projet,setProjet}){
 // calcul vent). CORRIGÉ v2.5 : les modifications manuelles faites ici sont
 // enregistrées dans le projet (presc_overrides / presc_lignes_sup) — elles ne sont
 // plus perdues en changeant de page et partent avec la sauvegarde / l'export.
-function PagePrescription({projet,setProjet,setPage}){
+function PagePrescription({projet,setProjet,setPage,syntheses}){
   const prescs=projet.prescriptions||{};
   const ov=projet.presc_overrides||{};
   const sup=projet.presc_lignes_sup||[];
@@ -3067,6 +3218,18 @@ function PagePrescription({projet,setProjet,setPage}){
   const lignesPV=typos.filter(t=>t.gamme);
   return <div>
     <StepBar current={5} setPage={setPage}/>
+    {/* v2.7 : prescriptions dont les données ont changé depuis le choix, ou sans empreinte */}
+    {(()=>{
+      const l=(projet.elements||[]).map(e=>({e,s:syntheses&&syntheses[e.id]})).filter(x=>x.s&&["a_recalculer","a_confirmer"].includes(x.s.prescription.etat));
+      const sans=(projet.elements||[]).filter(e=>!(projet.prescriptions||{})[e.id]);
+      if(!l.length&&!sans.length)return null;
+      return <div className="no-print" style={{...S.card,background:"#fffaeb",border:"1px solid #fedf89",color:"#93370d",fontSize:12.5}}>
+        <div style={{fontWeight:700,marginBottom:4}}>⚠ Prescription à revoir avant diffusion</div>
+        {l.map(({e,s})=><div key={e.id} style={{marginTop:2}}><Etat etat={s.prescription.etat}/> <strong>{e.label}</strong> — {s.prescription.note}</div>)}
+        {sans.length>0&&<div style={{marginTop:4}}>Sans système retenu : {sans.map(e=>e.label).join(", ")}.</div>}
+        <div style={{marginTop:6,fontSize:11.5,color:"#7a2e0e"}}>Relance le comparateur sur ces éléments et retiens à nouveau le système pour mettre la prescription à jour.</div>
+      </div>;
+    })()}
     <div className="no-print" style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
       <button onClick={()=>window.print()} style={{...S.btnPrimary,background:"#059669"}}>📄 Exporter PDF</button>
       <button onClick={addT} style={S.btnSecondary}>+ Ajouter ligne</button>
@@ -3198,7 +3361,7 @@ function PagePrescription({projet,setProjet,setPage}){
 }
 
 // ── PAGE MÉTRÉ GLOBAL ──────────────────────────────────────────────────────
-function PageProjets({projet,setProjet,setPage,onToast}){
+function PageProjets({projet,setProjet,setPage,onToast,onSauvegarde,onCharge}){
   // v2.6.5 : la liste affichée est toujours relue depuis le stockage après chaque
   // opération ; un message de succès n'est affiché que si l'écriture a réussi.
   const [lecture,setLecture]=useState(()=>lireProjets());
@@ -3212,6 +3375,7 @@ function PageProjets({projet,setProjet,setPage,onToast}){
   const sauver=()=>{
     if(!projet.nom){onToast&&onToast("Donne d'abord un nom au projet (étape 1)","warn");setPage("projet");return;}
     const r=sauverProjet(projet);
+    onSauvegarde&&onSauvegarde(r);
     if(!r.ok){echec(`Projet « ${projet.nom} » NON enregistré`,r);return;}
     const saved=r.projet;
     setProjet(p=>({...p,_pid:saved._pid,_cree:saved._cree,_maj:saved._maj}));
@@ -3220,6 +3384,7 @@ function PageProjets({projet,setProjet,setPage,onToast}){
   };
   const charger=(p)=>{
     setProjet({...p});
+    onCharge&&onCharge(p,lecture.ok);
     onToast&&onToast("Projet \""+p.nom+"\" chargé","ok");
     setPage("projet");
   };
@@ -3248,6 +3413,7 @@ function PageProjets({projet,setProjet,setPage,onToast}){
   };
   const nouveau=()=>{
     setProjet({...defaultProjet,elements:[],_pid:null});
+    onCharge&&onCharge({},false);
     onToast&&onToast("Nouveau projet vierge","ok");
     setPage("projet");
   };
@@ -3448,11 +3614,11 @@ function PageMetre({projet}){
 function PageFleche({projet}){
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   const facades=projet.elements.filter(e=>e.type==="facade");
-  const [systeme,setSysteme]=useState("FW60");
-  const [entraxe,setEntraxe]=useState("1.35");
-  const [portee,setPortee]=useState("3.5");
-  const [critere,setCritere]=useState("200");
-  const [show,setShow]=useState(false);
+  const [systeme,setSysteme]=useEtatModule("fleche.systeme","FW60");
+  const [entraxe,setEntraxe]=useEtatModule("fleche.entraxe","1.35");
+  const [portee,setPortee]=useEtatModule("fleche.portee","3.5");
+  const [critere,setCritere]=useEtatModule("fleche.critere","200");
+  const [show,setShow]=useEtatModule("fleche.afficher",false);
   const libCrit=critere==="200_15"?"L/200 ≤ 15 mm":"L/"+critere;
   const e=+entraxe||0, Lp=+portee||0;
   const valide=!!pression&&e>0&&Lp>0;
@@ -3561,9 +3727,9 @@ function PageFleche({projet}){
 // ── PAGE PARE-BALLE / COUPE-FEU ────────────────────────────────────────────
 function PageSecurite({db}){
   const secSystems=db.systemes.filter(s=>s.certifications&&s.certifications.length>0);
-  const [typeFilter,setTypeFilter]=useState("");
-  const [classeFilter,setClasseFilter]=useState("");
-  const [search,setSearch]=useState("");
+  const [typeFilter,setTypeFilter]=useEtatModule("securite.type","");
+  const [classeFilter,setClasseFilter]=useEtatModule("securite.classe","");
+  const [search,setSearch]=useEtatModule("securite.recherche","");
 
   // Toutes les certifications à plat, avec référence au système
   const allCerts=[];
@@ -3683,8 +3849,8 @@ function PageSecurite({db}){
 function PageBase({db}){
   const normalSystems=db.systemes.filter(s=>!s.certifications);
   const marques=[...new Set(normalSystems.map(s=>s.marque))];
-  const [ma,setMa]=useState(marques[0]||"");
-  const [sel,setSel]=useState(normalSystems[0]?.id);
+  const [ma,setMa]=useEtatModule("base.marque",marques[0]||"");
+  const [sel,setSel]=useEtatModule("base.systeme",normalSystems[0]?.id);
   const sys=normalSystems.find(s=>s.id===sel);
   return <div>
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
@@ -3773,11 +3939,11 @@ function avertissementsForm(f){
 }
 
 function PageAjouter({db,onChange}){
-  const [form,setForm]=useState(formVide);
+  const [form,setForm]=useEtatModule("ajouter.brouillon",formVide);
   const [perso,setPerso]=useState(()=>getPerso());
   const [msg,setMsg]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
-  const [srcId,setSrcId]=useState("");
+  const [srcId,setSrcId]=useEtatModule("ajouter.source","");
   const refresh=()=>{setPerso(getPerso());onChange&&onChange();};
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   const setRow=(list,i,k,v)=>setForm(f=>({...f,[list]:f[list].map((r,j)=>j===i?{...r,[k]:v}:r)}));
@@ -4119,71 +4285,556 @@ function PageAutotest(){
   </div>;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// GlassIQ v2.7 — INTERFACE (présentation, navigation, synthèse). Aucune règle
+// métier n'est définie ici : chaque verdict provient des fonctions existantes
+// (controleGeometrie, diagPression, calcVentElement, verifVitrage, verifAEV,
+// verifDimensions, verifThermique, verifAllege, verifFeuilleteAllege, statutDTA).
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Icônes (traits fins, 16 px) ───────────────────────────────────────────
+const ICONES={
+  dashboard:"M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z",
+  projet:"M9 3h6v3H9zM6 5H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-1M8 11h8M8 15h6",
+  elements:"M4 3h16v18H4zM12 3v18M4 12h16",
+  projets:"M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7",
+  vent:"M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h7",
+  comparateur:"M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0zM8 21h8",
+  controle:"M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4",
+  fleche:"M3 4v16M21 4v16M3 8c6 8 12 8 18 0M3 20h18",
+  securite:"M12 2l8 3v6c0 5-3.5 9-8 11c-4.5-2-8-6-8-11V5z",
+  prescription:"M6 2h9l5 5v15H6zM14 2v6h6M9 13h8M9 17h6",
+  metre:"M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2",
+  base:"M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3s-3.6 3-8 3s-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+  ajouter:"M4 4h16v16H4zM12 8v8M8 12h8",
+  autotest:"M9 2h6M10 2v6L4 19a2 2 0 0 0 1.7 3h12.6a2 2 0 0 0 1.7-3L14 8V2M7 15h10",
+  priceiq:"M3 12l9-9h7v7l-9 9zM15 7.5a1 1 0 1 0 0 .01",
+  replier:"M15 18l-6-6l6-6",
+  deplier:"M9 18l6-6l-6-6",
+  plus:"M12 5v14M5 12h14",
+  suite:"M5 12h14M13 6l6 6l-6 6",
+  alerte:"M12 3l10 18H2zM12 10v5M12 18v.01",
+  logo:"M4 3h16v18H4zM12 3v18M4 12h16",
+};
+function Icone({n,taille=16,trait=1.7,style}){
+  return <svg width={taille} height={taille} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={trait} strokeLinecap="round" strokeLinejoin="round" style={style} aria-hidden="true"><path d={ICONES[n]||""}/></svg>;
+}
+
+// ── États d'affichage ─────────────────────────────────────────────────────
+// conforme / non_conforme / non_verifiable / a_recalculer / a_confirmer
+// (+ info, a_jour : informations neutres, jamais comptées comme conformité)
+const LIB_ETAT={conforme:"Conforme",non_conforme:"Non conforme",non_verifiable:"Non vérifiable",a_recalculer:"À recalculer",a_confirmer:"À confirmer",info:"Information",a_jour:"Données inchangées",absente:"Aucun système retenu"};
+const CLS_ETAT={conforme:"st-ok",non_conforme:"st-ko",non_verifiable:"st-nv",a_recalculer:"st-rc",a_confirmer:"st-rc",info:"st-in",a_jour:"st-in",absente:"st-nv"};
+const etatDe=ok=>ok===true?"conforme":ok===false?"non_conforme":"non_verifiable";
+const RANG_ETAT={non_conforme:4,a_recalculer:3,a_confirmer:2,non_verifiable:1,conforme:0};
+// État global : « conforme » uniquement si TOUS les contrôles comptés sont conformes.
+function combinerEtats(etats){
+  const l=etats.filter(e=>e in RANG_ETAT);
+  if(!l.length)return "non_verifiable";
+  return l.reduce((a,b)=>RANG_ETAT[b]>RANG_ETAT[a]?b:a,"conforme");
+}
+function Etat({etat,children,titre}){
+  return <span className={"gq-chip "+(CLS_ETAT[etat]||"st-nv")} title={titre||LIB_ETAT[etat]}><span className={"gq-dot "+(CLS_ETAT[etat]||"st-nv")}></span>{children||LIB_ETAT[etat]||etat}</span>;
+}
+function Pastille({etat,titre}){return <span className={"gq-dot "+(CLS_ETAT[etat]||"st-nv")} title={titre||LIB_ETAT[etat]} aria-label={LIB_ETAT[etat]}></span>;}
+
+// ── Empreinte des données déterminantes (v2.7) ────────────────────────────
+// Représentation canonique et déterministe : clés triées, valeurs vides/false
+// ignorées, nombres et textes ramenés à leur texte (« 1200 » = 1200). Une empreinte
+// identique signifie seulement « données pertinentes inchangées », jamais « conforme ».
+// Exclus : ce qui n'entre dans aucune vérification (identification, quantité, champs
+// d'affichage). controle_ug est CONSERVÉ : verifThermique l'utilise comme Ug du vitrage.
+const CHAMPS_ELEMENT_HORS_EMPREINTE=["id","label","quantite"];
+const CHAMPS_PROJET_HORS_EMPREINTE=["nom","moa","moe","phase","date","redacteur","elements","prescriptions","presc_overrides","presc_lignes_sup","pression_pa","epaisseur_dtu","controle_ref","controle_tl","controle_fs"];
+function canoniser(v){
+  if(v===undefined||v===null||v===false)return undefined;
+  if(typeof v==="number")return isFinite(v)?String(v):undefined;
+  if(typeof v==="string"){const t=v.trim();return t===""?undefined:t;}
+  if(typeof v!=="object")return v;
+  if(Array.isArray(v))return v.map(x=>{const c=canoniser(x);return c===undefined?null:c;});
+  const o={};
+  Object.keys(v).sort().forEach(k=>{const c=canoniser(v[k]);if(c!==undefined)o[k]=c;});
+  return Object.keys(o).length?o:undefined;
+}
+function hachage(txt){
+  let h1=0x811c9dc5, h2=0x9747b28c;
+  for(let i=0;i<txt.length;i++){
+    const c=txt.charCodeAt(i);
+    h1=Math.imul(h1^c,0x01000193)>>>0;
+    h2=Math.imul(h2^c,0x5bd1e995)>>>0; h2=(h2^(h2>>>13))>>>0;
+  }
+  return h1.toString(16).padStart(8,"0")+h2.toString(16).padStart(8,"0");
+}
+function donneesDeterminantes(el,projet){
+  const e={},p={};
+  Object.keys(el||{}).forEach(k=>{if(k[0]!=="_"&&!CHAMPS_ELEMENT_HORS_EMPREINTE.includes(k))e[k]=el[k];});
+  Object.keys(projet||{}).forEach(k=>{if(k[0]!=="_"&&!CHAMPS_PROJET_HORS_EMPREINTE.includes(k))p[k]=projet[k];});
+  return {element:e,projet:p};
+}
+// Empreinte enregistrée avec un système retenu : élément + exigences CCTP + vent +
+// paramètres vitrage + données complètes du système fabricant + choix (système, vitrage).
+function empreintePrescription(el,projet,sys,choix){
+  return "v27:"+hachage(JSON.stringify(canoniser({version:1,...donneesDeterminantes(el,projet),systeme:sys||null,choix:choix||null})||{}));
+}
+// Empreinte d'une analyse du comparateur (résultats affichés) : élément + projet + base.
+function empreinteBase(db){return hachage(JSON.stringify(canoniser((db&&db.systemes)||[])||[]));}
+function empreinteAnalyse(el,projet,empDB){
+  return "v27a:"+hachage(JSON.stringify(canoniser({version:1,...donneesDeterminantes(el,projet),base:empDB})||{}));
+}
+function systemeRetenu(pr,db){
+  if(!pr)return null;
+  return (db.systemes||[]).find(s=>pr.sysId&&s.id===pr.sysId)||(db.systemes||[]).find(s=>`${s.marque} ${s.nom}`===pr.gamme)||null;
+}
+// Statut de la prescription d'un élément (absente / à confirmer / à recalculer / à jour)
+function etatPrescription(el,projet,db){
+  const pr=(projet.prescriptions||{})[el.id];
+  if(!pr)return {etat:"absente",pr:null,sys:null,note:"aucun système retenu"};
+  const sys=systemeRetenu(pr,db);
+  const ov=(projet.presc_overrides||{})[el.id]||{};
+  const modifs=CHAMPS_COMPARATEUR.filter(k=>ov[k]!=null&&String(ov[k]).trim()!==""&&String(ov[k])!==String(pr[k]==null?"":pr[k]));
+  if(!sys)return {etat:"a_recalculer",pr,sys:null,note:`système retenu « ${pr.gamme||pr.sysId} » introuvable dans la base`};
+  if(!pr._empreinte)return {etat:"a_confirmer",pr,sys,note:"prescription sans empreinte (version antérieure à la v2.7) — relancer le comparateur et retenir à nouveau pour la confirmer"};
+  const now=empreintePrescription(el,projet,sys,{sysId:sys.id,vitrage:pr.vitrage});
+  if(now!==pr._empreinte)return {etat:"a_recalculer",pr,sys,note:"données de l'élément, du CCTP, du vent ou du système modifiées depuis le choix"};
+  if(modifs.length)return {etat:"a_confirmer",pr,sys,note:`valeurs modifiées à la main en Prescription (${modifs.join(", ")})`};
+  return {etat:"a_jour",pr,sys,note:"données déterminantes inchangées depuis le choix (n'implique pas la conformité)"};
+}
+
+// ── Synthèse technique d'un élément (lecture seule des fonctions existantes) ──
+function syntheseElement(el,projet,db){
+  const L=[];
+  const ajoute=(id,label,etat,valeur,note,compte=true)=>L.push({id,label,etat,valeur:valeur||"",note:note||"",compte});
+  const geo=controleGeometrie(el);
+  const dp=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const iF=el.type==="facade";
+  if(!geo.ok)ajoute("geo","Géométrie","non_conforme","incohérente",geo.message);
+  else if(!geo.complet)ajoute("geo","Géométrie","non_verifiable","dimensions non saisies","renseigner L × H");
+  else ajoute("geo","Géométrie","conforme","cohérente",`${el.largeur} × ${el.hauteur} mm`);
+  if(dp.ok){
+    const ve=calcVentElement(el,projet);
+    ajoute("vent","Pression du vent","info",`${dp.pression} Pa`,ve?`épaisseur de verre équivalente requise ≥ ${ve.dtu.eRequired} mm (vitrage le plus défavorable)`:"",false);
+  }else ajoute("vent","Pression du vent","non_verifiable",dp.court,dp.message);
+  const ep=etatPrescription(el,projet,db);
+  const sys=ep.sys, pr=ep.pr;
+  const sansSys=(id,label)=>ajoute(id,label,"non_verifiable","—",ep.etat==="absente"?"aucun système retenu":ep.note);
+  if(!pr||!sys){
+    sansSys("meca","Vitrage — résistance / flèche");sansSys("poids","Vitrage — poids / feuillure");sansSys("aev","AEV / vent du système");
+    sansSys("dim","Domaine d'emploi");sansSys("th","Thermique Uw");sansSys("acou","Acoustique RA,tr");
+    if(pr&&!sys)ajoute("presc","Prescription","a_recalculer","système introuvable",ep.note);
+    return {lignes:L,etat:combinerEtats(L.filter(l=>l.compte).map(l=>l.etat)),prescription:ep};
+  }
+  // Mécanique du vitrage retenu (mêmes appels que le comparateur, sur les dimensions saisies)
+  let v=null;
+  if(!dp.ok)ajoute("meca","Vitrage — résistance / flèche","non_verifiable","—",dp.message);
+  else if(!geo.ok||!geo.complet)ajoute("meca","Vitrage — résistance / flèche","non_verifiable","—",!geo.ok?"géométrie incohérente":"dimensions non saisies");
+  else{
+    v=verifVitrage(pr.vitrage,+el.largeur,+el.hauteur,sys,el,projet);
+    if(!v)ajoute("meca","Vitrage — résistance / flèche","non_verifiable",pr.vitrage,"composition non analysable automatiquement");
+    else{
+      const e=combinerEtats([etatDe(v.resistance_ok),etatDe(v.fleche_verre_ok)]);
+      const req=v.dtu_verre?` — requis eR ≥ ${(v.dtu_verre.e1*v.dtu_verre.c).toFixed(2)} mm, eF ≥ ${v.dtu_verre.eF_requis} mm`:"";
+      ajoute("meca","Vitrage — résistance / flèche",e,pr.vitrage,`eR ${v.eR_reel!=null?v.eR_reel:"—"} mm · eF ${v.eF_reel!=null?v.eF_reel:"—"} mm${req}`);
+    }
+  }
+  if(v||(geo.ok&&geo.complet)){
+    const vv=v||verifVitrage(pr.vitrage,+el.largeur,+el.hauteur,sys,el,projet);
+    if(vv)ajoute("poids","Vitrage — poids / feuillure",combinerEtats([etatDe(vv.poids_ok),etatDe(vv.feuillure_ok)]),`${vv.epaisseur_totale} mm · ${vv.poids_vantail} kg`,`feuillure ${vv.feuillure_min}–${vv.feuillure_max} mm · ${vv.controle_ferrure===false?"fixe : pas de limite ferrure":`max ${vv.isFacade?"appui":"ferrure"} ${vv.poids_max?vv.poids_max+" kg":"non renseigné"}`}`);
+    else ajoute("poids","Vitrage — poids / feuillure","non_verifiable",pr.vitrage,"composition non analysable automatiquement");
+  }else ajoute("poids","Vitrage — poids / feuillure","non_verifiable","—",!geo.ok?"géométrie incohérente":"dimensions non saisies");
+  const aev=verifAEV(sys,dp.pression,iF,projet.aev_min,el);
+  ajoute("aev","AEV / vent du système",etatDe(aev.ok),"",aev.note);
+  const vd=verifDimensions(sys,+el.largeur,+el.hauteur,el);
+  ajoute("dim","Domaine d'emploi",vd.statut==="ok"?"conforme":vd.statut==="hors"?"non_conforme":"non_verifiable","",vd.texte||"pas de domaine d'emploi exploitable pour cet élément");
+  if(!String(projet.uw_max==null?"":projet.uw_max).trim())ajoute("th","Thermique Uw","non_verifiable","","Uw max non précisé au CCTP");
+  else{const th=verifThermique(sys,el,projet);ajoute("th","Thermique Uw",etatDe(th.ok),th.cfg?`Uw ${th.cfg.uw}`:"",th.court||th.note);}
+  // Acoustique : valeur enregistrée au moment du choix (PV d'essai) — dépend de l'empreinte
+  const rc=parseInt(pr.rwctr), ratr=parseInt(el.ratr);
+  if(ep.etat==="a_recalculer"||ep.etat==="a_confirmer")ajoute("acou","Acoustique RA,tr",ep.etat,pr.rwctr||"—",`valeur du choix (PV ${pr.rapport||"—"}) — ${ep.note}`);
+  else if(pr.serie_depuis)ajoute("acou","Acoustique RA,tr","a_confirmer",pr.rwctr||"—",`repris de « ${pr.serie_depuis} » (série) : correction de surface non recalculée pour cet élément`);
+  else if(!isFinite(rc)||!isFinite(ratr))ajoute("acou","Acoustique RA,tr","non_verifiable",pr.rwctr||"—","valeur ou exigence illisible");
+  else ajoute("acou","Acoustique RA,tr",rc>=ratr?"conforme":"non_conforme",`${rc} dB`,`exigence ≥ ${ratr} dB · PV ${pr.rapport||"—"}${pr.correction&&pr.correction!=="0 dB"?` · correction ${pr.correction}`:""}`);
+  const va=verifAllege(el);
+  if(va.inconnue)ajoute("allege","Sécurité allège","non_verifiable","",va.detail);
+  else if(va.protection_requise&&!el.allege_opaque){const fa=verifFeuilleteAllege(pr.vitrage);ajoute("allege","Sécurité allège",etatDe(fa.ok),"",fa.texte);}
+  const dta=statutDTA(sys.validite);
+  ajoute("dta","Validité DTA",dta.statut==="expire"?"non_conforme":dta.statut==="inconnu"?"non_verifiable":"conforme","",dta.texte);
+  ajoute("presc","Prescription",ep.etat,`${pr.gamme}`,ep.note,ep.etat!=="a_jour");
+  return {lignes:L,etat:combinerEtats(L.filter(l=>l.compte).map(l=>l.etat)),prescription:ep};
+}
+
+// ── État des modules conservé pendant la navigation ───────────────────────
+// Les données du projet restent dans l'état unique du projet ; seules les saisies
+// propres à un outil (vérificateur libre, flèche façade, brouillon de système…) sont
+// gardées ici, pour ne pas les perdre en changeant de module.
+const ContexteModules=React.createContext(null);
+function useEtatModule(cle,init){
+  const ctx=React.useContext(ContexteModules);
+  const [local,setLocal]=useState(init);
+  if(!ctx)return [local,setLocal];
+  const a=Object.prototype.hasOwnProperty.call(ctx.etat,cle);
+  const val=a?ctx.etat[cle]:(typeof init==="function"?init():init);
+  const set=x=>ctx.setEtat(e=>{const prev=Object.prototype.hasOwnProperty.call(e,cle)?e[cle]:(typeof init==="function"?init():init);return {...e,[cle]:typeof x==="function"?x(prev):x};});
+  return [val,set];
+}
+
+// ── Liste compacte des éléments ───────────────────────────────────────────
+function libTypeEl(el){return el.type==="facade"?(el.soustype||"Façade"):(el.chassis_compose?`${el.soustype||"Châssis"} · composé`:(el.soustype||"Châssis"));}
+function ListeElements({elements,syntheses,actif,onSelect,onAjouter,prescs}){
+  return <aside className="gq-els no-print" aria-label="Éléments du projet">
+    <div className="gq-els-h"><span>Éléments ({elements.length})</span>
+      {onAjouter&&<button onClick={onAjouter} title="Ajouter un élément" style={{...S.btnSecondary,padding:"2px 8px",fontSize:11,display:"inline-flex",alignItems:"center",gap:4}}><Icone n="plus" taille={12}/>Ajouter</button>}
+    </div>
+    <div className="gq-els-l">
+      {elements.length===0&&<div style={{padding:"14px 10px",fontSize:12,color:"var(--txt3)"}}>Aucun élément. Ajoute une fenêtre, une porte-fenêtre ou une façade.</div>}
+      {elements.map(e=>{
+        const sy=syntheses[e.id], pr=prescs[e.id];
+        return <button key={e.id} className={"gq-el"+(actif&&actif.id===e.id?" on":"")} onClick={()=>onSelect(e.id)} title={sy?`État : ${LIB_ETAT[sy.etat]}`:""}>
+          <span className="gq-el-n">{e.label||"Sans nom"}</span>
+          {sy&&<Pastille etat={sy.etat}/>}
+          <span className="gq-el-m">{libTypeEl(e)} · {e.largeur||"?"}×{e.hauteur||"?"} · RA,tr {e.ratr} dB{+e.quantite>1?` · ×${e.quantite}`:""}</span>
+          <span className="gq-el-s">{pr?`${pr.gamme} · ${pr.vitrage}`:"Aucun système retenu"}</span>
+        </button>;
+      })}
+    </div>
+  </aside>;
+}
+// Variante compacte (écrans étroits)
+function SelecteurElement({elements,actif,onSelect,syntheses}){
+  if(!elements.length)return null;
+  return <div className="gq-elsel no-print">
+    <label style={{...S.label,margin:0,whiteSpace:"nowrap"}}>Élément actif</label>
+    <select value={actif?String(actif.id):""} onChange={e=>onSelect(elements.find(x=>String(x.id)===e.target.value).id)} style={{...S.input,maxWidth:420}}>
+      {elements.map(e=><option key={e.id} value={String(e.id)}>{e.label} — {libTypeEl(e)} {e.largeur}×{e.hauteur}{syntheses[e.id]?` — ${LIB_ETAT[syntheses[e.id].etat]}`:""}</option>)}
+    </select>
+  </div>;
+}
+
+// ── Bandeau de synthèse de l'élément actif ────────────────────────────────
+function BarreSynthese({el,sy,ouvert,setOuvert}){
+  if(!el||!sy)return null;
+  const court={geo:"Géométrie",vent:"Vent",meca:"Vitrage DTU 39",poids:"Poids / feuillure",aev:"AEV",dim:"Domaine",th:"Uw",acou:"RA,tr",allege:"Allège",dta:"DTA",presc:"Prescription"};
+  return <section className="gq-synth no-print" aria-label="Synthèse technique de l'élément actif">
+    <div className="gq-synth-h">
+      <span style={{fontSize:11,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--txt3)"}}>Synthèse</span>
+      <strong style={{fontSize:13}}>{el.label}</strong>
+      <span style={{fontSize:12,color:"var(--txt3)"}}>{libTypeEl(el)} · {el.largeur||"?"} × {el.hauteur||"?"} mm</span>
+      <span style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:11.5,color:"var(--txt2)"}}>État de l'élément</span><Etat etat={sy.etat}/>
+        <button className="gq-link" onClick={()=>setOuvert(!ouvert)}>{ouvert?"Masquer le détail":"Détail"}</button>
+      </span>
+    </div>
+    <div className="gq-synth-c">
+      {sy.lignes.map(l=><Etat key={l.id} etat={l.etat} titre={`${l.label} — ${LIB_ETAT[l.etat]}${l.valeur?" · "+l.valeur:""}${l.note?" · "+l.note:""}`}>{court[l.id]||l.label}{l.etat==="info"&&l.valeur?` ${l.valeur}`:""}{l.etat!=="info"?` · ${LIB_ETAT[l.etat]}`:""}</Etat>)}
+    </div>
+    {ouvert&&<div className="gq-synth-d fade">
+      {sy.lignes.map(l=><div key={l.id} className="gq-row"><span style={{fontWeight:600,color:"var(--txt2)"}}>{l.label}</span><span><Etat etat={l.etat}/></span><span style={{color:"var(--txt2)"}}>{l.valeur?<strong style={{color:"var(--txt)",marginRight:6}}>{l.valeur}</strong>:null}{l.note}</span></div>)}
+      <div style={{fontSize:11,color:"var(--txt3)",marginTop:6}}>« Conforme » : vérification effectuée et réussie. Une prescription « données inchangées » confirme seulement que les données n'ont pas changé depuis le choix.</div>
+    </div>}
+  </section>;
+}
+
+// ── Prochaine action pertinente ───────────────────────────────────────────
+function prochaineAction(projet,syntheses){
+  const dp=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const els=projet.elements||[];
+  if(!String(projet.nom||"").trim())return {label:"Compléter le projet & CCTP",page:"projet",raison:"Le projet n'a pas encore de nom."};
+  if(!els.length)return {label:"Ajouter des éléments",page:"elements",raison:"Aucune menuiserie ni façade n'est encore décrite."};
+  const geoKo=els.find(e=>!controleGeometrie(e).ok);
+  if(geoKo)return {label:`Corriger la géométrie de « ${geoKo.label} »`,page:"elements",elId:geoKo.id,raison:controleGeometrie(geoKo).message};
+  if(!dp.ok)return {label:"Compléter les données vent",page:"projet",raison:dp.message};
+  const sansDim=els.find(e=>!controleGeometrie(e).complet);
+  if(sansDim)return {label:`Saisir les dimensions de « ${sansDim.label} »`,page:"elements",elId:sansDim.id,raison:"Largeur ou hauteur non renseignée."};
+  const aRecalc=els.find(e=>syntheses[e.id]&&["a_recalculer","a_confirmer"].includes(syntheses[e.id].prescription.etat));
+  if(aRecalc)return {label:`Recalculer « ${aRecalc.label} »`,page:"comparateur",elId:aRecalc.id,raison:syntheses[aRecalc.id].prescription.note};
+  const sansPresc=els.find(e=>!(projet.prescriptions||{})[e.id]);
+  if(sansPresc)return {label:`Comparer les systèmes pour « ${sansPresc.label} »`,page:"comparateur",elId:sansPresc.id,raison:"Aucun système retenu pour cet élément."};
+  const ko=els.find(e=>syntheses[e.id]&&syntheses[e.id].etat==="non_conforme");
+  if(ko)return {label:"Voir les éléments à vérifier",page:"dashboard",ancre:"alertes",raison:`« ${ko.label} » présente au moins une non-conformité.`};
+  return {label:"Générer la prescription",page:"prescription",raison:"Tous les éléments ont un système retenu."};
+}
+
+// ── PAGE : TABLEAU DE BORD ────────────────────────────────────────────────
+function PageTableauDeBord({projet,setProjet,syntheses,aller,sauvegarde,chargerDemo,onCharge,onToast}){
+  const els=projet.elements||[];
+  const dp=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const prescs=projet.prescriptions||{};
+  const nbRet=els.filter(e=>prescs[e.id]).length;
+  const qte=els.reduce((t,e)=>t+Math.max(1,parseInt(e.quantite)||1),0);
+  const cpt={conforme:0,non_conforme:0,non_verifiable:0,a_recalculer:0,a_confirmer:0};
+  els.forEach(e=>{const s=syntheses[e.id];if(s)cpt[s.etat]=(cpt[s.etat]||0)+1;});
+  const etatProjet=els.length?combinerEtats(els.map(e=>syntheses[e.id]?syntheses[e.id].etat:"non_verifiable")):"non_verifiable";
+  const action=prochaineAction(projet,syntheses);
+  const lec=lireProjets();
+  const recents=lec.projets.filter(p=>p&&p._pid&&p._pid!==projet._pid).slice().sort((a,b)=>String(b._maj||"").localeCompare(String(a._maj||""))).slice(0,4);
+  // Alertes et points à vérifier
+  const alertes=[];
+  if(!dp.ok)alertes.push({etat:dp.statut==="hors_domaine"||dp.statut==="hauteur_invalide"?"non_conforme":"non_verifiable",txt:dp.message,page:"projet",lien:"Projet & CCTP"});
+  els.forEach(e=>{
+    const s=syntheses[e.id];if(!s)return;
+    s.lignes.filter(l=>l.compte&&l.etat!=="conforme").forEach(l=>{
+      if(l.id==="vent")return;
+      if(l.id!=="geo"&&l.id!=="presc"&&s.prescription.etat==="absente"){return;}
+      alertes.push({etat:l.etat,txt:`${e.label} — ${l.label} : ${LIB_ETAT[l.etat]}${l.note?` (${l.note})`:""}`,page:l.id==="geo"?"elements":"comparateur",elId:e.id,lien:l.id==="geo"?"Corriger":"Comparateur"});
+    });
+    if(s.prescription.etat==="absente")alertes.push({etat:"non_verifiable",txt:`${e.label} — aucun système retenu : contrôles du vitrage, AEV, domaine d'emploi, thermique et acoustique non effectués`,page:"comparateur",elId:e.id,lien:"Comparer"});
+  });
+  alertes.sort((a,b)=>(RANG_ETAT[b.etat]||0)-(RANG_ETAT[a.etat]||0));
+  const [toutes,setToutes]=useEtatModule("dashboard.toutesAlertes",false);
+  const affAlertes=toutes?alertes:alertes.slice(0,8);
+  const libSauv={enregistre:"Enregistré",modifie:"Modifications non enregistrées",cours:"Sauvegarde en cours",echec:"Échec de sauvegarde",jamais:"Modifications non enregistrées"}[sauvegarde.etat];
+  return <div className="fade">
+    {/* Projet */}
+    <div style={{...S.card,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+      <div style={{flex:"1 1 320px",minWidth:0}}>
+        <div className="gq-kicker">Projet</div>
+        <div style={{fontSize:18,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{projet.nom||"Projet sans nom"}</div>
+        <div style={{fontSize:12.5,color:"var(--txt2)",marginTop:3}}>{[projet.phase,projet.moa&&`MOA ${projet.moa}`,projet.moe&&`MOE ${projet.moe}`,projet.date].filter(Boolean).join(" · ")||"Phase, maîtrise d'ouvrage et maîtrise d'œuvre à renseigner"}</div>
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <button onClick={chargerDemo} style={S.btnSecondary}>⚡ Charger l'exemple de démo</button>
+        <button onClick={()=>aller("projet")} style={S.btnSecondary}>Modifier le projet & CCTP</button>
+        <button onClick={()=>aller("projets")} style={S.btnSecondary}>Mes projets</button>
+      </div>
+    </div>
+    {/* Indicateurs */}
+    <div className="gq-kpis">
+      <div className="gq-kpi"><div className="gq-kpi-l">Éléments étudiés</div><div className="gq-kpi-v">{els.length}</div><div className="gq-kpi-s">{qte} unité{qte>1?"s":""} au total</div></div>
+      <div className="gq-kpi"><div className="gq-kpi-l">Systèmes retenus</div><div className="gq-kpi-v">{nbRet} / {els.length}</div><div className="gq-kpi-s">{els.length-nbRet>0?`${els.length-nbRet} élément${els.length-nbRet>1?"s":""} sans système`:els.length?"tous les éléments":"—"}</div></div>
+      <div className="gq-kpi"><div className="gq-kpi-l">Pression DTU 39</div><div className="gq-kpi-v" style={{color:dp.ok?"var(--txt)":"var(--nv)"}}>{dp.ok?`${dp.pression} Pa`:"Non vérifiable"}</div><div className="gq-kpi-s" title={dp.message}>{dp.ok?`zone ${projet.zone_vent} · terrain ${projet.cat_terrain} · H ${projet.hauteur_bat} m`:dp.court}</div></div>
+      <div className="gq-kpi"><div className="gq-kpi-l">Sauvegarde</div><div className="gq-kpi-v" style={{fontSize:14.5,marginTop:8,whiteSpace:"normal",lineHeight:1.25,color:sauvegarde.etat==="echec"?"var(--ko)":sauvegarde.etat==="enregistre"?"var(--ok)":"var(--warn)"}}>{libSauv}</div><div className="gq-kpi-s">{sauvegarde.etat==="enregistre"&&sauvegarde.quand?`écriture confirmée ${new Date(sauvegarde.quand).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}`:sauvegarde.etat==="echec"?sauvegarde.erreur:sauvegarde.etat==="jamais"?"projet jamais enregistré — « Mes projets »":"enregistrement automatique"}</div></div>
+    </div>
+    {/* Prochaine action */}
+    <div style={{...S.card,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",borderLeft:"3px solid var(--accent)"}}>
+      <div style={{flex:"1 1 300px",minWidth:0}}>
+        <div className="gq-kicker">Prochaine action</div>
+        <div style={{fontSize:14,fontWeight:650}}>{action.label}</div>
+        <div style={{fontSize:12,color:"var(--txt2)",marginTop:2}}>{action.raison}</div>
+      </div>
+      <button onClick={()=>aller(action.page,action.elId,action.ancre)} style={{...S.btnPrimary,display:"inline-flex",alignItems:"center",gap:8}}>{action.label}<Icone n="suite" taille={14}/></button>
+    </div>
+    <div className="gq-grid2">
+      <div style={{minWidth:0}}>
+        {/* Éléments */}
+        <div style={S.card}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:8}}>
+            <div style={{fontSize:14,fontWeight:650}}>Éléments et contrôles</div>
+            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}><span style={{fontSize:11.5,color:"var(--txt2)"}}>État du projet</span><Etat etat={etatProjet}/></div>
+          </div>
+          {els.length===0?<div style={{fontSize:12.5,color:"var(--txt3)",padding:"10px 0"}}>Aucun élément. <button className="gq-link" onClick={()=>aller("elements")}>Ajouter des éléments</button> ou importer le repérage Excel.</div>:
+          <table className="gq-tbl">
+            <colgroup><col style={{width:"27%"}}/><col className="opt" style={{width:"17%"}}/><col className="opt" style={{width:"15%"}}/><col style={{width:"19%"}}/><col style={{width:"22%"}}/></colgroup>
+            <thead><tr><th>Élément</th><th className="opt">Type</th><th className="opt">L × H</th><th>Système</th><th>État</th></tr></thead>
+            <tbody>{els.map(e=>{const s=syntheses[e.id];const pr=prescs[e.id];return <tr key={e.id} className="clic" onClick={()=>aller("elements",e.id)} title="Ouvrir l'élément">
+              <td style={{fontWeight:600}}>{e.label}</td><td className="opt">{libTypeEl(e)}</td><td className="opt" style={{fontSize:11.5}}>{e.largeur}×{e.hauteur}</td>
+              <td title={pr?`${pr.gamme} — ${pr.vitrage}`:""}>{pr?pr.gamme:<span style={{color:"var(--txt3)"}}>—</span>}</td>
+              <td>{s&&<Etat etat={s.etat}/>}</td></tr>;})}</tbody>
+          </table>}
+          {els.length>0&&<div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:10,fontSize:11.5,color:"var(--txt2)"}}>
+            {["conforme","non_conforme","a_recalculer","a_confirmer","non_verifiable"].filter(k=>cpt[k]).map(k=><span key={k} style={{display:"inline-flex",alignItems:"center",gap:5}}><Pastille etat={k}/>{cpt[k]} {LIB_ETAT[k].toLowerCase()}</span>)}
+          </div>}
+        </div>
+        {/* Alertes */}
+        <div style={S.card} id="alertes">
+          <div style={{fontSize:14,fontWeight:650,marginBottom:4}}>Alertes et points à vérifier {alertes.length>0&&<span style={{fontSize:12,color:"var(--txt3)",fontWeight:500}}>({alertes.length})</span>}</div>
+          {alertes.length===0?<div style={{fontSize:12.5,color:"var(--txt3)",padding:"6px 0"}}>{els.length?"Aucun point en attente sur les contrôles disponibles.":"Les alertes apparaîtront dès que des éléments seront décrits."}</div>:
+            affAlertes.map((a,i)=><div key={i} className="gq-alert"><Pastille etat={a.etat}/><span style={{flex:1,minWidth:0}}>{a.txt}</span><button className="gq-link" onClick={()=>aller(a.page,a.elId)}>{a.lien} →</button></div>)}
+          {alertes.length>8&&<button className="gq-link" style={{marginTop:6}} onClick={()=>setToutes(!toutes)}>{toutes?"Réduire la liste":`Afficher les ${alertes.length} points`}</button>}
+        </div>
+      </div>
+      <div style={{minWidth:0}}>
+        {/* CCTP */}
+        <div style={S.card}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontSize:14,fontWeight:650}}>Exigences du CCTP</div><button className="gq-link" onClick={()=>aller("projet")}>Modifier</button></div>
+          {[["Uw max",projet.uw_max?`${projet.uw_max} W/m²K`:null],["Facteur solaire g max",projet.g_max||null],["TL minimum",projet.tl_min?`${projet.tl_min} %`:null],["Classement AEV",projet.aev_min||null],
+            ["Zone de vent",projet.zone_vent?(ZONES_VENT[projet.zone_vent]||projet.zone_vent).split("—")[0].trim():null],["Catégorie de terrain",projet.cat_terrain?(TERRAINS[projet.cat_terrain]||projet.cat_terrain).split("—")[0].trim():null],
+            ["Hauteur du bâtiment",projet.hauteur_bat!==""&&projet.hauteur_bat!=null?`${projet.hauteur_bat} m`:null],["Hauteur vitrage / sol",projet.hauteur_sol?`${projet.hauteur_sol} m`:null],["Type de verre (ε3)",EPS3_TYPES[projet.type_verre||"recuit"]?EPS3_TYPES[projet.type_verre||"recuit"].label:null]]
+            .map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",gap:10,padding:"5px 0",borderBottom:"1px solid var(--line2)",fontSize:12.5}}><span style={{color:"var(--txt2)"}}>{l}</span><span style={{fontWeight:600,color:v?"var(--txt)":"var(--txt3)",textAlign:"right"}}>{v||"non renseigné"}</span></div>)}
+        </div>
+        {/* Reprendre */}
+        <div style={S.card}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div style={{fontSize:14,fontWeight:650}}>Reprendre un projet</div><button className="gq-link" onClick={()=>aller("projets")}>Toutes les sauvegardes</button></div>
+          {!lec.ok&&<div style={{fontSize:12,color:"var(--warn)",padding:"4px 0"}}>⚠ Stockage des projets illisible — voir « Mes projets ».</div>}
+          {recents.length===0?<div style={{fontSize:12.5,color:"var(--txt3)",padding:"4px 0"}}>Aucun autre projet enregistré dans ce navigateur.</div>:
+            recents.map(p=><div key={p._pid} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid var(--line2)"}}>
+              <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:12.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.nom||"Sans nom"}</div><div style={{fontSize:11,color:"var(--txt3)"}}>{(p.elements||[]).length} élément(s){p._maj?` · ${new Date(p._maj).toLocaleDateString("fr-FR")}`:""}</div></div>
+              <button style={{...S.btnSecondary,padding:"4px 10px"}} onClick={()=>{setProjet({...p});onCharge&&onCharge(p,lec.ok);onToast&&onToast(`Projet "${p.nom}" chargé`,"ok");}}>Ouvrir</button>
+            </div>)}
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────
+const ESPACES=[
+  {titre:"Projet",pages:[{id:"dashboard",label:"Tableau de bord",ic:"dashboard"},{id:"projet",label:"Projet & CCTP",ic:"projet"},{id:"elements",label:"Éléments",ic:"elements",cnt:true},{id:"projets",label:"Mes projets",ic:"projets"}]},
+  {titre:"Étude technique",pages:[{id:"vent",label:"Calcul vent",ic:"vent"},{id:"comparateur",label:"Comparateur",ic:"comparateur"},{id:"controle",label:"Contrôle solaire",ic:"controle"},{id:"fleche",label:"Flèche façade",ic:"fleche"},{id:"securite",label:"Pare-balle / Coupe-feu",ic:"securite"}]},
+  {titre:"Livrables & outils",pages:[{id:"prescription",label:"Prescription",ic:"prescription"},{id:"metre",label:"Métré",ic:"metre"},{id:"base",label:"Base fabricants",ic:"base"},{id:"ajouter",label:"Ajouter système",ic:"ajouter"},{id:"autotest",label:"Autotest",ic:"autotest"}]},
+];
+const TITRES={
+  dashboard:["Projet","Tableau de bord","Avancement, contrôles disponibles et points restant à vérifier."],
+  projet:["Projet","Projet & CCTP","Identification, exigences du CCTP et données vent communes au projet."],
+  elements:["Projet","Éléments et géométries","Menuiseries, châssis composés et façades rideaux : dimensions, configuration et exigences."],
+  projets:["Projet","Mes projets","Sauvegardes du navigateur, import et export."],
+  vent:["Étude technique","Calcul du vent","NF DTU 39 P4 — pression de calcul et épaisseur minimale par élément."],
+  comparateur:["Étude technique","Comparateur des systèmes","Acoustique, AEV, thermique, mécanique du vitrage, domaine d'emploi et DTA."],
+  controle:["Étude technique","Contrôle solaire","Vitrages de contrôle solaire selon TL, facteur solaire et Ug."],
+  fleche:["Étude technique","Flèche façade","Vérification des meneaux de façade rideau sous la pression de calcul."],
+  securite:["Étude technique","Pare-balle / Coupe-feu","Vitrages et systèmes à fonction spécifique."],
+  prescription:["Livrables","Prescription","Note de choix vitrage par élément, prête à imprimer."],
+  metre:["Livrables","Métré","Récapitulatif par typologie : surfaces, linéaires et poids."],
+  base:["Outils","Base fabricants","Systèmes, essais et données des fabricants."],
+  ajouter:["Outils","Ajouter / modifier un système","Systèmes personnels et copies de systèmes fabricants."],
+  autotest:["Outils","Autotest","Contrôles automatiques du moteur de calcul."],
+};
+const PAGES_ELEMENT=["elements","vent","comparateur"];
+const PARCOURS=[{n:1,label:"Projet",page:"projet",pages:["projet"]},{n:2,label:"Éléments",page:"elements",pages:["elements"]},{n:3,label:"Calculer",page:"vent",pages:["vent","fleche"]},{n:4,label:"Comparer et choisir",page:"comparateur",pages:["comparateur","controle","securite"]},{n:5,label:"Livrables",page:"prescription",pages:["prescription","metre"]}];
+
+function BarreLaterale({page,aller,min,setMin,nbEl,nbSys}){
+  return <aside className={"gq-sb no-print"+(min?" min":"")}>
+    <div className="gq-brand">
+      <div className="gq-logo"><Icone n="logo" taille={16} trait={2}/></div>
+      <div className="gq-brand-txt"><div className="gq-brand-t">GlassIQ</div><div className="gq-brand-s">v2.7 · vitrages & façades</div></div>
+    </div>
+    <nav className="gq-sb-nav" aria-label="Navigation principale">
+      {ESPACES.map(es=><div key={es.titre}>
+        <div className="gq-grp"><span>{es.titre}</span></div>
+        {es.pages.map(p=><button key={p.id} className={"gq-item"+(page===p.id?" on":"")} onClick={()=>aller(p.id)} title={p.label} aria-current={page===p.id?"page":undefined}>
+          <Icone n={p.ic}/><span className="gq-lbl">{p.label}</span>{p.cnt&&nbEl>0&&<span className="gq-cnt">{nbEl}</span>}
+        </button>)}
+      </div>)}
+    </nav>
+    <div className="gq-sb-foot">
+      <a href="priceiq/index.html" className="gq-item" style={{textDecoration:"none",color:"#f0c040"}} title="PriceIQ"><Icone n="priceiq"/><span className="gq-lbl">PriceIQ</span></a>
+      <div className="gq-lbl" style={{fontSize:10.5,color:"#6b7a90",padding:"4px 18px 6px"}}>{nbSys} systèmes en base</div>
+      <button className="gq-item gq-toggle" onClick={()=>setMin(!min)} title={min?"Déplier la navigation":"Réduire la navigation"}><Icone n={min?"deplier":"replier"}/><span className="gq-lbl">Réduire</span></button>
+    </div>
+  </aside>;
+}
+function PastilleSauvegarde({sauvegarde,onClick}){
+  const m={enregistre:["ok","Enregistré"],modifie:["mod","Modifications non enregistrées"],cours:["cours","Sauvegarde en cours…"],echec:["ko","Échec de sauvegarde"],jamais:["mod","Modifications non enregistrées"]}[sauvegarde.etat]||["mod","—"];
+  const h=sauvegarde.etat==="enregistre"&&sauvegarde.quand?" "+new Date(sauvegarde.quand).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}):"";
+  return <button className={"gq-save "+m[0]} onClick={onClick} title={sauvegarde.etat==="echec"?sauvegarde.erreur:"Ouvrir « Mes projets »"} aria-live="polite"><span className="d"></span>{m[1]}{h}</button>;
+}
+function BarreHaute({projet,page,aller,sauvegarde,action,etapesFaites}){
+  return <header className={"gq-top no-print"+(action?" act":"")}>
+    <div className="gq-top-p"><div className="gq-top-n" title={projet.nom}>{projet.nom||"Projet sans nom"}</div><div className="gq-top-s">{projet.phase||"Phase non précisée"}{(projet.elements||[]).length?` · ${projet.elements.length} élément${projet.elements.length>1?"s":""}`:""}</div></div>
+    <div className="gq-parcours" aria-label="Parcours de travail">
+      {PARCOURS.map((st,i)=><React.Fragment key={st.n}>
+        <button className={"gq-step"+(st.pages.includes(page)?" on":"")+(etapesFaites[st.n]?" fait":"")} onClick={()=>aller(st.page)} title={`${st.n}. ${st.label}${etapesFaites[st.n]?" — renseigné":""}`}>
+          <span className="n">{st.n}</span><span className="l">{st.label}</span>
+        </button>
+        {i<PARCOURS.length-1&&<span className="gq-sep"></span>}
+      </React.Fragment>)}
+    </div>
+    {action&&<button className="gq-next" onClick={action.onClick} style={{...S.btnPrimary,padding:"7px 12px",fontSize:12.5,display:"inline-flex",alignItems:"center",gap:6}}>{action.label}<Icone n="suite" taille={13}/></button>}
+    <PastilleSauvegarde sauvegarde={sauvegarde} onClick={()=>aller("projets")}/>
+  </header>;
+}
+
 // ── APP PRINCIPALE ────────────────────────────────────────────────────────
+const signatureProjet=p=>{const {_maj,...r}=p||{};return JSON.stringify(r);};
 function App(){
   const [db,setDB]=useState(()=>getDB());
-  const [page,setPage]=useState("projet");
+  const [page,setPageBrut]=useState("dashboard");
   const [projet,setProjet]=useState(defaultProjet);
   const [toast,setToast]=useState(null);
+  const [elActifId,setElActifId]=useState(null);
+  const [etatModules,setEtatModules]=useState({});
+  const [analyses,setAnalyses]=useState({});// résultats du comparateur par élément (mémoire de session)
+  const [synthOuverte,setSynthOuverte]=useState(false);
+  const [sbMin,setSbMinBrut]=useState(()=>{try{return localStorage.getItem("glassiq_v27_ui_sidebar")==="min";}catch(e){return false;}});
+  const setSbMin=v=>{setSbMinBrut(v);try{localStorage.setItem("glassiq_v27_ui_sidebar",v?"min":"");}catch(e){}};
   const refreshDB=()=>setDB(getDB());
   const showToast=(msg,type)=>{setToast({msg,type});setTimeout(()=>setToast(null),type==="err"?6000:2800);};
-  // Auto-sauvegarde du projet courant s'il a déjà été sauvegardé une fois.
-  // v2.6.5 : un échec n'est plus silencieux (bandeau tant que l'écriture échoue).
+  const elActif=(projet.elements||[]).find(e=>e.id===elActifId)||(projet.elements||[])[0]||null;
+  const aller=(id,elId,ancre)=>{
+    if(elId!=null)setElActifId(elId);
+    setPageBrut(id);
+    try{if(ancre){setTimeout(()=>{const n=document.getElementById(ancre);if(n&&n.scrollIntoView)n.scrollIntoView({block:"start"});},30);}else window.scrollTo(0,0);}catch(e){}
+  };
+  // ── État de la sauvegarde : « Enregistré » seulement après une écriture confirmée (ok:true)
+  const [sauvegarde,setSauvegarde]=useState({etat:"jamais",sig:null,quand:null,erreur:null});
+  const marquerEnregistre=(p,quand)=>setSauvegarde({etat:"enregistre",sig:signatureProjet(p),quand:quand||new Date().toISOString(),erreur:null});
+  const onSauvegarde=r=>{if(r&&r.ok)marquerEnregistre(r.projet,r.projet._maj);else if(r)setSauvegarde(s=>({...s,etat:"echec",erreur:r.erreur}));};
+  const onCharge=(p,lectureOk)=>{if(lectureOk&&p._pid)marquerEnregistre(p,p._maj);else setSauvegarde({etat:"jamais",sig:null,quand:null,erreur:null});};
+  // Auto-sauvegarde du projet courant s'il a déjà été sauvegardé une fois (logique v2.6.5).
   const [erreurAuto,setErreurAuto]=useState(null);
   useEffect(()=>{
     if(projet._pid&&projet.nom){
-      const t=setTimeout(()=>{const r=sauverProjet(projet);setErreurAuto(r.ok?null:r.erreur);},1500);
+      const t=setTimeout(()=>{const r=sauverProjet(projet);setErreurAuto(r.ok?null:r.erreur);onSauvegarde(r.ok?{ok:true,projet:{...projet,_maj:r.projet._maj}}:r);},1500);
       return ()=>clearTimeout(t);
     }
   },[projet]);
-  const pages=[
-    {id:"projet",label:"Projet & CCTP",icon:"📋"},
-    {id:"vent",label:"Calcul vent",icon:"💨"},
-    {id:"comparateur",label:"Comparateur",icon:"⚖"},
-    {id:"controle",label:"Contrôle solaire",icon:"☀"},
-    {id:"prescription",label:"Prescription",icon:"📄"},
-    {id:"metre",label:"Métré",icon:"📐"},
-    {id:"fleche",label:"Flèche façade",icon:"📏"},
-    {id:"securite",label:"Pare-balle / Coupe-feu",icon:"🛡"},
-    {id:"projets",label:"Mes projets",icon:"💾"},
-    {id:"base",label:"Ma base",icon:"📚"},
-    {id:"ajouter",label:"Ajouter système",icon:"＋"},
-    {id:"autotest",label:"Autotest",icon:"🧪"},
-  ];
-  return <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:"#f8f9fb"}}>
-    <div className="no-print" style={{background:"#1a1a2e",color:"#fff",padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid rgba(255,255,255,0.08)",flexWrap:"wrap",gap:4}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0"}}>
-        <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#4ade80,#22c55e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🪟</div>
-        <div><div style={{fontWeight:800,fontSize:15}}>GlassIQ v2.6</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Workflow complet — 5 étapes</div></div>
-        {projet.nom&&<div style={{marginLeft:12,fontSize:12,color:"rgba(255,255,255,0.5)",fontStyle:"italic"}}>{projet.nom}</div>}
-      </div>
-      <nav style={{display:"flex",gap:2,flexWrap:"wrap"}}>
-        {pages.map(p=><button key={p.id} onClick={()=>setPage(p.id)} style={{padding:"7px 11px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:page===p.id?"rgba(255,255,255,0.12)":"transparent",color:page===p.id?"#fff":"rgba(255,255,255,0.5)"}}>
-          {p.icon} {p.label}{p.id==="projet"&&projet.elements.length>0?<span style={{marginLeft:4,background:"#22c55e",color:"#fff",borderRadius:10,padding:"1px 5px",fontSize:10}}>{projet.elements.length}</span>:""}
-        </button>)}
-      </nav>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0"}}>
-        <a href="priceiq/index.html" style={{padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:700,textDecoration:"none",background:"rgba(240,192,64,0.15)",color:"#f0c040",border:"1px solid rgba(240,192,64,0.3)",display:"flex",alignItems:"center",gap:5}}>💰 PriceIQ</a>
-        <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{db.systemes.length} systèmes</div>
+  const sigCourante=signatureProjet(projet);
+  const etatSauv=sauvegarde.etat==="echec"?"echec":!projet._pid?"jamais":(sauvegarde.etat==="enregistre"&&sauvegarde.sig===sigCourante)?"enregistre":(projet.nom?"cours":"modifie");
+  const sauv={...sauvegarde,etat:etatSauv};
+  // ── Synthèses (recalculées à chaque modification : jamais d'ancien verdict)
+  const empDB=React.useMemo(()=>empreinteBase(db),[db]);
+  const syntheses=React.useMemo(()=>{const m={};(projet.elements||[]).forEach(e=>{try{m[e.id]=syntheseElement(e,projet,db);}catch(err){m[e.id]={lignes:[{id:"err",label:"Synthèse",etat:"non_verifiable",valeur:"",note:String(err&&err.message||err),compte:true}],etat:"non_verifiable",prescription:{etat:"absente",note:""}};}});return m;},[projet,db]);
+  const chargerDemo=()=>{
+    setProjet({
+      nom:"Démo — Façade hall Sud",moa:"Promoteur Exemple",moe:"Architecte Exemple",phase:"DCE / Appel d'offres",date:new Date().toISOString().split("T")[0],redacteur:"Daniel",
+      uw_max:"1.6",g_max:"0.36",tl_min:"50",
+      zone_vent:"2",cat_terrain:"II",hauteur_bat:"12",hauteur_sol:"0.5",type_vitrage:"isolant_2lam",type_verre:"recuit",aev_min:"A4 E9A V3",
+      pression_pa:null,epaisseur_dtu:"",
+      elements:[
+        {id:1,label:"Façade hall Sud",type:"facade",orientation:"Sud",usage:"Façade côté rue",ratr:"38",soustype:"Façade rideau FWS",largeur:"8100",hauteur:"3500",trame:"1350",nb_ouvrants:"3",type_ouvrant:"Fenêtre OB",allege_h:"0",allege_opaque:false},
+      ],
+      controle_ref:"",controle_tl:"",controle_fs:"",controle_ug:"",prescriptions:{},
+    });
+  };
+  const ajouterElement=()=>{const id=Date.now();setProjet(p=>({...p,elements:[...p.elements,{id,label:`Élément ${p.elements.length+1}`,type:"chassis",orientation:"Est",usage:"Façade côté rue",ratr:"36",soustype:"Fenêtre OB",largeur:"1200",hauteur:"1480"}]}));setElActifId(id);aller("elements");};
+  // ── Action contextuelle (une seule par page)
+  const prescs=projet.prescriptions||{};
+  const tousPrescrits=(projet.elements||[]).length>0&&projet.elements.every(e=>prescs[e.id]);
+  const ACTIONS={
+    projet:{label:"Configurer les éléments",onClick:()=>{const pr=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);setProjet(p=>({...p,pression_pa:pr}));aller("elements");}},
+    elements:{label:"Continuer vers le calcul du vent",onClick:()=>aller("vent")},
+    vent:{label:"Comparer les systèmes",onClick:()=>aller("comparateur")},
+    comparateur:tousPrescrits?{label:"Générer la prescription",onClick:()=>aller("prescription")}:{label:"Voir les éléments à vérifier",onClick:()=>aller("dashboard",null,"alertes")},
+    prescription:{label:"Consulter le métré",onClick:()=>aller("metre")},
+  };
+  const dp=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
+  const els=projet.elements||[];
+  const etapesFaites={1:!!String(projet.nom||"").trim()&&dp.ok,2:els.length>0&&els.every(e=>{const g=controleGeometrie(e);return g.ok&&g.complet;}),3:dp.ok&&els.length>0&&els.every(e=>controleGeometrie(e).ok),4:tousPrescrits,5:false};
+  const [kicker,titre,desc]=TITRES[page]||["","",""];
+  const avecListe=PAGES_ELEMENT.includes(page);
+  const setAnalyse=(elId,val)=>setAnalyses(a=>({...a,[elId]:val}));
+  return <ContexteModules.Provider value={{etat:etatModules,setEtat:setEtatModules}}>
+  <div className="gq-app">
+    <BarreLaterale page={page} aller={aller} min={sbMin} setMin={setSbMin} nbEl={els.length} nbSys={db.systemes.length}/>
+    <div className="gq-main">
+      <BarreHaute projet={projet} page={page} aller={aller} sauvegarde={sauv} action={ACTIONS[page]||null} etapesFaites={etapesFaites}/>
+      <div className="gq-ws">
+        {avecListe&&<ListeElements elements={els} syntheses={syntheses} actif={elActif} onSelect={id=>setElActifId(id)} onAjouter={ajouterElement} prescs={prescs}/>}
+        <main className="gq-content">
+          <div className="gq-ph no-print"><div><div className="gq-kicker">{kicker}</div><h1>{titre}</h1><p>{desc}</p></div></div>
+          {erreurAuto&&<div role="alert" className="no-print" style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:"#fef2f2",border:"1.5px solid #fca5a5",color:"#991b1b",fontSize:13,fontWeight:600}}>⛔ Sauvegarde automatique impossible — {erreurAuto}. Les dernières modifications de « {projet.nom} » ne sont PAS enregistrées dans le navigateur ; le projet reste ouvert. Exporte-le en fichier depuis « Mes projets ».</div>}
+          {avecListe&&<SelecteurElement elements={els} actif={elActif} onSelect={id=>setElActifId(id)} syntheses={syntheses}/>}
+          {avecListe&&elActif&&<BarreSynthese el={elActif} sy={syntheses[elActif.id]} ouvert={synthOuverte} setOuvert={setSynthOuverte}/>}
+          <div key={page} className="fade">
+          {page==="dashboard"&&<PageTableauDeBord projet={projet} setProjet={setProjet} syntheses={syntheses} aller={aller} sauvegarde={sauv} chargerDemo={chargerDemo} onCharge={onCharge} onToast={showToast}/>}
+          {page==="projet"&&<PageProjet projet={projet} setProjet={setProjet} setPage={aller} section="cctp" elActif={elActif} setElActif={setElActifId}/>}
+          {page==="elements"&&<PageProjet projet={projet} setProjet={setProjet} setPage={aller} section="elements" elActif={elActif} setElActif={setElActifId}/>}
+          {page==="vent"&&<PageVent projet={projet} setProjet={setProjet} setPage={aller} elActif={elActif} setElActif={setElActifId}/>}
+          {page==="comparateur"&&<PageComparateur db={db} projet={projet} setProjet={setProjet} setPage={aller} elActif={elActif} setElActif={setElActifId} analyses={analyses} setAnalyse={setAnalyse} empDB={empDB}/>}
+          {page==="controle"&&<PageControleSolaire projet={projet} setProjet={setProjet}/>}
+          {page==="prescription"&&<PagePrescription projet={projet} setProjet={setProjet} setPage={aller} syntheses={syntheses}/>}
+          {page==="metre"&&<PageMetre projet={projet}/>}
+          {page==="fleche"&&<PageFleche projet={projet}/>}
+          {page==="securite"&&<PageSecurite db={db}/>}
+          {page==="projets"&&<PageProjets projet={projet} setProjet={setProjet} setPage={aller} onToast={showToast} onSauvegarde={onSauvegarde} onCharge={onCharge}/>}
+          {page==="base"&&<PageBase db={db}/>}
+          {page==="ajouter"&&<PageAjouter db={db} onChange={refreshDB}/>}
+          {page==="autotest"&&<PageAutotest/>}
+          </div>
+        </main>
       </div>
     </div>
-    <div style={{maxWidth:960,margin:"0 auto",padding:"22px 16px"}}>
-      {erreurAuto&&<div role="alert" className="no-print" style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:"#fef2f2",border:"1.5px solid #fca5a5",color:"#991b1b",fontSize:13,fontWeight:600}}>⛔ Sauvegarde automatique impossible — {erreurAuto}. Les dernières modifications de « {projet.nom} » ne sont PAS enregistrées dans le navigateur ; le projet reste ouvert. Exporte-le en fichier depuis « Mes projets ».</div>}
-      {page==="projet"&&<PageProjet projet={projet} setProjet={setProjet} setPage={setPage}/>}
-      {page==="vent"&&<PageVent projet={projet} setProjet={setProjet} setPage={setPage}/>}
-      {page==="comparateur"&&<PageComparateur db={db} projet={projet} setProjet={setProjet} setPage={setPage}/>}
-      {page==="controle"&&<PageControleSolaire projet={projet} setProjet={setProjet}/>}
-      {page==="prescription"&&<PagePrescription projet={projet} setProjet={setProjet} setPage={setPage}/>}
-      {page==="metre"&&<PageMetre projet={projet}/>}
-      {page==="fleche"&&<PageFleche projet={projet}/>}
-      {page==="securite"&&<PageSecurite db={db}/>}
-      {page==="projets"&&<PageProjets projet={projet} setProjet={setProjet} setPage={setPage} onToast={showToast}/>}
-      {page==="base"&&<PageBase db={db}/>}
-      {page==="ajouter"&&<PageAjouter db={db} onChange={refreshDB}/>}
-      {page==="autotest"&&<PageAutotest/>}
-    </div>
-    {toast&&<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:toast.type==="err"?"#991b1b":toast.type==="warn"?"#92400e":"#065f46",color:"#fff",padding:"12px 24px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,0.2)",zIndex:1000}}>{toast.msg}</div>}
-  </div>;
+    {toast&&<div className="gq-toast" style={{background:toast.type==="err"?"#b42318":toast.type==="warn"?"#93370d":"#05603a"}}>{toast.msg}</div>}
+  </div>
+  </ContexteModules.Provider>;
 }
 
 const container=document.getElementById('root');
