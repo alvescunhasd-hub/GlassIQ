@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EME Façade v2.7</title>
+  <title>EME Façade v2.7.1</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
@@ -1798,6 +1798,131 @@ const INITIAL_DB={systemes:[
    thermique:[{ug:1.0,config:"Fenêtre 1 vantail OB 1.23x1.48 (Ug1.0)",uw:1.2},{ug:1.1,config:"Fenêtre 1 vantail OB 1.23x1.48 (Ug1.1)",uw:1.3}]}
 ,
   // ── PARE-BALLE ─────────────────────────────────────────────────────────
+  // ── CORTIZO (ajout v2.7.1, 23/11/2026) — relevé des ZIP « Ensayos » Cortizo Center, détail
+  // et sources : doc projet « releves-cortizo-battants ». COR 70 Industrial / COR 70 HO :
+  // DTA français 6/17-2363_V3. COR 60 / COR 60 HO : essais CE seuls (pas de DTA France).
+  {id:"cor_70ind",nom:"COR 70 Industrial",marque:"Cortizo",famille:"Fenêtre",dta:"6/17-2363_V3",validite:"30/04/2027",epaisseur_min:18,epaisseur_max:55,poids_max:160,
+   dimensions_max:[
+     {type:"1 vantail OF",h_max:1700,l_max:1000},
+     {type:"1 vantail OB",h_max:1700,l_max:1000},
+     {type:"2 vantaux OB",h_max:1700,l_max:2000},
+     {type:"2 vantaux OF",h_max:1700,l_max:2000},
+     {type:"2 vantaux OF + fixe latéral",h_max:1700,l_max:3200},
+     {type:"Soufflet",h_max:1000,l_max:1700},
+     {type:"1 vantail OF (profils renforcés COR-7921/6722/6723/6726/6727)",h_max:2500,l_max:1200},
+     {type:"1 vantail OB (profils renforcés COR-7921/6722/6723/6726/6727)",h_max:2500,l_max:1200},
+     {type:"2 vantaux OB (profils renforcés COR-7921/6722/6723/6726/6727)",h_max:1800,l_max:2400},
+     {type:"2 vantaux OB (profils renforcés COR-7921/6722/6723/6726/6727)",h_max:2500,l_max:1800},
+     {type:"2 vantaux OF (profils renforcés COR-7921/6722/6723/6726/6727)",h_max:2500,l_max:2400},
+     {type:"2 vantaux OF + fixe latéral (profils renforcés COR-7921/6722/6723/6726/6727)",h_max:2500,l_max:3200},
+     {type:"Soufflet (profils renforcés COR-7921/6722/6723/6726/6727)",h_max:1800,l_max:1800},
+   ],
+   tests:[
+     {rapport:"CT Cortizo Exp 120059",type_chassis:"Fenêtre 2 vantaux OB",dim_L:1230,dim_H:1480,labo:"Centro Tecnológico Cortizo (NB 2242)",date:"2012",
+      vitrages:[{composition:"6/14/6",rw:37,rwc:36,rwctr:33}],pv_reel:true}
+   ],
+   aev:[
+     {chassis:"Fenêtre 2 vantaux OB",dims:"1230x1480",A:"4",E:"E1800",V:"C5",rapport:"Applus 21/32305407 S",date:"2021"},
+     {chassis:"Fenêtre 2 vantaux OB",dims:"1230x1480",A:"4",E:"E1200",V:"C5",rapport:"CT Cortizo Exp 120058",date:"2012"},
+     {chassis:"Porte-fenêtre 2 vantaux OB",dims:"1640x2172",A:"4",E:"E900",V:"C3",rapport:"CT Cortizo Exp 130035",date:"2013"},
+     {chassis:"Porte-fenêtre 2 vantaux OF avec seuil",dims:"1800x2200",A:"4",E:"E1050",V:"C3",rapport:"Applus 25/32309791 S",date:"2025"}
+   ],
+   thermique:[{ug:0.7,config:"Fenêtre 2 vtx 1.23x1.48 triple 4BE/12Ar/4/12Ar/4BE warm edge (calcul Cortizo 20240515_1)",uw:1.1}],
+   note:"DTA 6/17-2363_V3 (COR-70 Industrial / C16ST) : vitrages isolants 18 à 55 mm ; feuillure dormant 26 mm, ouvrant 25 mm. Dimensions : tableau DTA (fabrication non certifiée) — profils de base COR-7920/6720/6721, valeurs supérieures avec profils renforcés. Classements A*E*V* non figés au DTA : essais CE Cortizo/Applus ci-dessus. Pas de seuil PMR au DTA. Poids max 160 kg : fiche Cortizo Center. ⚠ Fiche Cortizo annonce Uw ≥ 0,76 : rapport correspondant non fourni (seul Uw 1,1 en triple Ug 0,7 relevé). PV acoustiques Applus 2021/2022 (« avance de résultats », provisoires) non repris."},
+  {id:"cor_70ho",nom:"COR 70 HO (ouvrant caché)",marque:"Cortizo",famille:"Fenêtre",dta:"6/17-2363_V3",validite:"30/04/2027",epaisseur_min:26,epaisseur_max:32,poids_max:160,
+   dimensions_max:[
+     {type:"1 vantail OF",h_max:2400,l_max:1200},
+     {type:"1 vantail OB",h_max:2400,l_max:1200},
+     {type:"2 vantaux OB",h_max:1800,l_max:2400},
+     {type:"2 vantaux OB",h_max:2400,l_max:1800},
+     {type:"2 vantaux OF",h_max:2400,l_max:2400},
+     {type:"2 vantaux OF + fixe latéral",h_max:2400,l_max:3200},
+     {type:"Soufflet",h_max:1800,l_max:1800},
+   ],
+   tests:[
+     {rapport:"CT Cortizo Exp 130048",type_chassis:"Fenêtre 1 vantail OB",dim_L:1230,dim_H:1480,labo:"Centro Tecnológico Cortizo (NB 2242)",date:"2014",
+      vitrages:[{composition:"5/20/5",rw:31,rwc:30,rwctr:28}],pv_reel:true},
+     {rapport:"CT Cortizo Exp 160001",type_chassis:"Fenêtre 1 vantail OB",dim_L:1240,dim_H:1490,labo:"Centro Tecnológico Cortizo (NB 2242)",date:"2016",
+      vitrages:[{composition:"44.2 Ac/16/55.2",rw:42,rwc:41,rwctr:38}],pv_reel:true,note:"PV : 4+4 acoustique (16) 5+5 — nombre de PVB non précisé, .2 retenu. Épaisseur ≈ 35,6 mm > 32 mm admis en ouvrant par le DTA"}
+   ],
+   aev:[
+     {chassis:"Fenêtre 1 vantail OB",dims:"1230x1480",A:"4",E:"E1650",V:"C5",rapport:"CT Cortizo Exp 130047",date:"2014"},
+     {chassis:"Porte-fenêtre 2 vantaux (1 OB)",dims:"1800x2200",A:"4",E:"E750",V:"C3",rapport:"Applus 16/10030-343S",date:"2016"}
+   ],
+   thermique:[{ug:0.7,config:"Fenêtre 2 vtx 1.23x1.48 triple 4BE/12Ar/4/12Ar/4BE warm edge (calcul Cortizo 20240522_1, vitrage 36 mm)",uw:1.1}],
+   note:"DTA 6/17-2363_V3 (COR-70 HO / HO C16ST) : vitrages 26 à 40 mm, mais ouvrants COR-7905 / COR-6705 limités à 32 mm (valeur retenue ici ; 40 mm en partie fixe). Feuillure dormant 44 mm, ouvrant 16 mm. Classements A*E*V* non figés au DTA : essais CE ci-dessus. Pas de seuil PMR au DTA. Poids max 160 kg : fiche Cortizo Center."},
+  {id:"cor_60",nom:"COR 60",marque:"Cortizo",famille:"Fenêtre",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:5,epaisseur_max:46,poids_max:160,
+   dimensions_max:[],
+   tests:[
+     {rapport:"Applus 09/32302612",type_chassis:"Fenêtre 2 vantaux OF",dim_L:1240,dim_H:1490,labo:"Applus LGAI (NB 0370)",date:"2009",
+      vitrages:[{composition:"66.2 Ac/8/44.2 Ac",rw:45,rwc:44,rwctr:41}],pv_reel:true,note:"PV : 6+6 acoustique / 8 / 4+4 acoustique — nombre de PVB non précisé, .2 retenu"}
+   ],
+   aev:[
+     {chassis:"Fenêtre 2 vantaux OF",dims:"1230x1480",A:"4",E:"E1350",V:"C5",rapport:"Applus 10/32300135",date:"2010"}
+   ],
+   thermique:[
+    {ug:0.6,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:1.67},
+    {ug:0.8,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:1.8},
+    {ug:1,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:1.93},
+    {ug:1.2,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:2.05},
+    {ug:1.4,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:2.18},
+    {ug:1.6,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:2.31},
+    {ug:1.8,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:2.43},
+    {ug:2,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:2.66},
+    {ug:2.2,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:2.79},
+    {ug:2.4,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:2.92},
+    {ug:2.6,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:3.04},
+    {ug:2.9,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:3.24},
+    {ug:3,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:3.3},
+    {ug:3.2,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:3.43},
+    {ug:3.4,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:3.55},
+    {ug:5.7,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:5.02},
+    {ug:5.9,config:"Fenêtre 1.23x1.48 (calcul Cortizo Exp 100110, 2010)",uw:5.14},
+    {ug:0.6,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:1.46},
+    {ug:0.8,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:1.6},
+    {ug:1,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:1.74},
+    {ug:1.2,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:1.88},
+    {ug:1.4,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:2.03},
+    {ug:1.6,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:2.17},
+    {ug:1.8,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:2.31},
+    {ug:2,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:2.54},
+    {ug:2.2,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:2.68},
+    {ug:2.4,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:2.83},
+    {ug:2.6,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:2.97},
+    {ug:2.9,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:3.19},
+    {ug:3,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:3.26},
+    {ug:3.2,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:3.4},
+    {ug:3.4,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:3.54},
+    {ug:5.7,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:5.19},
+    {ug:5.9,config:"Porte-fenêtre 1.48x2.18 (calcul Cortizo Exp 100110, 2010)",uw:5.33}
+   ],
+   note:"Pas de DTA France : essais CE (marquage NF EN 14351-1) uniquement — à valider pour un chantier en France. Vitrage 5–46 mm, poids 160 kg : fiche Cortizo Center. Dimensions max fabricant données par ouvrant (L 1500 × H 2600), pas par baie : domaine d'emploi non saisi (non vérifiable). ⚠ Tableau thermique : calcul Cortizo Exp 100110 de 2010 (« aislante en galce vidrio ») ; la fiche actuelle annonce Uw ≥ 1,0 — rapport plus récent à demander."},
+  {id:"cor_60ho",nom:"COR 60 HO (ouvrant caché)",marque:"Cortizo",famille:"Fenêtre",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:16,epaisseur_max:34,poids_max:160,
+   dimensions_max:[],
+   tests:[],
+   aev:[
+     {chassis:"Fenêtre 2 vantaux OF",dims:"1230x1480",A:"4",E:"9A",V:"C3",rapport:"Applus 08/32312253",date:"2008"}
+   ],
+   thermique:[
+    {ug:0.6,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:1.6},
+    {ug:0.8,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:1.75},
+    {ug:1,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:1.91},
+    {ug:1.2,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:2.06},
+    {ug:1.4,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:2.21},
+    {ug:1.6,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:2.36},
+    {ug:1.8,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:2.51},
+    {ug:2,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:2.77},
+    {ug:2.2,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:2.93},
+    {ug:2.4,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:3.08},
+    {ug:2.6,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:3.23},
+    {ug:2.9,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:3.46},
+    {ug:3,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:3.53},
+    {ug:3.2,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:3.69},
+    {ug:3.4,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:3.84},
+    {ug:5.7,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:5.59},
+    {ug:5.9,config:"Fenêtre 2 vtx 1.23x1.48 (calcul Cortizo 2011)",uw:5.74}
+   ],
+   note:"Pas de DTA France : essais CE (marquage NF EN 14351-1) uniquement — à valider pour un chantier en France. Vitrage 16–34 mm, poids 160 kg : fiche Cortizo Center. Dimensions max fabricant par ouvrant (L 1300 × H 2400) : domaine d'emploi non saisi. Aucun PV acoustique (seul un calcul tabulé NF EN 14351-1 annexe B, non repris) : n'apparaît pas dans le comparateur. Thermique : calcul Cortizo 09/11/2011."},
   {id:"royal_pb",nom:"Royal PB",marque:"Schüco",famille:"Pare-balle",dta:"",validite:"",epaisseur_min:60,epaisseur_max:100,poids_max:200,
    tests:[],aev:[],thermique:[],
    certifications:[
@@ -2992,6 +3117,7 @@ function PageComparateur({db,projet,setProjet,setPage,elActif,setElActif,analyse
               <span style={{width:26,height:26,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:isRetenu?"#059669":allOk?"#d1fae5":ko>=2?"#fee2e2":"#fef3c7",color:isRetenu?"#fff":undefined}}>{isRetenu?"★":allOk?"✓":ko>=2?"✗":"⚠"}</span>
               <div><div style={{fontWeight:800,fontSize:15,color:"#1a1a2e"}}>{sys.marque} {sys.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{sys.famille} · DTA: {sys.dta||"—"} · Feuillure: {sys.epaisseur_min}–{sys.epaisseur_max}mm</div>
               {(()=>{const st=statutDTA(sys.validite);return <div style={{display:"inline-block",marginTop:4,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:st.couleur,background:st.bg,border:`1px solid ${st.couleur}33`}}>{st.statut==="expire"?"⛔ ":st.statut==="bientot"?"⚠ ":st.statut==="inconnu"?"? ":"✓ "}{st.texte}</div>;})()}
+              {sys.essais_ce_seuls&&<div style={{display:"inline-block",marginTop:4,marginLeft:6,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:"#9a3412",background:"#fff7ed",border:"1px solid #9a341233"}}>🇫🇷 Sans DTA France — essais CE uniquement, à valider pour un chantier en France</div>}
               {(()=>{const vd=verifDimensions(sys,+el.largeur,+el.hauteur,el);if(vd.statut==="aucune")return null;return <div style={{display:"inline-block",marginTop:4,marginLeft:6,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,color:vd.couleur,background:vd.bg,border:`1px solid ${vd.couleur}33`}}>{vd.statut==="hors"?"📐 ⚠ ":vd.statut==="non_verifiable"?"📐 ? ":"📐 ✓ "}{vd.texte}</div>;})()}</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -3249,7 +3375,7 @@ function PagePrescription({projet,setProjet,setPage,syntheses}){
     </div>
     <div style={{background:"#fff",borderRadius:14,padding:"24px 32px",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,paddingBottom:12,borderBottom:"3px solid #1a1a2e"}}>
-        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>🪟 EME Façade v2.7</div><div style={{fontSize:11,color:"#6b7280"}}>Note de choix vitrage</div></div>
+        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>🪟 EME Façade v2.7.1</div><div style={{fontSize:11,color:"#6b7280"}}>Note de choix vitrage</div></div>
         <div style={{textAlign:"right",fontSize:12}}><div style={{fontWeight:700,fontSize:14,color:"#1a1a2e"}}>PRESCRIPTION VITRAGE</div><div style={{color:"#6b7280",marginTop:2}}>{new Date().toLocaleDateString("fr-FR")}</div></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:12,padding:"10px 14px",background:"#f8f9fb",borderRadius:10,border:"1px solid #e5e7eb"}}>
@@ -3365,7 +3491,7 @@ function PagePrescription({projet,setProjet,setPage,syntheses}){
       </div>
 
       <div style={{marginTop:16,paddingTop:10,borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",fontSize:10,color:"#9ca3af"}}>
-        <div>EME Façade v2.7 — Note de choix vitrage & métré</div>
+        <div>EME Façade v2.7.1 — Note de choix vitrage & métré</div>
         <div>Généré le {new Date().toLocaleDateString("fr-FR")}{projet.redacteur?" — "+projet.redacteur:""}</div>
       </div>
     </div>
@@ -3616,7 +3742,7 @@ function PageMetre({projet}){
       {T.poids_total===0&&<div style={{marginTop:14,padding:"10px 14px",background:"#fffbeb",borderRadius:8,border:"1px solid #fde68a",fontSize:12,color:"#92400e"}}>💡 Les poids s'afficheront une fois les systèmes retenus dans le comparateur (étape 3) — le métré reprend alors le poids du vitrage prescrit.</div>}
 
       <div style={{marginTop:18,paddingTop:10,borderTop:"1px solid #e5e7eb",fontSize:10,color:"#9ca3af",lineHeight:1.5}}>
-        EME Façade v2.7 — Métré récapitulatif par typologie · Surfaces et linéaires calculés depuis la trame déclarée · Poids estimé à partir du vitrage prescrit (densité verre 2,5 kg/m²/mm) · Valeurs indicatives à valider en phase EXE.
+        EME Façade v2.7.1 — Métré récapitulatif par typologie · Surfaces et linéaires calculés depuis la trame déclarée · Poids estimé à partir du vitrage prescrit (densité verre 2,5 kg/m²/mm) · Valeurs indicatives à valider en phase EXE.
       </div>
     </div>
   </div>;
@@ -4705,7 +4831,7 @@ function BarreLaterale({page,aller,min,setMin,nbEl,nbSys}){
   return <aside className={"gq-sb no-print"+(min?" min":"")}>
     <div className="gq-brand">
       <div className="gq-logo"><Icone n="logo" taille={16} trait={2}/></div>
-      <div className="gq-brand-txt"><div className="gq-brand-t">EME Façade</div><div className="gq-brand-s">v2.7 · vitrages & façades</div></div>
+      <div className="gq-brand-txt"><div className="gq-brand-t">EME Façade</div><div className="gq-brand-s">v2.7.1 · vitrages & façades</div></div>
     </div>
     <nav className="gq-sb-nav" aria-label="Navigation principale">
       {ESPACES.map(es=><div key={es.titre}>
