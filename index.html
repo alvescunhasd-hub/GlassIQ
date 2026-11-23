@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GlassIQ v2.7</title>
+  <title>EME Façade v2.7</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    /* ── GlassIQ v2.7 — socle visuel (présentation uniquement) ── */
+    /* ── EME Façade v2.7 (ex-GlassIQ) — socle visuel (présentation uniquement) ── */
     :root{
       --bg:#f4f6f9; --surface:#ffffff; --line:#e3e7ee; --line2:#eef1f5;
       --txt:#101828; --txt2:#475467; --txt3:#8a94a6;
@@ -2566,7 +2566,7 @@ function PageProjet({projet,setProjet,setPage,section="tout",elActif,setElActif}
                 Exigence anti-effraction RC3 (RDC / rez-de-chaussée)
               </label>
               {el.rc3_requis&&<div style={{marginTop:6,padding:"8px 12px",background:"#fef3c7",borderRadius:8,border:"1px solid #fde68a",fontSize:11,color:"#92400e",lineHeight:1.5}}>
-                ⚠ Le RC3 sur une façade rideau <strong>n'est pas couvert par le DTA standard</strong> du système — le profilé de base ne change pas, mais il faut des <strong>capots et un serrage renforcés</strong> (généralement vissés plutôt que clipsés) ainsi que des <strong>raidisseurs internes dans les montants et traverses</strong>. Demander au fabricant un <strong>PV d'essai EN 1627-1630 spécifique</strong> pour cette configuration — ce n'est pas une donnée que GlassIQ peut vérifier automatiquement.
+                ⚠ Le RC3 sur une façade rideau <strong>n'est pas couvert par le DTA standard</strong> du système — le profilé de base ne change pas, mais il faut des <strong>capots et un serrage renforcés</strong> (généralement vissés plutôt que clipsés) ainsi que des <strong>raidisseurs internes dans les montants et traverses</strong>. Demander au fabricant un <strong>PV d'essai EN 1627-1630 spécifique</strong> pour cette configuration — ce n'est pas une donnée qu'EME Façade peut vérifier automatiquement.
               </div>}
               {af&&af.mode==="personnalisee"&&<div style={{marginTop:10,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
                 {[["Panneaux",af.nb_panneaux_total,`${af.panneaux.length} tailles diff.`],["Vitrage fixe",`${af.surf_vitree_fixe} m²`,`sur ${af.surf_totale} m²`],["Portes/Ouvrants",`${af.surf_ouvrants} m²`,`${af.nb_ouvrants} unités`],["Montants/Traverses",`${el.nb_montants||"?"}/${el.nb_traverses_total||"?"}`,"renseignés (info)"]].map(([l,v,sub])=>(
@@ -2662,7 +2662,7 @@ function PageProjet({projet,setProjet,setPage,section="tout",elActif,setElActif}
     </div>}
     {/* Récapitulatif */}
     {voitCCTP&&<div style={{...S.card,background:"#f0fdf4",border:"1.5px solid #6ee7b7"}}>
-      <div style={{fontSize:14,fontWeight:700,color:"#065f46",marginBottom:12}}>✅ Récapitulatif — ce que GlassIQ va vérifier pour chaque élément</div>
+      <div style={{fontSize:14,fontWeight:700,color:"#065f46",marginBottom:12}}>✅ Récapitulatif — ce qu'EME Façade va vérifier pour chaque élément</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
         {[["Uw max",projet.uw_max?projet.uw_max+" W/m²K":"Non saisi"],["g max",projet.g_max||"Non saisi"],["TL min",projet.tl_min?projet.tl_min+"%":"Non saisi"],["AEV CCTP",projet.aev_min||"Non précisé"],["Éléments",projet.elements.length]].map(([l,v])=><div key={l} style={{background:"#fff",borderRadius:8,padding:"10px 12px",textAlign:"center",border:"1px solid #d1fae5"}}><div style={{fontSize:15,fontWeight:700,color:"#1a1a2e"}}>{v}</div><div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{l}</div></div>)}
       </div>
@@ -3235,7 +3235,7 @@ function PagePrescription({projet,setProjet,setPage,syntheses}){
     </div>
     <div style={{background:"#fff",borderRadius:14,padding:"24px 32px",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,paddingBottom:12,borderBottom:"3px solid #1a1a2e"}}>
-        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>🪟 GlassIQ v2.6</div><div style={{fontSize:11,color:"#6b7280"}}>Note de choix vitrage</div></div>
+        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>🪟 EME Façade v2.7</div><div style={{fontSize:11,color:"#6b7280"}}>Note de choix vitrage</div></div>
         <div style={{textAlign:"right",fontSize:12}}><div style={{fontWeight:700,fontSize:14,color:"#1a1a2e"}}>PRESCRIPTION VITRAGE</div><div style={{color:"#6b7280",marginTop:2}}>{new Date().toLocaleDateString("fr-FR")}</div></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:12,padding:"10px 14px",background:"#f8f9fb",borderRadius:10,border:"1px solid #e5e7eb"}}>
@@ -3351,7 +3351,7 @@ function PagePrescription({projet,setProjet,setPage,syntheses}){
       </div>
 
       <div style={{marginTop:16,paddingTop:10,borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",fontSize:10,color:"#9ca3af"}}>
-        <div>GlassIQ v2.6 — Note de choix vitrage & métré</div>
+        <div>EME Façade v2.7 — Note de choix vitrage & métré</div>
         <div>Généré le {new Date().toLocaleDateString("fr-FR")}{projet.redacteur?" — "+projet.redacteur:""}</div>
       </div>
     </div>
@@ -3407,7 +3407,7 @@ function PageProjets({projet,setProjet,setPage,onToast,onSauvegarde,onCharge}){
     const blob=new Blob([lecture.brut==null?"":lecture.brut],{type:"text/plain"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
-    a.href=url;a.download="GlassIQ_projets_donnees_brutes.txt";a.click();URL.revokeObjectURL(url);
+    a.href=url;a.download="EME_Facade_projets_donnees_brutes.txt";a.click();URL.revokeObjectURL(url);
   };
   const nouveau=()=>{
     setProjet({...defaultProjet,elements:defaultProjet.elements.map(e=>({...e,id:Date.now()})),_pid:null});
@@ -3421,14 +3421,14 @@ function PageProjets({projet,setProjet,setPage,onToast,onSauvegarde,onCharge}){
     const blob=new Blob([JSON.stringify(p,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
-    a.href=url;a.download=`GlassIQ_${(p.nom||"projet").replace(/[^a-z0-9]/gi,"_")}.json`;
+    a.href=url;a.download=`EME_Facade_${(p.nom||"projet").replace(/[^a-z0-9]/gi,"_")}.json`;
     a.click();URL.revokeObjectURL(url);
   };
   const exporterTout=()=>{
     const blob=new Blob([JSON.stringify(lireProjets().projets,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
-    a.href=url;a.download="GlassIQ_tous_projets.json";a.click();URL.revokeObjectURL(url);
+    a.href=url;a.download="EME_Facade_tous_projets.json";a.click();URL.revokeObjectURL(url);
   };
   const importer=(e)=>{
     const file=e.target.files[0];if(!file)return;
@@ -3546,7 +3546,7 @@ function PageMetre({projet}){
     <div style={{background:"#fff",borderRadius:14,padding:"24px 28px",boxShadow:"0 4px 24px rgba(0,0,0,0.06)"}}>
       {/* En-tête */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18,paddingBottom:12,borderBottom:"3px solid #1a1a2e"}}>
-        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>📐 GlassIQ — Métré récapitulatif</div><div style={{fontSize:11,color:"#6b7280"}}>{projet.nom||"Projet sans nom"}{projet.moa?" · "+projet.moa:""}</div></div>
+        <div><div style={{fontSize:18,fontWeight:800,color:"#1a1a2e"}}>📐 EME Façade — Métré récapitulatif</div><div style={{fontSize:11,color:"#6b7280"}}>{projet.nom||"Projet sans nom"}{projet.moa?" · "+projet.moa:""}</div></div>
         <div style={{textAlign:"right",fontSize:12,color:"#6b7280"}}>{new Date().toLocaleDateString("fr-FR")}</div>
       </div>
 
@@ -3602,7 +3602,7 @@ function PageMetre({projet}){
       {T.poids_total===0&&<div style={{marginTop:14,padding:"10px 14px",background:"#fffbeb",borderRadius:8,border:"1px solid #fde68a",fontSize:12,color:"#92400e"}}>💡 Les poids s'afficheront une fois les systèmes retenus dans le comparateur (étape 3) — le métré reprend alors le poids du vitrage prescrit.</div>}
 
       <div style={{marginTop:18,paddingTop:10,borderTop:"1px solid #e5e7eb",fontSize:10,color:"#9ca3af",lineHeight:1.5}}>
-        GlassIQ v2 — Métré récapitulatif par typologie · Surfaces et linéaires calculés depuis la trame déclarée · Poids estimé à partir du vitrage prescrit (densité verre 2,5 kg/m²/mm) · Valeurs indicatives à valider en phase EXE.
+        EME Façade v2.7 — Métré récapitulatif par typologie · Surfaces et linéaires calculés depuis la trame déclarée · Poids estimé à partir du vitrage prescrit (densité verre 2,5 kg/m²/mm) · Valeurs indicatives à valider en phase EXE.
       </div>
     </div>
   </div>;
@@ -3974,7 +3974,7 @@ function PageAjouter({db,onChange}){
   const exporter=()=>{
     const blob=new Blob([JSON.stringify(getPerso(),null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);const a=document.createElement("a");
-    a.href=url;a.download="GlassIQ_mes_systemes.json";a.click();URL.revokeObjectURL(url);
+    a.href=url;a.download="EME_Facade_mes_systemes.json";a.click();URL.revokeObjectURL(url);
   };
   const importer=(e)=>{
     const file=e.target.files&&e.target.files[0];if(!file)return;
@@ -3994,7 +3994,7 @@ function PageAjouter({db,onChange}){
         });
         savePerso(list);refresh();
         setMsg({t:"ok",m:`${arr.length} système(s) importé(s) ✓`});
-      }catch(err){setMsg({t:"warn",m:"Fichier invalide — attendu : export « Mes systèmes » de GlassIQ."});}
+      }catch(err){setMsg({t:"warn",m:"Fichier invalide — attendu : export « Mes systèmes » d'EME Façade (ou de GlassIQ)."});}
     };
     reader.readAsText(file);
     e.target.value="";
@@ -4010,7 +4010,7 @@ function PageAjouter({db,onChange}){
   return <div>
     <div style={{...S.card,background:"#f9fafb",marginBottom:14}}>
       <div style={{fontSize:14,fontWeight:700,color:"#1a1a2e",marginBottom:4}}>＋ Ajouter / gérer mes systèmes</div>
-      <div style={{fontSize:12,color:"#6b7280",lineHeight:1.5}}>Saisie manuelle, <strong>même sans DTA</strong>. Les systèmes livrés avec GlassIQ (Schüco…) ne sont jamais modifiés : tes ajouts sont stockés dans ce navigateur — pense à les <strong>exporter</strong> pour les sauvegarder ou les transmettre.</div>
+      <div style={{fontSize:12,color:"#6b7280",lineHeight:1.5}}>Saisie manuelle, <strong>même sans DTA</strong>. Les systèmes livrés avec EME Façade (Schüco…) ne sont jamais modifiés : tes ajouts sont stockés dans ce navigateur — pense à les <strong>exporter</strong> pour les sauvegarder ou les transmettre.</div>
     </div>
     {msg&&<div style={{...S.card,padding:"10px 14px",background:msg.t==="ok"?"#f0fdf4":"#fff7ed",border:`1px solid ${msg.t==="ok"?"#bbf7d0":"#fed7aa"}`,color:msg.t==="ok"?"#065f46":"#9a3412",fontSize:12,fontWeight:600}}>{msg.m}</div>}
 
@@ -4691,7 +4691,7 @@ function BarreLaterale({page,aller,min,setMin,nbEl,nbSys}){
   return <aside className={"gq-sb no-print"+(min?" min":"")}>
     <div className="gq-brand">
       <div className="gq-logo"><Icone n="logo" taille={16} trait={2}/></div>
-      <div className="gq-brand-txt"><div className="gq-brand-t">GlassIQ</div><div className="gq-brand-s">v2.7 · vitrages & façades</div></div>
+      <div className="gq-brand-txt"><div className="gq-brand-t">EME Façade</div><div className="gq-brand-s">v2.7 · vitrages & façades</div></div>
     </div>
     <nav className="gq-sb-nav" aria-label="Navigation principale">
       {ESPACES.map(es=><div key={es.titre}>
