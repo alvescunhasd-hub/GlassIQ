@@ -2090,10 +2090,8 @@ const defaultProjet={
   uw_max:"",g_max:"",tl_min:"",
   zone_vent:"2",cat_terrain:"II",hauteur_bat:"",hauteur_sol:"3",type_vitrage:"isolant_2lam",type_verre:"recuit",aev_min:"A4 E9A V3",
   pression_pa:null,epaisseur_dtu:"",
-  elements:[
-    {id:1,label:"Façade Sud — rue",type:"facade",orientation:"Sud",usage:"Façade côté rue",ratr:"38",soustype:"Façade rideau FWS",largeur:"12000",hauteur:"3200",trame:"1350",nb_ouvrants:"6",type_ouvrant:"Fenêtre OB",allege_h:"1050",allege_opaque:true},
-    {id:2,label:"Châssis Nord — cour",type:"chassis",orientation:"Nord",usage:"Chambre / bureau",ratr:"35",soustype:"Fenêtre OB",largeur:"1200",hauteur:"1480",allege_h:"1000",allege_opaque:false},
-  ],
+  // Un projet neuf démarre avec UN seul élément vierge (dimensions à saisir).
+  elements:[{id:1,label:"Élément 1",type:"chassis",orientation:"Sud",usage:"Façade côté rue",ratr:"36",soustype:"Fenêtre OB",largeur:"",hauteur:""}],
   controle_ref:"",controle_tl:"",controle_fs:"",controle_ug:"",
 };
 
@@ -3412,7 +3410,7 @@ function PageProjets({projet,setProjet,setPage,onToast,onSauvegarde,onCharge}){
     a.href=url;a.download="GlassIQ_projets_donnees_brutes.txt";a.click();URL.revokeObjectURL(url);
   };
   const nouveau=()=>{
-    setProjet({...defaultProjet,elements:[],_pid:null});
+    setProjet({...defaultProjet,elements:defaultProjet.elements.map(e=>({...e,id:Date.now()})),_pid:null});
     onCharge&&onCharge({},false);
     onToast&&onToast("Nouveau projet vierge","ok");
     setPage("projet");
@@ -4308,7 +4306,6 @@ const ICONES={
   base:"M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3s-3.6 3-8 3s-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
   ajouter:"M4 4h16v16H4zM12 8v8M8 12h8",
   autotest:"M9 2h6M10 2v6L4 19a2 2 0 0 0 1.7 3h12.6a2 2 0 0 0 1.7-3L14 8V2M7 15h10",
-  priceiq:"M3 12l9-9h7v7l-9 9zM15 7.5a1 1 0 1 0 0 .01",
   replier:"M15 18l-6-6l6-6",
   deplier:"M9 18l6-6l-6-6",
   plus:"M12 5v14M5 12h14",
@@ -4705,7 +4702,6 @@ function BarreLaterale({page,aller,min,setMin,nbEl,nbSys}){
       </div>)}
     </nav>
     <div className="gq-sb-foot">
-      <a href="priceiq/index.html" className="gq-item" style={{textDecoration:"none",color:"#f0c040"}} title="PriceIQ"><Icone n="priceiq"/><span className="gq-lbl">PriceIQ</span></a>
       <div className="gq-lbl" style={{fontSize:10.5,color:"#6b7a90",padding:"4px 18px 6px"}}>{nbSys} systèmes en base</div>
       <button className="gq-item gq-toggle" onClick={()=>setMin(!min)} title={min?"Déplier la navigation":"Réduire la navigation"}><Icone n={min?"deplier":"replier"}/><span className="gq-lbl">Réduire</span></button>
     </div>
@@ -4792,7 +4788,7 @@ function App(){
     projet:{label:"Configurer les éléments",onClick:()=>{const pr=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);setProjet(p=>({...p,pression_pa:pr}));aller("elements");}},
     elements:{label:"Continuer vers le calcul du vent",onClick:()=>aller("vent")},
     vent:{label:"Comparer les systèmes",onClick:()=>aller("comparateur")},
-    comparateur:tousPrescrits?{label:"Générer la prescription",onClick:()=>aller("prescription")}:{label:"Voir les éléments à vérifier",onClick:()=>aller("dashboard",null,"alertes")},
+    comparateur:{label:"Générer la prescription",onClick:()=>aller("prescription")},
     prescription:{label:"Consulter le métré",onClick:()=>aller("metre")},
   };
   const dp=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
