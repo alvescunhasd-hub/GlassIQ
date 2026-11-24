@@ -2252,6 +2252,31 @@ const INITIAL_DB={systemes:[
    aev:[],
    thermique:[],
    note:"Pas de DTA France : essais CE uniquement — à valider pour un chantier en France. Programme de livraison (03/2026) : vantail 90 mm, vitrage ouvrant 24–67 mm, fixe 24–57 mm ; vantail max H 2760 × L 1435 mm, 3,0 m², 180 kg (paumelles cachées) / 150 kg (apparentes) ; soufflet 80 kg (2 paumelles) / 120 kg (3). Valeurs maxi annoncées (selon avis d'expert, sans configuration) : vent jusqu'à C5, eau jusqu'à Exxx, air classe 4, Rw jusqu'à 46 dB (-2;-6), Uw dès 0,74. Acoustique : avis d'expert ift 12-001777-PR28 (Rw du vitrage → Rw de la fenêtre), non repris. Aucun essai AEV relevé pour l'instant : n'apparaît pas dans le comparateur."},
+  {id:"jan_viss",nom:"VISS Façade",marque:"Jansen",famille:"Façade",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:6,epaisseur_max:70,poids_max:1800,
+   tests:[],
+   aev:[
+     {chassis:"Façade rideau — essais système NF EN 13830",dims:"—",A:"AE",E:"RE1200",V:"2000",rapport:"Programme de livraison VISS 02/2020 (p. 22-4)",date:"2020",note:"Vent : charge de calcul 2 kN/m² (EN 12179 / EN 13116) ; rapport d'essai non identifié"},
+     {chassis:"Façade rideau — CWCT",dims:"—",A:"PASS",E:"PASS",V:"2400/3600",rapport:"Test CWCT (programme de livraison p. 22-5)",date:"—",note:"Charge admissible 2400 Pa, sécurité 3600 Pa ; numéro de rapport non indiqué"}
+   ],
+   thermique:[],
+   chocs:"E5 / I5 selon NF EN 14019",
+   note:"Pas d'Avis Technique façade en vigueur trouvé (dernier AT VISS-FAÇADE 2.1/08-1323_V1.1 annulé le 15/07/2022 ; VISS TV 1S 02/12-1501 périmé) : essais CE (NF EN 13830) uniquement — à valider pour un chantier en France. Programme de livraison VISS (02/2020) : largeurs de vue 50 et 60 mm ; remplissage 6 à 70 mm ; poids de remplissage jusqu'à 1800 kg ; Uf dès 0,65 W/m²K, Ucw (monté) jusqu'à 0,73 — sans tableau par Ug ; Rw 47 dB (-1;-5) sans composition de vitrage (non repris) ; anti-effraction RC2 / RC3 / RC4 ; balles FB4 NS ; réaction au feu classe E ; TRAV catégorie A ; isolation longitudinale 62 dB (vertical) / 59 dB (horizontal). Aucun PV acoustique avec composition : n'apparaît pas dans le comparateur."},
+  {id:"jan_viss_basic",nom:"VISS Basic Façade",marque:"Jansen",famille:"Façade",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:6,epaisseur_max:70,poids_max:1800,
+   tests:[],
+   aev:[
+     {chassis:"Façade rideau — essais système NF EN 13830",dims:"—",A:"AE",E:"RE1200",V:"2000",rapport:"Programme de livraison VISS Basic 02/2020 (p. 24-4)",date:"2020",note:"Vent : charge de calcul 2 kN/m² (EN 12179 / EN 13116) ; rapport d'essai non identifié"}
+   ],
+   thermique:[],
+   chocs:"E5 / I5 selon NF EN 14019",
+   note:"Pas d'Avis Technique façade en vigueur trouvé (dernier AT VISS-FAÇADE 2.1/08-1323_V1.1 annulé le 15/07/2022 ; VISS TV 1S 02/12-1501 périmé) : essais CE (NF EN 13830) uniquement — à valider pour un chantier en France. Programme de livraison VISS Basic (02/2020) : construction rapportée sur ossature porteuse (tubes du commerce, IPE, VISS Ixtra sur mesure) ; largeurs de vue 50 et 60 mm ; remplissage 6 à 70 mm ; jusqu'à 1800 kg ; Uf dès 0,51 W/m²K, sans tableau Ucw par Ug ; isolation acoustique npd ; RC2 / RC3 / RC4 ; réaction au feu classe E ; DIN 18008-4 catégorie A. N'apparaît pas dans le comparateur (pas de PV acoustique)."},
+  {id:"jan_viss_sg",nom:"VISS SG / Semi SG (VEC)",marque:"Jansen",famille:"Façade",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:30,epaisseur_max:70,poids_max:null,
+   tests:[],
+   aev:[
+     {chassis:"Façade VEC (VISS SG) — essais système NF EN 13830",dims:"—",A:"AE",E:"RE1200",V:"2000",rapport:"Programme de livraison VISS SG 02/2020 (p. 26-7)",date:"2020",note:"Vent : charge de calcul 2 kN/m² ; ETA 13/0015 (ETAG 002) ; rapport d'essai non identifié"}
+   ],
+   thermique:[],
+   chocs:"E5 / I5 selon NF EN 14019",
+   note:"Pas d'Avis Technique façade en vigueur trouvé (dernier AT VISS-FAÇADE 2.1/08-1323_V1.1 annulé le 15/07/2022 ; VISS TV 1S 02/12-1501 périmé) : essais CE (NF EN 13830) uniquement — à valider pour un chantier en France. Façade entièrement vitrée VISS SG (ETA 13/0015 selon ETAG 002) et VISS Semi SG ; sécurité mécanique des vitres sans collage obligatoire (VARIO DZ / S-FOR ou VARIO II) ; verre isolant double ou triple 30 à 70 mm ; vitrages jusqu'à 2,5 × 5 m ; Uf dès 0,84 W/m²K ; TRAV / AbP catégorie A. Poids de remplissage max non indiqué. N'apparaît pas dans le comparateur (pas de PV acoustique)."},
   {id:"royal_pb",nom:"Royal PB",marque:"Schüco",famille:"Pare-balle",dta:"",validite:"",epaisseur_min:60,epaisseur_max:100,poids_max:200,
    tests:[],aev:[],thermique:[],
    certifications:[
