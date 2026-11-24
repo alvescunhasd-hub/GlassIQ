@@ -2216,6 +2216,8 @@ const INITIAL_DB={systemes:[
   // sources : doc projet « releves-jansen-acier ». Données saisies telles que relevées ;
   // aucun PV acoustique avec composition (avis d'expert ift = Rw vitrage → Rw fenêtre, non repris).
   {id:"jan_arte20",nom:"Janisol Arte 2.0",marque:"Jansen",famille:"Fenêtre",dta:"6/24-2457_V1",validite:"31/01/2027",epaisseur_min:20,epaisseur_max:36,poids_max:90,
+   perf_annoncees:[{label:"Uw",valeur:"à partir de 0,8 W/m²K"},{label:"Vitrage (brochure)",valeur:"20 à 47 mm"},{label:"Vantail (brochure)",valeur:"1000 × 2400 mm, jusqu'à 150 kg"}],
+   perf_source:"Brochure Jansen « Janisol Arte 2.0 » (FR) — à ne pas confondre avec le DTA (vitrage ≤ 36 mm, vérification au-delà de 90 kg)",
    dimensions_max:[
      {type:"1 vantail OF",h_max:2430,l_max:1050},
      {type:"2 vantaux OF",h_max:2430,l_max:2050},
@@ -2230,6 +2232,8 @@ const INITIAL_DB={systemes:[
    thermique:[],
    note:"DTA 6/24-2457_V1 (Janisol Arte 2.0 et Arte 66), valide du 07/02/2025 au 31/01/2027. Ouverture à la française et à soufflet (pas d'OB en Arte 2.0). Vitrage isolant double ou triple jusqu'à 36 mm (min 20 mm : brochure Jansen) ; hauteur de feuillure 18 mm. Vérification expérimentale requise (NF P 20-302) si verre > 12 mm ou vantail > 90 kg : poids max retenu 90 kg (brochure : jusqu'à 150 kg). ⚠ Ne répond PAS au DTU 39 P5 § 4.2.3 (sécurité chute). Classements A*E*V* non figés au DTA. Aucun PV acoustique avec composition ; aucune donnée thermique par configuration (rapport CSTB DBV-24-39154 cité au DTA, non disponible)."},
   {id:"jan_arte66",nom:"Janisol Arte 66",marque:"Jansen",famille:"Fenêtre",dta:"6/24-2457_V1",validite:"31/01/2027",epaisseur_min:15,epaisseur_max:25,poids_max:90,
+   perf_annoncees:[{label:"Vent",valeur:"classes C1 à C5 listées (classe atteinte non indiquée)"},{label:"Acoustique",valeur:"jusqu'à Rw 47 dB (-2;-7)"},{label:"Uf",valeur:"à partir de 1,6 W/m²K"},{label:"Vantail",valeur:"max 1400 × 2300 mm, 2,3 m², 180 kg (soufflet 80 kg)"},{label:"Vitrage",valeur:"15 à 53 mm"}],
+   perf_source:"Programme de livraison Jansen « Janisol Arte 66 » (FR, 05/2026) — le DTA est plus restrictif (25 mm en ouvrant, 90 kg)",
    dimensions_max:[
      {type:"1 vantail OF",h_max:2360,l_max:1050},
      {type:"2 vantaux OF",h_max:2360,l_max:2050},
@@ -2247,12 +2251,16 @@ const INITIAL_DB={systemes:[
    thermique:[],
    note:"DTA 6/24-2457_V1 (Janisol Arte 2.0 et Arte 66), valide du 07/02/2025 au 31/01/2027. Française, oscillo-battante, soufflet. Vitrage isolant jusqu'à 25 mm en ouvrant (valeur retenue) et 42 mm en partie fixe ; min 15 mm (programme de livraison) ; hauteur de feuillure 18 mm. OB 1 vantail : deux limites au DTA (1,70 × 1,45 ou 2,36 × 1,05, H × L). Vérification expérimentale requise si verre > 12 mm ou vantail > 90 kg : poids max retenu 90 kg (programme de livraison : 180 kg). ⚠ Ne répond PAS au DTU 39 P5 § 4.2.3 (sécurité chute). Programme de livraison : Rw jusqu'à 47 dB (-2;-7), Uf dès 1,6 — sans configuration, non repris."},
   {id:"jan_hi80",nom:"Janisol HI 80 (fenêtres)",marque:"Jansen",famille:"Fenêtre",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:24,epaisseur_max:67,poids_max:180,
+   perf_annoncees:[{label:"Vent",valeur:"jusqu'à C5"},{label:"Étanchéité",valeur:"jusqu'à Exxx (> 750 Pa)"},{label:"Perméabilité",valeur:"classe 4"},{label:"Acoustique",valeur:"jusqu'à Rw 46 dB (-2;-6)"},{label:"Uw",valeur:"à partir de 0,74 W/m²K"},{label:"Endurance",valeur:"classe 4 (française) / 3 (OB)"}],
+   perf_source:"Programme de livraison Jansen « Janisol HI fenêtres » (FR, 03/2026, p. 1B 3-8) — valeurs maxi selon avis d'expert",
    dimensions_max:[],
    tests:[],
    aev:[],
    thermique:[],
    note:"Pas de DTA France : essais CE uniquement — à valider pour un chantier en France. Programme de livraison (03/2026) : vantail 90 mm, vitrage ouvrant 24–67 mm, fixe 24–57 mm ; vantail max H 2760 × L 1435 mm, 3,0 m², 180 kg (paumelles cachées) / 150 kg (apparentes) ; soufflet 80 kg (2 paumelles) / 120 kg (3). Valeurs maxi annoncées (selon avis d'expert, sans configuration) : vent jusqu'à C5, eau jusqu'à Exxx, air classe 4, Rw jusqu'à 46 dB (-2;-6), Uw dès 0,74. Acoustique : avis d'expert ift 12-001777-PR28 (Rw du vitrage → Rw de la fenêtre), non repris. Aucun essai AEV relevé pour l'instant : n'apparaît pas dans le comparateur."},
   {id:"jan_viss",nom:"VISS Façade",marque:"Jansen",famille:"Façade",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:6,epaisseur_max:70,poids_max:1800,
+   perf_annoncees:[{label:"Acoustique",valeur:"Rw 47 dB (-1;-5), composition non indiquée"},{label:"Ucw (monté)",valeur:"jusqu'à 0,73 W/m²K"},{label:"Uf",valeur:"à partir de 0,65 W/m²K"},{label:"Anti-effraction",valeur:"RC2 / RC3 / RC4"},{label:"Pare-balles",valeur:"FB4 NS"},{label:"Isolation longitudinale",valeur:"62 dB vertical / 59 dB horizontal"}],
+   perf_source:"Programme de livraison Jansen « VISS Façade » (FR, 02/2020, p. 22-2 à 22-5)",
    tests:[],
    aev:[
      {chassis:"Façade rideau — essais système NF EN 13830",dims:"—",A:"AE",E:"RE1200",V:"2000",rapport:"Programme de livraison VISS 02/2020 (p. 22-4)",date:"2020",note:"Vent : charge de calcul 2 kN/m² (EN 12179 / EN 13116) ; rapport d'essai non identifié"},
@@ -2262,6 +2270,8 @@ const INITIAL_DB={systemes:[
    chocs:"E5 / I5 selon NF EN 14019",
    note:"Pas d'Avis Technique façade en vigueur trouvé (dernier AT VISS-FAÇADE 2.1/08-1323_V1.1 annulé le 15/07/2022 ; VISS TV 1S 02/12-1501 périmé) : essais CE (NF EN 13830) uniquement — à valider pour un chantier en France. Programme de livraison VISS (02/2020) : largeurs de vue 50 et 60 mm ; remplissage 6 à 70 mm ; poids de remplissage jusqu'à 1800 kg ; Uf dès 0,65 W/m²K, Ucw (monté) jusqu'à 0,73 — sans tableau par Ug ; Rw 47 dB (-1;-5) sans composition de vitrage (non repris) ; anti-effraction RC2 / RC3 / RC4 ; balles FB4 NS ; réaction au feu classe E ; TRAV catégorie A ; isolation longitudinale 62 dB (vertical) / 59 dB (horizontal). Aucun PV acoustique avec composition : n'apparaît pas dans le comparateur."},
   {id:"jan_viss_basic",nom:"VISS Basic Façade",marque:"Jansen",famille:"Façade",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:6,epaisseur_max:70,poids_max:1800,
+   perf_annoncees:[{label:"Uf",valeur:"à partir de 0,51 W/m²K"},{label:"Acoustique",valeur:"npd (non déterminée)"},{label:"Anti-effraction",valeur:"RC2 / RC3 / RC4"}],
+   perf_source:"Programme de livraison Jansen « VISS Basic Façade » (FR, 02/2020, p. 24-2 / 24-4)",
    tests:[],
    aev:[
      {chassis:"Façade rideau — essais système NF EN 13830",dims:"—",A:"AE",E:"RE1200",V:"2000",rapport:"Programme de livraison VISS Basic 02/2020 (p. 24-4)",date:"2020",note:"Vent : charge de calcul 2 kN/m² (EN 12179 / EN 13116) ; rapport d'essai non identifié"}
@@ -2270,6 +2280,8 @@ const INITIAL_DB={systemes:[
    chocs:"E5 / I5 selon NF EN 14019",
    note:"Pas d'Avis Technique façade en vigueur trouvé (dernier AT VISS-FAÇADE 2.1/08-1323_V1.1 annulé le 15/07/2022 ; VISS TV 1S 02/12-1501 périmé) : essais CE (NF EN 13830) uniquement — à valider pour un chantier en France. Programme de livraison VISS Basic (02/2020) : construction rapportée sur ossature porteuse (tubes du commerce, IPE, VISS Ixtra sur mesure) ; largeurs de vue 50 et 60 mm ; remplissage 6 à 70 mm ; jusqu'à 1800 kg ; Uf dès 0,51 W/m²K, sans tableau Ucw par Ug ; isolation acoustique npd ; RC2 / RC3 / RC4 ; réaction au feu classe E ; DIN 18008-4 catégorie A. N'apparaît pas dans le comparateur (pas de PV acoustique)."},
   {id:"jan_viss_sg",nom:"VISS SG / Semi SG (VEC)",marque:"Jansen",famille:"Façade",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:30,epaisseur_max:70,poids_max:null,
+   perf_annoncees:[{label:"Uf",valeur:"à partir de 0,84 W/m²K"},{label:"Vitrages",valeur:"jusqu'à 2,5 × 5 m (l × h) ou 5 × 2,5 m"},{label:"Agrément",valeur:"ETA 13/0015 (ETAG 002)"}],
+   perf_source:"Programme de livraison Jansen « Façades VISS SG / Semi SG » (FR, 02/2020, p. 26-4 / 26-7)",
    tests:[],
    aev:[
      {chassis:"Façade VEC (VISS SG) — essais système NF EN 13830",dims:"—",A:"AE",E:"RE1200",V:"2000",rapport:"Programme de livraison VISS SG 02/2020 (p. 26-7)",date:"2020",note:"Vent : charge de calcul 2 kN/m² ; ETA 13/0015 (ETAG 002) ; rapport d'essai non identifié"}
@@ -3513,6 +3525,7 @@ function PageComparateur({db,projet,setProjet,setPage,elActif,setElActif,analyse
             <CheckRow label="Domaine d'emploi" ok={dim_ok} note={dim_ok===null?(dim_statut==="non_verifiable"?"Non vérifiable":"Non vérifié"):dim_ok?"Dans le domaine":"Hors domaine"}/>
           </div>
           {th&&th.note&&String(projet.uw_max==null?"":projet.uw_max).trim()&&<div style={{fontSize:10,color:"#9ca3af",marginTop:4}}>Thermique — {th.ok===true?"valeur catalogue (non calculée pour l'élément)":th.ok===false?"non conforme":"non vérifiable, indicatif"} : {th.note}</div>}
+          <BlocPerfAnnoncees sys={sys} compact/>
           </details>
           {/* Vérification physique : poids vantail + épaisseur réelle vs feuillure */}
           {(()=>{
@@ -4338,6 +4351,25 @@ function PageSecurite({db}){
 }
 
 // ── PAGE BASE ─────────────────────────────────────────────────────────────
+// ── Performances annoncées par le fabricant (option B, 24/11/2026) ─────────
+// AFFICHAGE SEUL : valeurs maxi / « à partir de » publiées sans configuration
+// d'essai. Elles ne sont JAMAIS lues par les contrôles ni par le verdict.
+function BlocPerfAnnoncees({sys,compact}){
+  const l=Array.isArray(sys&&sys.perf_annoncees)?sys.perf_annoncees.filter(x=>x&&x.label&&x.valeur):[];
+  const note=sys&&typeof sys.note==="string"?sys.note.trim():"";
+  if(!l.length&&!note)return null;
+  return <div style={{marginTop:compact?8:14,padding:compact?"8px 12px":"12px 16px",borderRadius:8,background:"#f8fafc",border:"1px dashed #94a3b8"}}>
+    {l.length>0&&<div>
+      <div style={{fontSize:11,fontWeight:700,color:"#334155",textTransform:"uppercase",letterSpacing:"0.05em"}}>Performances annoncées par le fabricant</div>
+      <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>Indicatif — valeurs publiées sans configuration d'essai ; non utilisées dans les contrôles ni dans le verdict.</div>
+      <div style={{display:"grid",gridTemplateColumns:compact?"1fr":"repeat(auto-fit,minmax(220px,1fr))",gap:"4px 16px",fontSize:12}}>
+        {l.map((x,i)=><div key={i}><span style={{color:"#64748b"}}>{x.label} : </span><strong style={{color:"#0f172a"}}>{x.valeur}</strong></div>)}
+      </div>
+      {sys.perf_source&&<div style={{fontSize:10,color:"#94a3b8",marginTop:6}}>Source : {sys.perf_source}</div>}
+    </div>}
+    {note&&<div style={{fontSize:11,color:"#475569",marginTop:l.length?8:0,whiteSpace:"pre-wrap"}}><strong>Note :</strong> {note}</div>}
+  </div>;
+}
 function PageBase({db}){
   const normalSystems=db.systemes.filter(s=>!s.certifications);
   const marques=[...new Set(normalSystems.map(s=>s.marque))];
@@ -4352,6 +4384,7 @@ function PageBase({db}){
     {sys&&<div>
       <div style={{...S.card,background:"#f9fafb"}}><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}><Stat label="Marque" value={sys.marque}/><Stat label="Famille" value={sys.famille}/><Stat label="DTA" value={sys.dta||"—"} mono/><Stat label="Validité" value={sys.validite||"—"}/></div>
         {(()=>{const st=statutDTA(sys.validite);if(st.statut==="ok")return null;return <div style={{marginTop:10,padding:"10px 14px",borderRadius:8,fontSize:12,fontWeight:600,color:st.couleur,background:st.bg,border:`1px solid ${st.couleur}44`}}>{st.statut==="expire"?"⛔ ":st.statut==="bientot"?"⚠ ":"? "}{st.texte}{st.statut==="expire"?" — ne pas prescrire sans vérifier le renouvellement du DTA auprès du fabricant.":st.statut==="bientot"?" — vérifier la date de pose ; le DTA doit être valide à la signature du marché.":" — impossible de vérifier la validité, à confirmer auprès du fabricant."}</div>;})()}
+        <BlocPerfAnnoncees sys={sys}/>
       </div>
       {sys.tests.map((test,ti)=><div key={ti} style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
