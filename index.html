@@ -208,9 +208,32 @@ const PROFILES_FACADE=[
   {ref:"—",nom:"Meneau FWS 35 PD — 85 mm",type:"meneau",systeme:"FW35PD",haut:85,Ix:73.77},
   {ref:"—",nom:"Meneau FWS 35 PD — 105 mm",type:"meneau",systeme:"FW35PD",haut:105,Ix:118.07},
   {ref:"—",nom:"Meneau FWS 35 PD — 125 mm",type:"meneau",systeme:"FW35PD",haut:125,Ix:198.31},
-  {ref:"—",nom:"Meneau FWS 35 PD — 150 mm",type:"meneau",systeme:"FW35PD",haut:150,Ix:308.63}
+  {ref:"—",nom:"Meneau FWS 35 PD — 150 mm",type:"meneau",systeme:"FW35PD",haut:150,Ix:308.63},
+  // Cortizo (Cortizo Center, « Perfiles a escala ») — série 52 : catalogue « Fachadas y lucernarios » 04/2026, structure
+  // porteuse commune TP 52 / SG 52 / TPH-TPV 52 / ST 52 / SST 52 ; série 62 : catalogue « Fachadas stick 62 » 11/2025 (TP 62 / SG 62).
+  // COR-9614 (F62 130 mm) écarté : Ix 73,93 / Iy 322,58 imprimés inversés au catalogue — à confirmer par Cortizo.
+  {ref:"COR-9801",nom:"Meneau Cortizo 52 — 65 mm",type:"meneau",systeme:"COR52",haut:65,Ix:59.69,Iy:27.17},
+  {ref:"COR-9802",nom:"Meneau Cortizo 52 — 75 mm",type:"meneau",systeme:"COR52",haut:75,Ix:85.34,Iy:30.78},
+  {ref:"COR-9803",nom:"Meneau Cortizo 52 — 105 mm",type:"meneau",systeme:"COR52",haut:105,Ix:180.27,Iy:38.31},
+  {ref:"COR-9804",nom:"Meneau Cortizo 52 — 130 mm",type:"meneau",systeme:"COR52",haut:130,Ix:300.62,Iy:45.05},
+  {ref:"COR-9805",nom:"Meneau Cortizo 52 — 150 mm",type:"meneau",systeme:"COR52",haut:150,Ix:448.68,Iy:51.22},
+  {ref:"COR-9806",nom:"Meneau Cortizo 52 — 175 mm",type:"meneau",systeme:"COR52",haut:175,Ix:661.6,Iy:58.9},
+  {ref:"COR-9807",nom:"Meneau Cortizo 52 — 175 mm",type:"meneau",systeme:"COR52",haut:175,Ix:758.17,Iy:73.34},
+  {ref:"COR-9808",nom:"Meneau Cortizo 52 — 200 mm",type:"meneau",systeme:"COR52",haut:200,Ix:999.57,Iy:81.54},
+  {ref:"COR-9809",nom:"Meneau Cortizo 52 — 230 mm",type:"meneau",systeme:"COR52",haut:230,Ix:1533.08,Iy:93.86},
+  {ref:"COR-9810",nom:"Meneau Cortizo 52 — 250 mm",type:"meneau",systeme:"COR52",haut:250,Ix:1755.72,Iy:100.19},
+  {ref:"COR-9611",nom:"Meneau Cortizo F62 — 65 mm",type:"meneau",systeme:"COR62",haut:65,Ix:63.98,Iy:44.07},
+  {ref:"COR-9612",nom:"Meneau Cortizo F62 — 85 mm",type:"meneau",systeme:"COR62",haut:85,Ix:119.05,Iy:54.01},
+  {ref:"COR-9613",nom:"Meneau Cortizo F62 — 105 mm",type:"meneau",systeme:"COR62",haut:105,Ix:195.01,Iy:62.86},
+  {ref:"COR-9615",nom:"Meneau Cortizo F62 — 150 mm",type:"meneau",systeme:"COR62",haut:150,Ix:485.43,Iy:84.33},
+  {ref:"COR-9616",nom:"Meneau Cortizo F62 — 175 mm",type:"meneau",systeme:"COR62",haut:175,Ix:760.44,Iy:96.54},
+  {ref:"COR-9618",nom:"Meneau Cortizo F62 — 200 mm",type:"meneau",systeme:"COR62",haut:200,Ix:1134.81,Iy:117.71},
+  {ref:"COR-9619",nom:"Meneau Cortizo F62 — 230 mm",type:"meneau",systeme:"COR62",haut:230,Ix:1588.54,Iy:132.44},
+  {ref:"COR-9620",nom:"Meneau Cortizo F62 — 250 mm",type:"meneau",systeme:"COR62",haut:250,Ix:1944.02,Iy:142.26}
 ];
-const SYSTEMES_FLECHE={FW50:"Schüco FWS 50",FW60:"Schüco FWS 60",FW35PD:"Schüco FWS 35 PD",AUTRE:"Autre fabricant (Ix saisie)"};
+const SYSTEMES_FLECHE={FW50:"Schüco FWS 50",FW60:"Schüco FWS 60",FW35PD:"Schüco FWS 35 PD",COR52:"Cortizo série 52 (TP / SG / TPH / TPV 52)",COR62:"Cortizo série 62 (TP / SG 62)",AUTRE:"Autre fabricant (Ix saisie)"};
+// Système de la page flèche déduit du système retenu (id base) — sinon du libellé de gamme
+const FLECHE_PAR_SYSID={fws50:"FW50",fws60:"FW60",cor_tp52:"COR52",cor_sg52:"COR52",cor_tph52:"COR52",cor_tpv52:"COR52",cor_tp62:"COR62",cor_sg62:"COR62"};
 
 // ── CALCUL FLÈCHE FAÇADE RIDEAU (Eurocode / DTU) ───────────────────────────
 // Meneau = poutre sur 2 appuis (planchers), charge vent répartie.
@@ -220,6 +243,7 @@ const SYSTEMES_FLECHE={FW50:"Schüco FWS 50",FW60:"Schüco FWS 60",FW35PD:"Schü
 const E_ALU = 70000;
 const COEF_ELU_ELS = 1.5;
 function pressionServiceELS(p){return p>0?p/COEF_ELU_ELS:null;}
+const E_ACIER = 210000; // N/mm² — meneau porteur acier (ex. Jansen VISS : profil porteur dimensionné au projet)
 // Flèche admissible selon le critère :
 // "en13116" (défaut) → NF EN 13116:2024 : L/200 si L ≤ 3000 mm ; 5 mm + L/300 si 3000 < L < 7500 ; L/250 au-delà.
 // "200" → L/200 ; "175" → L/175 ; "200_15" → L/200 plafonné à 15 mm (anciens CCTP / NF DTU 33.1).
@@ -228,11 +252,11 @@ function flecheAdmissible(L_mm,critere){
   if(critere==="200_15")return Math.min(L_mm/200,15);
   return L_mm/(+critere||200);
 }
-function flecheMeneau(pression_Pa, entraxe_m, portee_m, Ix_cm4, critere){
+function flecheMeneau(pression_Pa, entraxe_m, portee_m, Ix_cm4, critere, E){
   const q = pression_Pa * entraxe_m / 1000; // N/mm
   const L = portee_m * 1000; // mm
   const I = Ix_cm4 * 1e4; // mm^4
-  const f = (5 * q * Math.pow(L,4)) / (384 * E_ALU * I); // mm
+  const f = (5 * q * Math.pow(L,4)) / (384 * (E||E_ALU) * I); // mm
   const adm = flecheAdmissible(L, critere||"en13116");
   return { fleche:+f.toFixed(1), adm:+adm.toFixed(1), ok:f<=adm, ratio:+(f/adm).toFixed(2) };
 }
@@ -247,11 +271,11 @@ function profilesCompatibles(systeme, pression_Pa, entraxe_m, portee_m, critere)
 }
 // Calcul INVERSE : inertie minimale requise (cm⁴) pour respecter le critère de flèche.
 // I ≥ 5·q·L⁴/(384·E·f_adm). Universel : comparable à n'importe quel catalogue fabricant.
-function inertieRequise(pression_Pa, entraxe_m, portee_m, critere){
+function inertieRequise(pression_Pa, entraxe_m, portee_m, critere, E){
   const q = pression_Pa * entraxe_m / 1000; // N/mm
   const L = portee_m * 1000; // mm
   const fAdm = flecheAdmissible(L, critere||"en13116"); // mm
-  const I_mm4 = (5 * q * Math.pow(L,4)) / (384 * E_ALU * fAdm);
+  const I_mm4 = (5 * q * Math.pow(L,4)) / (384 * (E||E_ALU) * fAdm);
   return +(I_mm4 / 1e4).toFixed(1); // cm⁴
 }
 
@@ -4140,6 +4164,9 @@ function PageFleche({projet}){
   const [show,setShow]=useEtatModule("fleche.afficher",false);
   const [ixAutre,setIxAutre]=useEtatModule("fleche.ix_autre","");
   const [info,setInfo]=useEtatModule("fleche.info","");
+  const [mat,setMat]=useEtatModule("fleche.materiau","alu");
+  // Module d'élasticité : aluminium pour les listes fabricants ; acier possible seulement en saisie libre
+  const E=systeme==="AUTRE"&&mat==="acier"?E_ACIER:E_ALU;
   const libCrit=critere==="en13116"?"NF EN 13116":critere==="200_15"?"L/200 ≤ 15 mm":"L/"+critere;
   const e=+entraxe||0, Lp=+portee||0;
   // Flèche = critère de service : pression du tableau DTU 39 (ELU) ÷ 1,5
@@ -4152,7 +4179,7 @@ function PageFleche({projet}){
   const pDiag=diagPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   // Résultats recalculés en direct (changement de critère / entraxe pris en compte)
   const results=show&&pret?(systeme==="AUTRE"
-    ?[{ref:"—",nom:"Meneau saisi (Ix fabricant)",Ix:ixA,calc:flecheMeneau(pELS,e,Lp,ixA,critere)}]
+    ?[{ref:"—",nom:`Meneau saisi (${mat==="acier"?"acier":"aluminium"})`,Ix:ixA,calc:flecheMeneau(pELS,e,Lp,ixA,critere,E)}]
     :profilesCompatibles(systeme,pELS,e,Lp,critere)):null;
 
   const chargerFacade=(el)=>{
@@ -4168,8 +4195,10 @@ function PageFleche({projet}){
     const gam=((pr&&pr.gamme)||"").trim();
     const g=gam+" "+(el.soustype||"");
     // Plus de bascule silencieuse sur un système Schüco quand la façade est d'une autre marque
-    const sys=/FWS?\s*35/i.test(g)?"FW35PD":/FWS?\s*50/i.test(g)?"FW50":/FWS?\s*60/i.test(g)?"FW60":null;
+    const sid=(pr&&pr.sysId)||"";
+    const sys=FLECHE_PAR_SYSID[sid]||(/FWS?\s*35/i.test(g)?"FW35PD":/FWS?\s*50/i.test(g)?"FW50":/FWS?\s*60/i.test(g)?"FW60":/Cortizo/i.test(g)&&/\b(TPH?|TPV|SG|SST?)\s*52\b/i.test(g)?"COR52":/Cortizo/i.test(g)&&/\b(TPH?|TPV|SG)\s*62\b/i.test(g)?"COR62":null);
     if(sys){setSysteme(sys);setInfo("");}
+    else if(/^jan_viss/.test(sid)||/VISS/i.test(g)){setSysteme("AUTRE");setMat("acier");setInfo(`Façade « ${el.label} » en ${gam||"Jansen VISS"} : VISS ne fournit que les profilés de recouvrement — le meneau porteur est un profil acier dimensionné au projet. Saisis son inertie Ix (cm⁴) ; module acier E = 210 000 N/mm² appliqué.`);}
     else if(gam){setSysteme("AUTRE");setInfo(`Façade « ${el.label} » prescrite en ${gam} : saisis l'inertie Ix du meneau donnée par le fabricant (catalogue, axe vent).`);}
     else setInfo(`Façade « ${el.label} » : aucune gamme prescrite — choisis le système ou saisis l'Ix du meneau.`);
   };
@@ -4196,7 +4225,7 @@ function PageFleche({projet}){
 
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:14}}>
       <div><label style={S.label}>Système façade</label><select value={systeme} onChange={ev=>{setSysteme(ev.target.value);setInfo("");}} style={S.input}>{Object.keys(SYSTEMES_FLECHE).map(k=><option key={k} value={k}>{SYSTEMES_FLECHE[k]}</option>)}</select>
-        {systeme==="AUTRE"&&<div style={{marginTop:6}}><input value={ixAutre} onChange={ev=>setIxAutre(ev.target.value)} placeholder="Ix meneau (cm⁴)" style={S.input}/>{ixTxt&&!ixA&&<div style={{fontSize:11,color:"#b91c1c",marginTop:3}}>Valeur illisible — saisis un nombre en cm⁴ (ex. 278,8)</div>}</div>}</div>
+        {systeme==="AUTRE"&&<div style={{marginTop:6}}><select value={mat} onChange={ev=>setMat(ev.target.value)} style={{...S.input,marginBottom:6}}><option value="alu">Aluminium (E = 70 000 N/mm²)</option><option value="acier">Acier (E = 210 000 N/mm²)</option></select><input value={ixAutre} onChange={ev=>setIxAutre(ev.target.value)} placeholder="Ix meneau (cm⁴)" style={S.input}/>{ixTxt&&!ixA&&<div style={{fontSize:11,color:"#b91c1c",marginTop:3}}>Valeur illisible — saisis un nombre en cm⁴ (ex. 278,8)</div>}</div>}</div>
       <div><label style={S.label}>Entraxe meneaux (m)</label><input type="number" value={entraxe} onChange={ev=>setEntraxe(ev.target.value)} step="0.05" placeholder="1.35" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Largeur de trame</div></div>
       <div><label style={S.label}>Portée meneau (m)</label><input type="number" value={portee} onChange={ev=>setPortee(ev.target.value)} step="0.1" placeholder="3.5" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Hauteur d'étage (entre planchers)</div></div>
       <div><label style={S.label}>Critère de flèche</label><select value={critere} onChange={ev=>setCritere(ev.target.value)} style={S.input}><option value="en13116">NF EN 13116 (L/200 ; 5 + L/300 ; L/250)</option><option value="200">L/200</option><option value="200_15">L/200 plafonné à 15 mm</option><option value="175">L/175</option></select></div>
@@ -4210,8 +4239,8 @@ function PageFleche({projet}){
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Flèche admissible {libCrit}</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{flecheAdmissible(Lp*1000,critere).toFixed(1)} mm</div></div>
       <div style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(240,192,64,0.15)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8}}>
         <div style={{fontSize:11,color:"rgba(240,192,64,0.8)"}}>Inertie Ix minimale requise</div>
-        <div style={{fontSize:22,fontWeight:800,color:"#f0c040"}}>{inertieRequise(pELS,e,Lp,critere)} cm⁴</div>
-        <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>universel — comparable à tout catalogue fabricant</div>
+        <div style={{fontSize:22,fontWeight:800,color:"#f0c040"}}>{inertieRequise(pELS,e,Lp,critere,E)} cm⁴</div>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{E===E_ACIER?"meneau acier (E = 210 000 N/mm²)":"meneau aluminium (E = 70 000 N/mm²) — comparable à tout catalogue alu"}</div>
       </div>
     </div>}
 
@@ -4226,7 +4255,7 @@ function PageFleche({projet}){
           {recommended&&<div style={{...S.card,background:"#f0fdf4",border:"2px solid #059669",marginBottom:14}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <span style={{width:28,height:28,borderRadius:8,background:"#059669",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>★</span>
-              <div><div style={{fontSize:15,fontWeight:800,color:"#1a1a2e"}}>Profilé minimum recommandé : {recommended.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{systeme==="AUTRE"?`Ix saisie · satisfait ${libCrit}`:`Réf. Schüco ${recommended.ref} · le plus léger qui satisfait ${libCrit}`}</div></div>
+              <div><div style={{fontSize:15,fontWeight:800,color:"#1a1a2e"}}>Profilé minimum recommandé : {recommended.nom}</div><div style={{fontSize:12,color:"#6b7280"}}>{systeme==="AUTRE"?`Ix saisie · satisfait ${libCrit}`:`Réf. ${/^COR/.test(systeme)?"Cortizo":"Schüco"} ${recommended.ref} · le plus léger qui satisfait ${libCrit}`}</div></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
               <Stat label="Inertie Ix" value={`${recommended.Ix} cm⁴`} hi/>
@@ -4255,7 +4284,7 @@ function PageFleche({projet}){
         </>;
       })()}
       <div style={{...S.card,background:"#f9fafb",marginTop:16,fontSize:12,color:"#6b7280",lineHeight:1.6}}>
-        <strong>Méthode :</strong> meneau modélisé en poutre simplement appuyée, charge vent uniformément répartie q = pression de service (tableau NF DTU 39 ÷ 1,5) × entraxe. Flèche f = 5qL⁴/(384·E·I) avec E<sub>alu</sub> = 70 000 N/mm². Inertie Ix = flexion sous vent (perpendiculaire à la façade). Les valeurs d'inertie Schüco sont issues du Catalogue général 2-1 « Façade FWS » (FDA23260, 11/2025) ; seuls les meneaux courants sont comparés (pas les poteaux d'angle). Contrainte, poids propre et combinaisons ELU/ELS non vérifiés ici : pour un dimensionnement définitif, valider avec une note de calcul SchüCal.
+        <strong>Méthode :</strong> meneau modélisé en poutre simplement appuyée, charge vent uniformément répartie q = pression de service (tableau NF DTU 39 ÷ 1,5) × entraxe. Flèche f = 5qL⁴/(384·E·I) avec E<sub>alu</sub> = 70 000 N/mm² (E<sub>acier</sub> = 210 000 N/mm² pour un meneau acier saisi). Inertie Ix = flexion sous vent (perpendiculaire à la façade). Inerties : Schüco Catalogue général 2-1 « Façade FWS » (FDA23260, 11/2025) ; Cortizo « Fachadas y lucernarios » (04/2026) et « Fachadas stick 62 » (11/2025) ; seuls les meneaux courants sont comparés (pas les poteaux d'angle). Contrainte, poids propre et combinaisons ELU/ELS non vérifiés ici : pour un dimensionnement définitif, valider avec une note de calcul du fabricant ou du bureau d'études (SchüCal, logiciel Cortizo…).
       </div>
     </div>}
   </div>;
@@ -4826,6 +4855,8 @@ function runAutotests(){
   const pS=pressionServiceELS(1650), iR=inertieRequise(pS,1.35,3.5,"en13116");
   ok("Flèche meneau : 1650 Pa tableau → 1100 Pa ELS ; trame 1,35 m, étage 3,50 m → Ix requise ≈ 248,7 cm⁴", proche(pS,1100,0.001)&&proche(iR,248.7,0.15), `${pS} Pa · ${iR} cm⁴`);
   const rF=profilesCompatibles("FW50",pS,1.35,3.5,"en13116"), recF=rF.find(x=>x.calc.ok);
+  const rC=profilesCompatibles("COR52",pS,1.35,3.5,"en13116").find(x=>x.calc.ok), iAc=inertieRequise(pS,1.35,3.5,"en13116",E_ACIER);
+  ok("Flèche meneau : Cortizo série 52 → COR-9804 130 mm (300,62 cm⁴) ; meneau acier → Ix requise ÷ 3 (≈ 82,9 cm⁴)", rC&&rC.ref==="COR-9804"&&proche(iAc,82.9,0.1)&&!PROFILES_FACADE.some(p=>p.ref==="COR-9614"), `${rC?rC.ref+" · "+rC.calc.fleche+" mm":"aucun"} · acier ${iAc} cm⁴`);
   ok("Flèche meneau : FWS 50 → meneau 125 mm 536 840 (278,8 cm⁴, f ≈ 14,9 mm), aucun poteau d'angle proposé", recF&&recF.ref==="536 840"&&proche(recF.calc.fleche,14.9,0.05)&&rF.every(x=>x.type==="meneau"), recF?`${recF.nom} · ${recF.calc.fleche} mm / ${recF.calc.adm} mm`:"aucun");
   return T;
 }
