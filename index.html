@@ -2212,6 +2212,46 @@ const INITIAL_DB={systemes:[
    thermique:[],
    chocs:"I5 (intérieur) / E5 (extérieur) selon NF EN 14019",
    note:"Pas de DTA France : essais CE (NF EN 14351-1 / NF EN 13830) uniquement — à valider pour un chantier en France. Façade VEC 62 mm, vitrage 6–64 mm, fixes jusqu'à 800 kg (fiche). Aucun rapport thermique (fiche : Ucw dès 0,6). PV acoustiques uniquement provisoires, non repris : n'apparaît pas dans le comparateur."},
+  // ── JANSEN acier (ajout 24/11/2026) — relevé Docu Center Jansen + DTA CSTB, détail et
+  // sources : doc projet « releves-jansen-acier ». Données saisies telles que relevées ;
+  // aucun PV acoustique avec composition (avis d'expert ift = Rw vitrage → Rw fenêtre, non repris).
+  {id:"jan_arte20",nom:"Janisol Arte 2.0",marque:"Jansen",famille:"Fenêtre",dta:"6/24-2457_V1",validite:"31/01/2027",epaisseur_min:20,epaisseur_max:36,poids_max:90,
+   dimensions_max:[
+     {type:"1 vantail OF",h_max:2430,l_max:1050},
+     {type:"2 vantaux OF",h_max:2430,l_max:2050},
+     {type:"2 vantaux OF + fixe latéral",h_max:2430,l_max:3000},
+     {type:"3 vantaux OF",h_max:2430,l_max:3000},
+     {type:"Soufflet",h_max:1050,l_max:2430},
+   ],
+   tests:[],
+   aev:[
+     {chassis:"Porte-fenêtre 2 vantaux + fixe latéral",dims:"3040x2440",A:"—",E:"—",V:"—",rapport:"CSTB BV23-22547",date:"2023",note:"Essai du DTA — classes A*E*V* non figées au DTA (selon certification)"}
+   ],
+   thermique:[],
+   note:"DTA 6/24-2457_V1 (Janisol Arte 2.0 et Arte 66), valide du 07/02/2025 au 31/01/2027. Ouverture à la française et à soufflet (pas d'OB en Arte 2.0). Vitrage isolant double ou triple jusqu'à 36 mm (min 20 mm : brochure Jansen) ; hauteur de feuillure 18 mm. Vérification expérimentale requise (NF P 20-302) si verre > 12 mm ou vantail > 90 kg : poids max retenu 90 kg (brochure : jusqu'à 150 kg). ⚠ Ne répond PAS au DTU 39 P5 § 4.2.3 (sécurité chute). Classements A*E*V* non figés au DTA. Aucun PV acoustique avec composition ; aucune donnée thermique par configuration (rapport CSTB DBV-24-39154 cité au DTA, non disponible)."},
+  {id:"jan_arte66",nom:"Janisol Arte 66",marque:"Jansen",famille:"Fenêtre",dta:"6/24-2457_V1",validite:"31/01/2027",epaisseur_min:15,epaisseur_max:25,poids_max:90,
+   dimensions_max:[
+     {type:"1 vantail OF",h_max:2360,l_max:1050},
+     {type:"2 vantaux OF",h_max:2360,l_max:2050},
+     {type:"2 vantaux OF + fixe latéral",h_max:2360,l_max:3050},
+     {type:"3 vantaux OF",h_max:2360,l_max:3050},
+     {type:"1 vantail OB",h_max:1700,l_max:1450},
+     {type:"1 vantail OB",h_max:2360,l_max:1050},
+     {type:"Soufflet",h_max:1050,l_max:2360},
+   ],
+   tests:[],
+   aev:[
+     {chassis:"Porte-fenêtre 2 vantaux + fixe latéral",dims:"3060x2350",A:"—",E:"—",V:"—",rapport:"CSTB BV23-22548",date:"2023",note:"Essai du DTA — classes A*E*V* non figées au DTA (selon certification)"},
+     {chassis:"Fenêtre 1 vantail OB",dims:"1480x1730",A:"—",E:"—",V:"—",rapport:"CSTB BV23-22549",date:"2023",note:"Essai du DTA — classes A*E*V* non figées au DTA (selon certification)"}
+   ],
+   thermique:[],
+   note:"DTA 6/24-2457_V1 (Janisol Arte 2.0 et Arte 66), valide du 07/02/2025 au 31/01/2027. Française, oscillo-battante, soufflet. Vitrage isolant jusqu'à 25 mm en ouvrant (valeur retenue) et 42 mm en partie fixe ; min 15 mm (programme de livraison) ; hauteur de feuillure 18 mm. OB 1 vantail : deux limites au DTA (1,70 × 1,45 ou 2,36 × 1,05, H × L). Vérification expérimentale requise si verre > 12 mm ou vantail > 90 kg : poids max retenu 90 kg (programme de livraison : 180 kg). ⚠ Ne répond PAS au DTU 39 P5 § 4.2.3 (sécurité chute). Programme de livraison : Rw jusqu'à 47 dB (-2;-7), Uf dès 1,6 — sans configuration, non repris."},
+  {id:"jan_hi80",nom:"Janisol HI 80 (fenêtres)",marque:"Jansen",famille:"Fenêtre",dta:"",validite:"",essais_ce_seuls:true,epaisseur_min:24,epaisseur_max:67,poids_max:180,
+   dimensions_max:[],
+   tests:[],
+   aev:[],
+   thermique:[],
+   note:"Pas de DTA France : essais CE uniquement — à valider pour un chantier en France. Programme de livraison (03/2026) : vantail 90 mm, vitrage ouvrant 24–67 mm, fixe 24–57 mm ; vantail max H 2760 × L 1435 mm, 3,0 m², 180 kg (paumelles cachées) / 150 kg (apparentes) ; soufflet 80 kg (2 paumelles) / 120 kg (3). Valeurs maxi annoncées (selon avis d'expert, sans configuration) : vent jusqu'à C5, eau jusqu'à Exxx, air classe 4, Rw jusqu'à 46 dB (-2;-6), Uw dès 0,74. Acoustique : avis d'expert ift 12-001777-PR28 (Rw du vitrage → Rw de la fenêtre), non repris. Aucun essai AEV relevé pour l'instant : n'apparaît pas dans le comparateur."},
   {id:"royal_pb",nom:"Royal PB",marque:"Schüco",famille:"Pare-balle",dta:"",validite:"",epaisseur_min:60,epaisseur_max:100,poids_max:200,
    tests:[],aev:[],thermique:[],
    certifications:[
