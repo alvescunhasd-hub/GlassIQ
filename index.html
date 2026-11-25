@@ -1835,6 +1835,129 @@ const INITIAL_DB={systemes:[
    ],
    thermique:[{ug:1.0,config:"Fenêtre 1 vantail OB 1.23x1.48 (Ug1.0)",uw:1.2},{ug:1.1,config:"Fenêtre 1 vantail OB 1.23x1.48 (Ug1.1)",uw:1.3}]}
 ,
+  // ── TECHNAL (Hydro Building Systems) — relevés TechTip du 25/11/2026 : DTA, PV AEV et acoustiques, fiches produit.
+  // Cotes des titres Technal en H × L, converties ici en L × H. Rapports AEV sans date au listing : année non renseignée.
+  {id:"tec_fy55",nom:"SOLEAL FY 55 évolution",marque:"Technal",famille:"Fenêtre",dta:"6/12-2016_V6",validite:"30/09/2031",epaisseur_min:24,epaisseur_max:32,poids_max:130,
+   dimensions_max:[
+     {type:"1 vantail OF",h_max:2200,l_max:1150},
+     {type:"1 vantail OB",h_max:1550,l_max:1150},
+     {type:"2 vantaux OF",h_max:2200,l_max:1550},
+     {type:"2 vantaux OF + fixe latéral",h_max:2200,l_max:2350},
+     {type:"Soufflet",h_max:550,l_max:1250},
+   ],
+   tests:[
+    {rapport:"701427",type_chassis:"Fenêtre 1 vantail OB (ouvrant apparent)",dim_L:1450,dim_H:1480,labo:"Saint-Gobain Glass (Chantereine)",date:"2008",vitrages:[{composition:"44.1 Ac/16/10",rw:41,rwc:40,rwctr:38}],note:"PV de 2008 sur SOLEAL, classé par Technal sous FY 55 évolution"}
+   ],
+   aev:[
+    {chassis:"Fenêtre",dims:"1500x1500",A:"4",E:"9A",V:"C3",rapport:"r04-09-02",date:""},
+    {chassis:"Fenêtre 1 vtl (ouvrant intérieur)",dims:"1400x1600",A:"4",E:"9A",V:"C3",rapport:"07-12-002",date:""},
+    {chassis:"Fenêtre bandeau serrure (ouvrant intérieur)",dims:"1200x2251",A:"2",E:"7A",V:"C2",rapport:"r07-08-03",date:""},
+    {chassis:"Fenêtre italienne",dims:"1544x1544",A:"4",E:"E900",V:"C3",rapport:"r09-08-01",date:""},
+    {chassis:"Fenêtre italienne (AEV + mécanique)",dims:"1500x1500",A:"4",E:"9A",V:"C3",rapport:"404-09-117",date:""},
+    {chassis:"Fenêtre 1 vtl OB minimal, coupe 45°",dims:"1200x1600",A:"4",E:"E900",V:"C5",rapport:"40-34-19",date:""},
+    {chassis:"Fenêtre 1 vtl OB minimal, coupe droite",dims:"1200x1600",A:"4",E:"E1200",V:"C5",rapport:"40-33-19",date:""},
+    {chassis:"Fenêtre 1 vtl OF minimal, coupe 45°",dims:"1000x2700",A:"4",E:"E750",V:"C3",rapport:"40-43-19",date:""},
+    {chassis:"Fenêtre 1 vtl OF minimal, coupe droite",dims:"1000x2700",A:"4",E:"E750",V:"C3",rapport:"40-42-19",date:""},
+    {chassis:"Fenêtre 1 vtl OF minimal, coupe 45°",dims:"1200x2300",A:"4",E:"E1050",V:"C3",rapport:"40-39-19",date:""},
+    {chassis:"Fenêtre 1 vtl OF minimal, coupe droite",dims:"1200x2300",A:"4",E:"E1200",V:"C3",rapport:"40-38-19",date:""},
+    {chassis:"Fenêtre 2 vtx OF minimal, coupe 45°",dims:"1600x2300",A:"4",E:"E750",V:"B2",rapport:"40-41-19",date:""},
+    {chassis:"Fenêtre 2 vtx OF minimal, coupe droite",dims:"1600x2300",A:"4",E:"9A",V:"C3",rapport:"40-40-19",date:""},
+    {chassis:"Porte-fenêtre 1 vtl + fixe latéral (ouvrant intérieur, 2 lames)",dims:"1200x2250",A:"4",E:"9A",V:"C3",rapport:"08-03-001",date:""},
+    {chassis:"Porte-fenêtre 1 vtl + fixe latéral (ouvrant intérieur, 3 lames)",dims:"1200x2250",A:"4",E:"9A",V:"C3",rapport:"08-01-005",date:""},
+    {chassis:"Porte-fenêtre 2 vtx + fixe latéral (ouvrant intérieur)",dims:"2400x2250",A:"4",E:"9A",V:"C3",rapport:"08-01-003",date:""}
+   ],
+   thermique:[
+    {ug:0.6,config:"Fenêtre 1 vtl 1.25x1.48 quincaillerie cachée, triple vitrage, intercalaire isolant (fiche produit, valeur « jusqu'à »)",uw:1.2}
+   ],
+   perf_annoncees:[{label:"Uw",valeur:"jusqu'à 1,2 W/m²K (TLw 0,58 ; Sw 0,48) — 1 vtl 1250 × 1480, triple vitrage Ug 0,6"},{label:"AEV",valeur:"A4 · E1200 (quincaillerie cachée) · C5 (OB 1200 × 1600)"},{label:"Acoustique",valeur:"RA,tr 40 dB — OB 1 vtl apparent 1480 × 1450 (H × L), triple vitrage Silence"},{label:"Vitrage (fiche)",valeur:"apparent 24 à 42 mm · minimal 24 à 32 mm"},{label:"Vantail",valeur:"130 kg quincaillerie visible · 160 kg quincaillerie cachée"}],
+   perf_source:"Fiche produit Technal « SOLEAL FY 55 évolution » (TechTip) — le DTA limite le vitrage à 32 mm et ne donne pas de poids maxi",
+   note:"DTA 6/12-2016_V6 (Soleal 55 FYa – FYm), valide du 02/09/2026 au 30/09/2031. Cotes maxi retenues : celles des ouvrants FYm, les plus faibles (FYa : 2225 au lieu de 2200 mm de haut, 1575 en OB, 575 en soufflet). Remplissage ≤ 4 m² (pas de justification parasismique au-delà). Essais AEV « minimal » = ouvrant minimal (variante). Poids maxi : 130 kg d'après la fiche produit (quincaillerie visible), le DTA n'en fixe pas."},
+  {id:"tec_fy65",nom:"SOLEAL FY 65 évolution",marque:"Technal",famille:"Fenêtre",dta:"6/18-2376_V5",validite:"31/10/2026",epaisseur_min:24,epaisseur_max:42,poids_max:73,
+   dimensions_max:[
+     {type:"1 vantail OF/OB",h_max:1650,l_max:1400},
+     {type:"1 vantail OF/OB",h_max:2250,l_max:1050},
+     {type:"2 vantaux OF",h_max:2250,l_max:1950},
+     {type:"2 vantaux OF + fixe latéral",h_max:2250,l_max:2350},
+     {type:"Soufflet",h_max:600,l_max:2050},
+   ],
+   tests:[],
+   aev:[
+    {chassis:"Fenêtre 1 vtl OB apparent",dims:"1200x1600",A:"4",E:"E1200",V:"C5",rapport:"40-24-20 (avis d'expert)",date:""},
+    {chassis:"Fenêtre 1 vtl OB apparent",dims:"1200x2300",A:"4",E:"E1200",V:"C3",rapport:"40-26-20 (avis d'expert)",date:""},
+    {chassis:"Fenêtre 1 vtl OF apparent",dims:"1000x2700",A:"4",E:"E750",V:"C3",rapport:"40-27-20 (avis d'expert)",date:""},
+    {chassis:"Fenêtre 2 vtx OF apparent",dims:"1600x2300",A:"4",E:"9A",V:"C3",rapport:"40-25-20 (avis d'expert)",date:""},
+    {chassis:"Fenêtre 1 vtl OB minimal",dims:"1200x1600",A:"4",E:"E900",V:"C5",rapport:"40-28-20 (avis d'expert)",date:""},
+    {chassis:"Fenêtre 1 vtl OF minimal",dims:"1000x2700",A:"4",E:"E750",V:"C3",rapport:"40-31-20 (avis d'expert)",date:""},
+    {chassis:"Fenêtre 1 vtl OF minimal",dims:"1200x2300",A:"4",E:"E1050",V:"C3",rapport:"40-30-20 (avis d'expert)",date:""},
+    {chassis:"Fenêtre 2 vtx OF minimal",dims:"1600x2300",A:"4",E:"E750",V:"B2",rapport:"40-29-20 (avis d'expert)",date:""},
+    {chassis:"Fenêtre 1 vtl (avis d'expert mécanique)",dims:"1544x1544",A:"4",E:"E900",V:"C3",rapport:"41-6-20",date:""},
+    {chassis:"Fenêtre 1 vtl OB",dims:"1450x1699",A:"4",E:"E900",V:"C5",rapport:"404-16-320-2",date:""},
+    {chassis:"Fenêtre 2 vtx OB apparent",dims:"2000x2300",A:"4",E:"E750",V:"C2",rapport:"404-16-295-2",date:""},
+    {chassis:"Porte-fenêtre apparent",dims:"1600x2300",A:"4",E:"8A",V:"C3",rapport:"404-17-55-3",date:""},
+    {chassis:"Porte-fenêtre 2 vtx + fixe latéral apparent",dims:"2400x2300",A:"4",E:"5A",V:"C2",rapport:"404-17-106-2",date:""},
+    {chassis:"Porte-fenêtre 1 vtl grande dimension apparent, PMR",dims:"1000x2700",A:"4",E:"9A",V:"C3",rapport:"404-17-55-2",date:""},
+    {chassis:"Fenêtre 1 vtl grande dimension minimal, PMR",dims:"1000x2700",A:"4",E:"8A",V:"C3",rapport:"404-17-81-3",date:""},
+    {chassis:"Fenêtre 1 vtl minimal, montant serrure, PMR",dims:"900x2300",A:"4",E:"6A",V:"C3",rapport:"404-17-81-2",date:""},
+    {chassis:"Fenêtre 2 vtx + fixe latéral minimal",dims:"2400x2300",A:"4",E:"5A",V:"B2",rapport:"404-17-86-2",date:""},
+    {chassis:"Porte-fenêtre 2 vtx OB minimal",dims:"2000x2300",A:"4",E:"9A",V:"B2",rapport:"404-16-309-1",date:""},
+    {chassis:"Porte-fenêtre 2 vtx minimal, PMR",dims:"1600x2300",A:"4",E:"8A",V:"B3",rapport:"404-17-81-1",date:""}
+   ],
+   thermique:[
+    {ug:0.5,config:"Fenêtre 1 vtl 1.25x1.48 quincaillerie cachée, triple vitrage, intercalaire isolant (fiche produit, valeur « jusqu'à »)",uw:0.9}
+   ],
+   perf_annoncees:[{label:"Uw",valeur:"jusqu'à 0,9 W/m²K (TLw 0,58 ; Sw 0,48) — 1 vtl 1250 × 1480, triple vitrage Ug 0,5"},{label:"AEV",valeur:"A4 · E1200 · C5 (OB 1200 × 1600)"},{label:"Acoustique",valeur:"RA,tr 43 dB — OB 1 vtl apparent, triple vitrage Silence (pas de PV acoustique sur TechTip)"},{label:"Sécurité",valeur:"CR2 (NF EN 1627-30), quincaillerie visible : F et PF 1 vtl, italienne"},{label:"Vitrage (fiche)",valeur:"apparent 24 à 52 mm · minimal 24 à 42 mm"},{label:"Vantail",valeur:"130 kg quincaillerie visible · 160 kg quincaillerie cachée (PV méca 41-4-19 à 110 kg et 41-1-20 à 160 kg)"}],
+   perf_source:"Fiche produit Technal « SOLEAL FY 65 évolution » (TechTip) — le DTA limite le vitrage à 42 mm et demande une justification au-delà de 73 kg",
+   note:"DTA 6/18-2376_V5 (SOLEAL 65 FYa-FYm), valide du 09/06/2023 au 31/10/2026 : EXPIRÉ, demander la V6 à Technal. Le DTA donne deux cotes maxi en 1 vantail (1650 × 1400 ou 2250 × 1050, H × L). Flèche L/150 ≤ 15 mm sous P1 (800 Pa). Vitrage > 12 mm ou vantail > 73 kg : justification expérimentale NF P 20-302 (PV méca Technal à 110 et 160 kg). Aucun PV acoustique publié : système absent du comparateur acoustique."},
+  {id:"tec_lumeal_ga",nom:"LUMEAL Minimal GA",marque:"Technal",famille:"Coulissant",dta:"6/14-2166_V2",validite:"31/07/2029",epaisseur_min:24,epaisseur_max:32,poids_max:300,vantaux_defaut:2,
+   dimensions_max:[
+     {type:"Coulissant 2 vantaux",h_max:2350,l_max:2800},
+     {type:"Coulissant 1 vantail + fixe",h_max:2350,l_max:2800},
+   ],
+   tests:[
+    {rapport:"702598",type_chassis:"Coulissant fenêtre 1 vantail + fixe",dim_L:1480,dim_H:1450,labo:"Saint-Gobain Glass (Chantereine)",date:"2010",vitrages:[{composition:"44.1 Ac/14/10",rw:40,rwc:39,rwctr:37}]},
+    {rapport:"702601",type_chassis:"Coulissant fenêtre 1 vantail + fixe, seuil PMR",dim_L:1480,dim_H:1450,labo:"Saint-Gobain Glass (Chantereine)",date:"2010",vitrages:[{composition:"44.1 Ac/14/10",rw:39,rwc:39,rwctr:37}]},
+    {rapport:"702595",type_chassis:"Coulissant fenêtre 2 vantaux",dim_L:1480,dim_H:1450,labo:"Saint-Gobain Glass (Chantereine)",date:"2010",vitrages:[{composition:"44.1 Ac/14/10",rw:38,rwc:38,rwctr:36}]},
+    {rapport:"702596",type_chassis:"Coulissant fenêtre 2 vantaux, seuil PMR",dim_L:1480,dim_H:1450,labo:"Saint-Gobain Glass (Chantereine)",date:"2010",vitrages:[{composition:"44.1 Ac/14/10",rw:37,rwc:37,rwctr:35}]},
+    {rapport:"AC11-26030942/1 et /2",type_chassis:"Coulissant porte-fenêtre 1 vantail + fixe",dim_L:2800,dim_H:2220,labo:"CSTB",date:"2011",vitrages:[{composition:"6/16/10",rw:35,rwc:34,rwctr:32},{composition:"44.1 Ac/14/10",rw:38,rwc:37,rwctr:35}]},
+    {rapport:"AC11-26030942/3, /4 et /5",type_chassis:"Coulissant porte-fenêtre 2 vantaux",dim_L:2800,dim_H:2220,labo:"CSTB",date:"2011",vitrages:[{composition:"4/18/8",rw:34,rwc:33,rwctr:30},{composition:"6/16/10",rw:35,rwc:34,rwctr:32},{composition:"44.1 Ac/14/10",rw:38,rwc:37,rwctr:35}]},
+    {rapport:"AC11-26030942/6",type_chassis:"Coulissant porte-fenêtre 2 vantaux, dormant caché",dim_L:2954,dim_H:2268,labo:"CSTB",date:"2011",vitrages:[{composition:"44.1 Ac/14/10",rw:37,rwc:36,rwctr:34}]}
+   ],
+   aev:[
+    {chassis:"Coulissant 1 vtl + fixe",dims:"3000x2500",A:"4",E:"7A",V:"B3",rapport:"r03-09-08",date:""},
+    {chassis:"Coulissant fenêtre 1 vtl + fixe",dims:"1400x1390",A:"3",E:"6A",V:"C3",rapport:"r09-09-03",date:""},
+    {chassis:"Coulissant 2 vtx",dims:"3000x2500",A:"4",E:"7A",V:"B3",rapport:"r03-09-07",date:""},
+    {chassis:"Coulissant fenêtre 2 vtx",dims:"1390x1400",A:"3",E:"6A",V:"C3",rapport:"r03-09-05",date:""},
+    {chassis:"Coulissant porte-fenêtre 3 vtx 3 rails",dims:"3500x2348",A:"4",E:"6A",V:"A2",rapport:"404-11-60-4",date:""}
+   ],
+   thermique:[
+    {ug:1.0,config:"Coulissant 4.50x2.70 double vitrage, intercalaire isolant (fiche produit 2021 ; nombre de vantaux non précisé)",uw:1.2}
+   ],
+   perf_annoncees:[{label:"Uw",valeur:"1,2 W/m²K (TLw 0,64 ; Sw 0,45) — châssis 4500 × 2700, Ug 1,0, intercalaire isolant"},{label:"AEV",valeur:"A4 (Q4 0,16 m³/h.m², châssis 3000 × 2500) · E7A · VB3"},{label:"Acoustique",valeur:"38 dB (Ra,tr) — fenêtre 2 rails 1 vtl + 1 fixe 1390 × 1400"},{label:"Vitrage",valeur:"24, 26, 28, 30 et 32 mm"},{label:"Vantail",valeur:"jusqu'à 300 kg"}],
+   perf_source:"Fiche produit Technal « LUMEAL » (TechTip, mars 2021)",
+   note:"DTA 6/14-2166_V2 (LUMEAL Minimal Ga), valide du 27/05/2024 au 31/07/2029. Cotes maxi (H × L) selon montants centraux et pose : recouvrement maxi jusqu'à 2350 × 2800 (retenu ici), recouvrement mini jusqu'à 2450 × 2900 ; montants standard 141037/141041 limités à 1550 × 1900 (recouvrement mini) ou 1450 × 1800 (maxi). Vitrage > 10 mm : justification mécanique NF P 20-302. Feuillure 18 mm ouvrants, 9 ou 14 mm fixes."},
+  {id:"tec_gy55",nom:"SOLEAL GY 55",marque:"Technal",famille:"Coulissant",dta:"6/15-2261_V3",validite:"31/07/2029",epaisseur_min:24,epaisseur_max:32,poids_max:112,vantaux_defaut:2,
+   dimensions_max:[
+     {type:"Coulissant 2 vantaux",h_max:2500,l_max:3000},
+   ],
+   tests:[],
+   aev:[
+    {chassis:"Coulissant fenêtre 2 vtx",dims:"1850x1650",A:"3",E:"7A",V:"B2",rapport:"404-11-60-1",date:""},
+    {chassis:"Coulissant fenêtre 2 vtx",dims:"1850x1650",A:"3",E:"6A",V:"B2",rapport:"404-20-44-2",date:""},
+    {chassis:"Coulissant fenêtre 2 vtx, intégration frappe",dims:"1400x2500",A:"4",E:"5A",V:"C2",rapport:"404-11-170-2",date:""},
+    {chassis:"Coulissant porte-fenêtre 2 vtx",dims:"3000x2498",A:"4",E:"6A",V:"B2",rapport:"404-20-85-2",date:""},
+    {chassis:"Coulissant porte-fenêtre 2 vtx, drainage caché",dims:"3000x2498",A:"4",E:"6A",V:"B2",rapport:"404-20-85-1",date:""},
+    {chassis:"Coulissant porte-fenêtre 2 vtx (titre : 3000 × 2500 mm)",dims:"2500x3000",A:"4",E:"6A",V:"B2",rapport:"404-11-60-2",date:""},
+    {chassis:"Coulissant porte-fenêtre 2 vtx (AEV + mécanique)",dims:"3000x2498",A:"4",E:"6A",V:"B2",rapport:"404-20-18-1",date:""},
+    {chassis:"Coulissant porte-fenêtre 2 vtx, seuil PMR",dims:"3000x2500",A:"4",E:"7A",V:"B2",rapport:"404-11-170-1",date:""},
+    {chassis:"Coulissant porte-fenêtre 3 vtx",dims:"3500x2348",A:"4",E:"7A",V:"C2",rapport:"404-11-60-3",date:""},
+    {chassis:"Coulissant porte-fenêtre 4 vtx 2 rails",dims:"3500x2348",A:"4",E:"6A",V:"C2",rapport:"404-11-170-3",date:""}
+   ],
+   thermique:[
+    {ug:1.0,config:"Coulissant 2 vtx 2 rails 2.30x2.18 double vitrage, intercalaire isolant (fiche produit, module 55)",uw:1.5}
+   ],
+   perf_annoncees:[{label:"Uw",valeur:"1,5 W/m²K (TLw 0,58 ; Sw 0,43) — 2 vtx 2 rails 2300 × 2180, Ug 1,0, intercalaire isolant"},{label:"AEV",valeur:"A4 (Q4 0,19 m³/h.m²) · E6A · VB2 — châssis 3000 × 2500, 2 rails 2 vtx"},{label:"Vitrage",valeur:"24 à 32 mm"},{label:"Vantail",valeur:"jusqu'à 200 kg (fiche) — le DTA demande une justification au-delà de 112 kg"}],
+   perf_source:"Fiche produit Technal « SOLEAL GY 55-65 » coulissant (TechTip)",
+   note:"DTA 6/15-2261_V3 (SOLEAL GY), valide du 25/06/2024 au 31/07/2029. Cotes maxi (H × L) : fenêtre 2 vtx 1650 × 1850 (montants TGY1207 / TGY1213), porte-fenêtre 2 vtx avec ou sans seuil PMR 2500 × 3000 (montants latéraux renforcés TGY1303 ou TGY1304) — la ligne retenue est celle de la porte-fenêtre. Vitrage > 12 mm ou vantail > 112 kg : justification NF P 20-302. Aucun PV acoustique publié : système absent du comparateur acoustique."},
   // ── PARE-BALLE ─────────────────────────────────────────────────────────
   // ── CORTIZO (ajout v2.7.1, 23/11/2026) — relevé des ZIP « Ensayos » Cortizo Center, détail
   // et sources : doc projet « releves-cortizo-battants ». COR 70 Industrial / COR 70 HO :
