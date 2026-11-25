@@ -257,6 +257,103 @@ const PROFILES_FACADE=[
 const SYSTEMES_FLECHE={FW50:"Schüco FWS 50",FW60:"Schüco FWS 60",FW35PD:"Schüco FWS 35 PD",COR52:"Cortizo série 52 (TP / SG / TPH / TPV 52)",COR62:"Cortizo série 62 (TP / SG 62)",REY_CW50:"Reynaers ConceptWall 50 (CW 50 / SC / HI…)",REY_CW60:"Reynaers ConceptWall 60",AUTRE:"Autre fabricant (Ix saisie)"};
 // Système de la page flèche déduit du système retenu (id base) — sinon du libellé de gamme
 const FLECHE_PAR_SYSID={fws50:"FW50",fws60:"FW60",cor_tp52:"COR52",cor_sg52:"COR52",cor_tph52:"COR52",cor_tpv52:"COR52",cor_tp62:"COR62",cor_sg62:"COR62",rey_cw50:"REY_CW50",rey_cw50sc:"REY_CW50"};
+// ── TRAVERSES DE FAÇADE (ajout 25/11/2026) ─────────────────────────────────
+// Ix = flexion sous le vent (perpendiculaire à la façade) ; Iy = flexion verticale sous le
+// poids du vitrage posé sur 2 cales. Sources : Schüco Catalogue général 2-1 « Façade FWS »
+// (FDA23260, 11/2025) ; Reynaers Docu Portal (25/11/2026). relire:true = valeur Schüco lue
+// sur une visionneuse à faible résolution, à recontrôler avant justification.
+const PROFILES_TRAVERSE=[
+  {ref:"322 370",nom:"Traverse Schüco FWS 50 — 6 mm",systeme:"FW50",haut:6,Ix:0.42,Iy:3.63,relire:true},
+  {ref:"322 380",nom:"Traverse Schüco FWS 50 — 21 mm",systeme:"FW50",haut:21,Ix:3.02,Iy:8.83,relire:true},
+  {ref:"322 460",nom:"Traverse Schüco FWS 50 — 27 mm",systeme:"FW50",haut:27,Ix:5.16,Iy:10.38,relire:true},
+  {ref:"323 840",nom:"Traverse Schüco FWS 50 — 45 mm",systeme:"FW50",haut:45,Ix:18.1,Iy:14.71,relire:true},
+  {ref:"322 390",nom:"Traverse Schüco FWS 50 — 55 mm",systeme:"FW50",haut:55,Ix:28.1,Iy:17.18,relire:true},
+  {ref:"322 400",nom:"Traverse Schüco FWS 50 — 70 mm",systeme:"FW50",haut:70,Ix:49.4,Iy:20.77,relire:true},
+  {ref:"322 410",nom:"Traverse Schüco FWS 50 — 90 mm",systeme:"FW50",haut:90,Ix:89.45,Iy:25.59,relire:true},
+  {ref:"322 420",nom:"Traverse Schüco FWS 50 — 110 mm",systeme:"FW50",haut:110,Ix:144.21,Iy:30.41},
+  {ref:"536 750",nom:"Traverse Schüco FWS 50 — 120 mm",systeme:"FW50",haut:120,Ix:177.64,Iy:32.82},
+  {ref:"322 430",nom:"Traverse Schüco FWS 50 — 130 mm",systeme:"FW50",haut:130,Ix:221.27,Iy:35.37},
+  {ref:"322 440",nom:"Traverse Schüco FWS 50 — 155 mm",systeme:"FW50",haut:155,Ix:354.81,Iy:41.98},
+  {ref:"322 450",nom:"Traverse Schüco FWS 50 — 180 mm",systeme:"FW50",haut:180,Ix:509.78,Iy:48.01},
+  {ref:"449 590",nom:"Traverse Schüco FWS 50 — 205 mm",systeme:"FW50",haut:205,Ix:700.97,Iy:54.04},
+  {ref:"324 400",nom:"Traverse Schüco FWS 60 — 6 mm",systeme:"FW60",haut:6,Ix:0.44,Iy:6.12,relire:true},
+  {ref:"324 410",nom:"Traverse Schüco FWS 60 — 21 mm",systeme:"FW60",haut:21,Ix:3.43,Iy:16.38,relire:true},
+  {ref:"324 420",nom:"Traverse Schüco FWS 60 — 27 mm",systeme:"FW60",haut:27,Ix:5.95,Iy:19.39,relire:true},
+  {ref:"324 430",nom:"Traverse Schüco FWS 60 — 45 mm",systeme:"FW60",haut:45,Ix:19.11,Iy:26.43,relire:true},
+  {ref:"324 440",nom:"Traverse Schüco FWS 60 — 55 mm",systeme:"FW60",haut:55,Ix:32.94,Iy:33.49,relire:true},
+  {ref:"324 450",nom:"Traverse Schüco FWS 60 — 70 mm",systeme:"FW60",haut:70,Ix:58.64,Iy:41.02,relire:true},
+  {ref:"324 460",nom:"Traverse Schüco FWS 60 — 90 mm",systeme:"FW60",haut:90,Ix:107.52,Iy:51.07,relire:true},
+  {ref:"324 470",nom:"Traverse Schüco FWS 60 — 110 mm",systeme:"FW60",haut:110,Ix:175.4,Iy:61.11},
+  {ref:"324 480",nom:"Traverse Schüco FWS 60 — 130 mm",systeme:"FW60",haut:130,Ix:271,Iy:71.3},
+  {ref:"324 490",nom:"Traverse Schüco FWS 60 — 155 mm",systeme:"FW60",haut:155,Ix:419.43,Iy:83.86},
+  {ref:"324 500",nom:"Traverse Schüco FWS 60 — 180 mm",systeme:"FW60",haut:180,Ix:610.84,Iy:96.42},
+  {ref:"326 940",nom:"Traverse Schüco FWS 60 — 205 mm",systeme:"FW60",haut:205,Ix:849.45,Iy:108.98},
+  {ref:"493 6x0 / 505 060",nom:"Traverse Schüco FWS 60 — 230 mm",systeme:"FW60",haut:230,Ix:1183.5,Iy:122.56},
+  {ref:"493 690 / 505 070",nom:"Traverse Schüco FWS 60 — 255 mm",systeme:"FW60",haut:255,Ix:1541.97,Iy:135.12},
+  {ref:"034.3520",nom:"Traverse Reynaers CW 50 — 16,15 mm",systeme:"REY_CW50",haut:16.15,Ix:0.38,Iy:3.07},
+  {ref:"034.3521",nom:"Traverse Reynaers CW 50 — 35 mm",systeme:"REY_CW50",haut:35,Ix:3.61,Iy:8.24},
+  {ref:"034.3522",nom:"Traverse Reynaers CW 50 — 57,5 mm",systeme:"REY_CW50",haut:57.5,Ix:14.9,Iy:12.71},
+  {ref:"034.3622",nom:"Traverse Reynaers CW 50 — 57,5 mm",systeme:"REY_CW50",haut:57.5,Ix:15.97,Iy:14.39},
+  {ref:"034.3523",nom:"Traverse Reynaers CW 50 — 78,5 mm",systeme:"REY_CW50",haut:78.5,Ix:38.08,Iy:18.52},
+  {ref:"034.3623",nom:"Traverse Reynaers CW 50 — 78,5 mm",systeme:"REY_CW50",haut:78.5,Ix:42.1,Iy:20.2},
+  {ref:"034.3524",nom:"Traverse Reynaers CW 50 — 99,5 mm",systeme:"REY_CW50",haut:99.5,Ix:71.61,Iy:23.1},
+  {ref:"034.3624",nom:"Traverse Reynaers CW 50 — 99,5 mm",systeme:"REY_CW50",haut:99.5,Ix:79.97,Iy:24.78},
+  {ref:"034.3525",nom:"Traverse Reynaers CW 50 — 120,5 mm",systeme:"REY_CW50",haut:120.5,Ix:118.39,Iy:27.27},
+  {ref:"034.3625",nom:"Traverse Reynaers CW 50 — 120,5 mm",systeme:"REY_CW50",haut:120.5,Ix:132.93,Iy:28.95},
+  {ref:"034.3526",nom:"Traverse Reynaers CW 50 — 141,5 mm",systeme:"REY_CW50",haut:141.5,Ix:205.58,Iy:39.54},
+  {ref:"034.3626",nom:"Traverse Reynaers CW 50 — 141,5 mm",systeme:"REY_CW50",haut:141.5,Ix:229.49,Iy:41.06},
+  {ref:"034.3527",nom:"Traverse Reynaers CW 50 — 162,5 mm",systeme:"REY_CW50",haut:162.5,Ix:297.47,Iy:45.47},
+  {ref:"034.3627",nom:"Traverse Reynaers CW 50 — 162,5 mm",systeme:"REY_CW50",haut:162.5,Ix:331.61,Iy:46.99},
+  {ref:"034.3530",nom:"Traverse Reynaers CW 50 — 165,8 mm",systeme:"REY_CW50",haut:165.8,Ix:394.8,Iy:48.91},
+  {ref:"034.3528",nom:"Traverse Reynaers CW 50 — 183,5 mm",systeme:"REY_CW50",haut:183.5,Ix:412.02,Iy:51.4},
+  {ref:"034.3628",nom:"Traverse Reynaers CW 50 — 183,5 mm",systeme:"REY_CW50",haut:183.5,Ix:458.32,Iy:52.92},
+  {ref:"034.3529",nom:"Traverse Reynaers CW 50 — 204,5 mm",systeme:"REY_CW50",haut:204.5,Ix:551.56,Iy:57.33},
+  {ref:"034.3629",nom:"Traverse Reynaers CW 50 — 204,5 mm",systeme:"REY_CW50",haut:204.5,Ix:611.96,Iy:58.85},
+  {ref:"034.3533",nom:"Traverse Reynaers CW 50 — 246,5 mm",systeme:"REY_CW50",haut:246.5,Ix:914.88,Iy:69.18},
+  {ref:"034.3535",nom:"Traverse Reynaers CW 50 — 316 mm",systeme:"REY_CW50",haut:316,Ix:2282.8,Iy:112.33},
+  {ref:"034.1622",nom:"Traverse Reynaers CW 60 — 78,35 mm",systeme:"REY_CW60",haut:78.35,Ix:45.47,Iy:32.82},
+  {ref:"034.1623",nom:"Traverse Reynaers CW 60 — 99,35 mm",systeme:"REY_CW60",haut:99.35,Ix:87.6,Iy:41.28},
+  {ref:"034.1624",nom:"Traverse Reynaers CW 60 — 120,35 mm",systeme:"REY_CW60",haut:120.35,Ix:156.1,Iy:54.37},
+  {ref:"034.1625",nom:"Traverse Reynaers CW 60 — 141,35 mm",systeme:"REY_CW60",haut:141.35,Ix:238.56,Iy:63.06},
+  {ref:"034.1626",nom:"Traverse Reynaers CW 60 — 162,35 mm",systeme:"REY_CW60",haut:162.35,Ix:343.07,Iy:71.74},
+  {ref:"034.1627",nom:"Traverse Reynaers CW 60 — 183,35 mm",systeme:"REY_CW60",haut:183.35,Ix:474.48,Iy:80.42},
+  {ref:"034.1628",nom:"Traverse Reynaers CW 60 — 204,35 mm",systeme:"REY_CW60",haut:204.35,Ix:631.02,Iy:89.11},
+  {ref:"034.1629",nom:"Traverse Reynaers CW 60 — 225,45 mm",systeme:"REY_CW60",haut:225.45,Ix:871.99,Iy:111.16}
+];
+const SYSTEMES_TRAVERSE={FW50:"Schüco FWS 50",FW60:"Schüco FWS 60",REY_CW50:"Reynaers ConceptWall 50",REY_CW60:"Reynaers ConceptWall 60",AUTRE:"Autre fabricant (Ix et Iy saisies)"};
+const G_PESANTEUR=9.81;
+// Flèche à mi-portée d'une poutre sur 2 appuis chargée par 2 charges P/2 symétriques à la
+// distance a des appuis (vitrage posé sur 2 cales) : f = (P/2)·a·(3L² − 4a²) / (24·E·I).
+function flecheDeuxCales(P_N,a_mm,L_mm,I_cm4,E){
+  const I=I_cm4*1e4;
+  return (P_N/2)*a_mm*(3*L_mm*L_mm-4*a_mm*a_mm)/(24*(E||E_ALU)*I);
+}
+// Flèche admissible sous le poids du vitrage : critère usuel min(L/500 ; 3 mm), à confirmer
+// par le CCTP ou le fabricant.
+const flecheAdmPoids=L_mm=>Math.min(L_mm/500,3);
+// Vérification d'une traverse.
+//  - vent : charge uniforme q = p_ELS × largeur reprise, largeur = [min(h_dessus ; L) + min(h_dessous ; L)] / 2
+//    (majorant de la répartition trapézoïdale), critère de flèche de la page ;
+//  - poids : vitrage AU-DESSUS de la traverse, P = poids_m2 × L × h_dessus × g, posé sur 2 cales.
+function verifTraverse(pELS,L_m,hDessus_m,hDessous_m,poids_m2,a_mm,Ix,Iy,critere,E){
+  const larg=(Math.min(hDessus_m,L_m)+Math.min(hDessous_m,L_m))/2;
+  const vent=flecheMeneau(pELS,larg,L_m,Ix,critere,E);
+  const L=L_m*1000, P=poids_m2*L_m*hDessus_m*G_PESANTEUR;
+  const f=flecheDeuxCales(P,a_mm,L,Iy,E), adm=flecheAdmPoids(L);
+  const poids={P:+P.toFixed(0),fleche:+f.toFixed(1),adm:+adm.toFixed(1),ok:f<=adm,ratio:+(f/adm).toFixed(2)};
+  return {larg:+larg.toFixed(3),vent,poids,ok:vent.ok&&poids.ok};
+}
+function iyRequiseTraverse(L_m,hDessus_m,poids_m2,a_mm,E){
+  const L=L_m*1000, P=poids_m2*L_m*hDessus_m*G_PESANTEUR;
+  return +((P/2)*a_mm*(3*L*L-4*a_mm*a_mm)/(24*(E||E_ALU)*flecheAdmPoids(L))/1e4).toFixed(1);
+}
+function traversesCompatibles(systeme,pELS,L_m,hDessus_m,hDessous_m,poids_m2,a_mm,critere){
+  return PROFILES_TRAVERSE.filter(p=>p.systeme===systeme)
+    .map(p=>({...p,calc:verifTraverse(pELS,L_m,hDessus_m,hDessous_m,poids_m2,a_mm,p.Ix,p.Iy,critere)}))
+    .sort((a,b)=>a.Ix-b.Ix);
+}
+// Lecture d'un nombre saisi (virgule acceptée) ; null si illisible — jamais corrigé en silence
+const lireNombreSaisi=v=>{const t=String(v==null?"":v).trim().replace(",",".");return /^\d+(\.\d+)?$/.test(t)&&+t>0?+t:null;};
 
 // ── CALCUL FLÈCHE FAÇADE RIDEAU (Eurocode / DTU) ───────────────────────────
 // Meneau = poutre sur 2 appuis (planchers), charge vent répartie.
@@ -273,6 +370,7 @@ const E_ACIER = 210000; // N/mm² — meneau porteur acier (ex. Jansen VISS : pr
 function flecheAdmissible(L_mm,critere){
   if((critere||"en13116")==="en13116"){if(L_mm<=3000)return L_mm/200;if(L_mm<7500)return 5+L_mm/300;return L_mm/250;}
   if(critere==="200_15")return Math.min(L_mm/200,15);
+  if(critere==="150_15")return Math.min(L_mm/150,15); // châssis : L/150 plafonné à 15 mm sous P1 (DTA fenêtres)
   return L_mm/(+critere||200);
 }
 function flecheMeneau(pression_Pa, entraxe_m, portee_m, Ix_cm4, critere, E){
@@ -4300,6 +4398,135 @@ function PageMetre({projet}){
 }
 
 // ── PAGE FLÈCHE FAÇADE RIDEAU ──────────────────────────────────────────────
+// ── Bloc « Traverse de façade » de la page Flèche (ajout 25/11/2026) ─────────
+function BlocTraverse({pELS,pNote,pression,critere,setCritere,entraxe,setEntraxe}){
+  const [sysT,setSysT]=useEtatModule("fleche.trav_systeme","FW50");
+  const [hDes,setHDes]=useEtatModule("fleche.trav_h_dessus","1.75");
+  const [hSous,setHSous]=useEtatModule("fleche.trav_h_dessous","1.75");
+  const [compo,setCompo]=useEtatModule("fleche.trav_compo","");
+  const [aCale,setACale]=useEtatModule("fleche.trav_cale","100");
+  const [ixT,setIxT]=useEtatModule("fleche.trav_ix","");
+  const [iyT,setIyT]=useEtatModule("fleche.trav_iy","");
+  const [matT,setMatT]=useEtatModule("fleche.trav_mat","alu");
+  const [showT,setShowT]=useEtatModule("fleche.trav_afficher",false);
+  const L=lireNombreSaisi(entraxe), h1=lireNombreSaisi(hDes), h2=lireNombreSaisi(hSous), a=lireNombreSaisi(aCale);
+  const comp=String(compo||"").trim()?analyseComposition(String(compo).trim()):null;
+  const compoErr=!!String(compo||"").trim()&&!comp;
+  const aErr=!!(a&&L&&a>=L*1000/2);
+  const ixA=lireNombreSaisi(ixT), iyA=lireNombreSaisi(iyT);
+  const E=sysT==="AUTRE"&&matT==="acier"?E_ACIER:E_ALU;
+  const libCrit=critere==="en13116"?"NF EN 13116":critere==="200_15"?"L/200 ≤ 15 mm":"L/"+critere;
+  const pret=!!pELS&&!!L&&!!h1&&!!h2&&!!comp&&!!a&&!aErr&&(sysT!=="AUTRE"||(!!ixA&&!!iyA));
+  const larg=L&&h1&&h2?(Math.min(h1,L)+Math.min(h2,L))/2:null;
+  const res=showT&&pret?(sysT==="AUTRE"
+    ?[{ref:"—",nom:`Traverse saisie (${matT==="acier"?"acier":"aluminium"})`,Ix:ixA,Iy:iyA,calc:verifTraverse(pELS,L,h1,h2,comp.poids_m2,a,ixA,iyA,critere,E)}]
+    :traversesCompatibles(sysT,pELS,L,h1,h2,comp.poids_m2,a,critere)):null;
+  const rec=res?res.find(x=>x.calc.ok)||null:null;
+  const marque=/^REY/.test(sysT)?"Reynaers":"Schüco";
+  const err=t=><div style={{fontSize:11,color:"#b91c1c",marginTop:3}}>{t}</div>;
+  return <div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:12}}>
+      <div><label style={S.label}>Système façade</label><select value={sysT} onChange={ev=>setSysT(ev.target.value)} style={S.input}>{Object.keys(SYSTEMES_TRAVERSE).map(k=><option key={k} value={k}>{SYSTEMES_TRAVERSE[k]}</option>)}</select>
+        {sysT==="AUTRE"&&<div style={{marginTop:6}}><select value={matT} onChange={ev=>setMatT(ev.target.value)} style={{...S.input,marginBottom:6}}><option value="alu">Aluminium (E = 70 000 N/mm²)</option><option value="acier">Acier (E = 210 000 N/mm²)</option></select>
+          <input value={ixT} onChange={ev=>setIxT(ev.target.value)} placeholder="Ix traverse — vent (cm⁴)" style={{...S.input,marginBottom:6}}/>{String(ixT).trim()&&!ixA&&err("Ix illisible (ex. 89,45)")}
+          <input value={iyT} onChange={ev=>setIyT(ev.target.value)} placeholder="Iy traverse — poids vitrage (cm⁴)" style={S.input}/>{String(iyT).trim()&&!iyA&&err("Iy illisible (ex. 25,59)")}</div>}</div>
+      <div><label style={S.label}>Portée traverse (m)</label><input value={entraxe} onChange={ev=>setEntraxe(ev.target.value)} placeholder="1.35" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Entraxe des meneaux (trame)</div>{String(entraxe).trim()&&!L&&err("Valeur illisible")}</div>
+      <div><label style={S.label}>Vitrage au-dessus (m)</label><input value={hDes} onChange={ev=>setHDes(ev.target.value)} placeholder="1.75" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Hauteur du vitrage posé sur la traverse</div>{String(hDes).trim()&&!h1&&err("Valeur illisible")}</div>
+      <div><label style={S.label}>Vitrage en dessous (m)</label><input value={hSous} onChange={ev=>setHSous(ev.target.value)} placeholder="1.75" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Hauteur du vitrage sous la traverse</div>{String(hSous).trim()&&!h2&&err("Valeur illisible")}</div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
+      <div><label style={S.label}>Composition du vitrage posé</label><input value={compo} onChange={ev=>setCompo(ev.target.value)} placeholder="ex. 44.2/16/10" style={S.input}/>{comp?<div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>{comp.type} · {comp.poids_m2} kg/m²</div>:compoErr?err("Composition illisible (ex. 44.2/16/10)"):<div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Sert au calcul du poids</div>}</div>
+      <div><label style={S.label}>Distance cale – extrémité (mm)</label><input value={aCale} onChange={ev=>setACale(ev.target.value)} placeholder="100" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Position des 2 cales d'assise</div>{String(aCale).trim()&&!a&&err("Valeur illisible")}{aErr&&err("Les cales doivent être à moins de la moitié de la portée")}</div>
+      <div><label style={S.label}>Critère de flèche au vent</label><select value={critere} onChange={ev=>setCritere(ev.target.value)} style={S.input}><option value="en13116">NF EN 13116 (L/200 ; 5 + L/300 ; L/250)</option><option value="200">L/200</option><option value="200_15">L/200 plafonné à 15 mm</option><option value="175">L/175</option></select></div>
+      <div><label style={S.label}>Critère sous le poids du vitrage</label><div style={{...S.input,background:"#f9fafb"}}>min (L/500 ; 3 mm)</div><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Critère usuel, à confirmer par le CCTP</div></div>
+    </div>
+
+    {pret&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>{pNote?"Pression ELS — note de calcul":"Pression de service (ELS) = tableau ÷ 1,5"}</div><div style={{fontSize:18,fontWeight:800,color:"#fff"}}>{Math.round(pELS)} Pa</div></div>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Largeur de vent reprise</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{larg.toFixed(2)} m</div></div>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Poids du vitrage posé</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{Math.round(comp.poids_m2*L*h1)} kg</div></div>
+      <div style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(240,192,64,0.15)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8}}>
+        <div style={{fontSize:11,color:"rgba(240,192,64,0.8)"}}>Inerties minimales requises</div>
+        <div style={{fontSize:18,fontWeight:800,color:"#f0c040"}}>Ix {inertieRequise(pELS,larg,L,critere,E)} · Iy {iyRequiseTraverse(L,h1,comp.poids_m2,a,E)} cm⁴</div>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Ix : vent ({libCrit}) · Iy : poids du vitrage (min L/500 ; 3 mm)</div>
+      </div>
+    </div>}
+
+    <button onClick={()=>setShowT(true)} disabled={!pret} style={S.btnPrimary}>📐 {sysT==="AUTRE"?"Vérifier la traverse saisie":`Vérifier les traverses ${SYSTEMES_TRAVERSE[sysT]}`}</button>
+    {!pret&&<div style={{fontSize:12,color:"#6b7280",marginTop:8}}>Renseigne la pression, la portée, les deux hauteurs de vitrage, la composition et la position des cales{sysT==="AUTRE"?", ainsi que Ix et Iy":""}.</div>}
+
+    {res&&<div style={{marginTop:20}}>
+      {rec?<div style={{...S.card,background:"#f0fdf4",border:"2px solid #059669",marginBottom:14}}>
+        <div style={{fontSize:15,fontWeight:800,color:"#1a1a2e",marginBottom:4}}>★ Traverse minimum recommandée : {rec.nom}</div>
+        <div style={{fontSize:12,color:"#6b7280",marginBottom:10}}>{sysT==="AUTRE"?"Valeurs saisies":`Réf. ${marque} ${rec.ref}`} · vent {rec.calc.vent.fleche} / {rec.calc.vent.adm} mm · poids du vitrage {rec.calc.poids.fleche} / {rec.calc.poids.adm} mm{rec.relire?" · ⚠ valeur Schüco à recontrôler au catalogue":""}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+          <Stat label="Ix (vent)" value={`${rec.Ix} cm⁴`} hi/><Stat label="Taux vent" value={`${Math.round(rec.calc.vent.ratio*100)}%`}/>
+          <Stat label="Iy (poids)" value={`${rec.Iy} cm⁴`} hi/><Stat label="Taux poids" value={`${Math.round(rec.calc.poids.ratio*100)}%`}/>
+        </div>
+      </div>:<div style={{...S.card,background:"#fff1f2",border:"1.5px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13,fontWeight:600}}>⚠ {sysT==="AUTRE"?"La traverse saisie":"Aucune traverse de la liste"} ne passe à la fois au vent et au poids du vitrage. Réduire la trame, alléger le vitrage, rapprocher les cales des meneaux ou prévoir une traverse renforcée.</div>}
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <thead><tr style={{background:"#1a1a2e",color:"#fff"}}>{["Traverse","Réf.","Ix","Vent f / adm (mm)","Iy","Poids f / adm (mm)","Verdict"].map(h=><th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:600,fontSize:12}}>{h}</th>)}</tr></thead>
+        <tbody>{res.map((x,i)=><tr key={i} style={{background:x.calc.ok?(rec&&x.ref===rec.ref?"#d1fae5":"#fff"):"#fff1f2"}}>
+          <td style={{padding:"7px 10px",fontWeight:600}}>{x.nom}{x.relire?<span title="Valeur Schüco à recontrôler au catalogue" style={{color:"#b45309"}}> ⚠</span>:null}</td>
+          <td style={{padding:"7px 10px",fontFamily:"monospace",fontSize:12,color:"#6b7280"}}>{x.ref}</td>
+          <td style={{padding:"7px 10px"}}>{x.Ix}</td>
+          <td style={{padding:"7px 10px",color:x.calc.vent.ok?"#065f46":"#991b1b",fontWeight:600}}>{x.calc.vent.fleche} / {x.calc.vent.adm}</td>
+          <td style={{padding:"7px 10px"}}>{x.Iy}</td>
+          <td style={{padding:"7px 10px",color:x.calc.poids.ok?"#065f46":"#991b1b",fontWeight:600}}>{x.calc.poids.fleche} / {x.calc.poids.adm}</td>
+          <td style={{padding:"7px 10px"}}>{x.calc.ok?<Badge color="green">✓ OK</Badge>:<Badge color="red">✗ {!x.calc.vent.ok&&!x.calc.poids.ok?"Vent + poids":!x.calc.vent.ok?"Vent":"Poids"}</Badge>}</td>
+        </tr>)}</tbody>
+      </table>
+      <div style={{...S.card,background:"#f9fafb",marginTop:16,fontSize:12,color:"#6b7280",lineHeight:1.6}}>
+        <strong>Méthode :</strong> traverse sur 2 appuis (les meneaux), portée = trame. <strong>Vent</strong> : charge uniforme q = pression ELS × largeur reprise, avec largeur = [min(h dessus ; L) + min(h dessous ; L)] / 2 — majorant de la répartition trapézoïdale réelle ; flèche 5qL⁴/(384·E·Ix), critère {libCrit}. <strong>Poids du vitrage</strong> : vitrage situé au-dessus de la traverse, P = poids surfacique × L × h dessus × 9,81, repris par 2 cales à la distance a des extrémités ; flèche (P/2)·a·(3L² − 4a²)/(24·E·Iy) ≤ min(L/500 ; 3 mm), critère usuel à confirmer par le CCTP ou le fabricant. Non vérifiés : torsion de la traverse due à l'excentrement du vitrage, contrainte, fixation traverse-meneau. Inerties : Schüco Catalogue général 2-1 « Façade FWS » (FDA23260, 11/2025 — ⚠ = lecture à recontrôler) ; Reynaers Docu Portal (11/2026).
+      </div>
+    </div>}
+  </div>;
+}
+
+// ── Bloc « Profilé de châssis » de la page Flèche (ajout 25/11/2026) ─────────
+function BlocChassis({projet,pression}){
+  const exigee=classeVExigeeCCTP(projet.aev_min);
+  const estim=pression?classeVRequise(pression):null;
+  const defaut=exigee||(estim&&estim.classe!=="E"?estim.classe:"");
+  const [cl,setCl]=useEtatModule("fleche.ch_classe","");
+  const [ixC,setIxC]=useEtatModule("fleche.ch_ix","");
+  const [LC,setLC]=useEtatModule("fleche.ch_portee","2.2");
+  const [lC,setlC]=useEtatModule("fleche.ch_largeur","0.6");
+  const [matC,setMatC]=useEtatModule("fleche.ch_mat","alu");
+  const classe=+(cl||defaut)||null;
+  const P1=classe?CLASSES_V[classe]:null;
+  const ix=lireNombreSaisi(ixC), L=lireNombreSaisi(LC), lg=lireNombreSaisi(lC);
+  const E=matC==="acier"?E_ACIER:E_ALU;
+  const pret=!!P1&&!!L&&!!lg;
+  const iReq=pret?inertieRequise(P1,lg,L,"150_15",E):null;
+  const calc=pret&&ix?flecheMeneau(P1,lg,L,ix,"150_15",E):null;
+  const err=t=><div style={{fontSize:11,color:"#b91c1c",marginTop:3}}>{t}</div>;
+  return <div>
+    <div style={{...S.card,background:"#f5f3ff",border:"1px solid #ddd6fe",marginBottom:14,fontSize:12,color:"#5b21b6",lineHeight:1.5}}>Vérifie un profilé de fenêtre ou de porte (montant de battement, meneau ou traverse de châssis) sous la pression <strong>P1</strong> de la classe de vent. Critère des DTA fenêtres : flèche de l'élément le plus sollicité <strong>≤ L/150, sans dépasser 15 mm</strong>. Saisis l'inertie Ix du profilé (catalogue du fabricant, axe perpendiculaire à la fenêtre) ; pour un ensemble ouvrant + dormant, utilise l'inertie donnée par le fabricant pour l'ensemble.</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
+      <div><label style={S.label}>Classe de vent (P1)</label><select value={cl||String(defaut)} onChange={ev=>setCl(ev.target.value)} style={S.input}><option value="">— choisir —</option>{[1,2,3,4,5].map(k=><option key={k} value={k}>C{k} — P1 = {CLASSES_V[k]} Pa</option>)}</select>
+        <div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>{exigee?`Classe du CCTP : V${exigee}`:estim?(estim.classe==="E"?"Pression au-delà de la classe 5 : choisir avec le fabricant":`Estimée d'après la pression : ${estim.label}`):"Aucune classe CCTP ni pression : choisir"}</div></div>
+      <div><label style={S.label}>Ix du profilé (cm⁴)</label><input value={ixC} onChange={ev=>setIxC(ev.target.value)} placeholder="ex. 25,4" style={S.input}/>{String(ixC).trim()&&!ix&&err("Valeur illisible (ex. 25,4)")}
+        <select value={matC} onChange={ev=>setMatC(ev.target.value)} style={{...S.input,marginTop:6}}><option value="alu">Aluminium (E = 70 000 N/mm²)</option><option value="acier">Acier (E = 210 000 N/mm²)</option></select></div>
+      <div><label style={S.label}>Portée du profilé (m)</label><input value={LC} onChange={ev=>setLC(ev.target.value)} placeholder="2.2" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Longueur entre fixations / appuis</div>{String(LC).trim()&&!L&&err("Valeur illisible")}</div>
+      <div><label style={S.label}>Largeur reprise (m)</label><input value={lC} onChange={ev=>setlC(ev.target.value)} placeholder="0.6" style={S.input}/><div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Montant central de 2 vantaux : moitié de la largeur totale de la fenêtre</div>{String(lC).trim()&&!lg&&err("Valeur illisible")}</div>
+    </div>
+    {pret&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression P1 (classe C{classe})</div><div style={{fontSize:18,fontWeight:800,color:"#fff"}}>{P1} Pa</div></div>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Flèche admissible L/150 ≤ 15 mm</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{flecheAdmissible(L*1000,"150_15").toFixed(1)} mm</div></div>
+      <div style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(240,192,64,0.15)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8}}>
+        <div style={{fontSize:11,color:"rgba(240,192,64,0.8)"}}>Inertie Ix minimale requise</div>
+        <div style={{fontSize:22,fontWeight:800,color:"#f0c040"}}>{iReq} cm⁴</div>
+      </div>
+    </div>}
+    {calc&&<div style={{...S.card,background:calc.ok?"#f0fdf4":"#fff1f2",border:`2px solid ${calc.ok?"#059669":"#fca5a5"}`}}>
+      <div style={{fontSize:15,fontWeight:800,color:calc.ok?"#065f46":"#991b1b",marginBottom:8}}>{calc.ok?"✓ Profilé suffisant":"✗ Profilé insuffisant"} — flèche {calc.fleche} mm pour {calc.adm} mm admissibles ({Math.round(calc.ratio*100)} %)</div>
+      <div style={{fontSize:12,color:"#6b7280"}}>Méthode : profilé sur 2 appuis, charge uniforme q = P1 × largeur reprise (majorant), f = 5qL⁴/(384·E·I). {calc.ok?"":"Prendre un profilé plus rigide, un renfort, ou réduire la portée / la largeur reprise."} Contrôle indicatif : le DTA et le fabricant du système restent la référence.</div>
+    </div>}
+    {pret&&!ix&&<div style={{fontSize:12,color:"#6b7280"}}>Saisis l'Ix du profilé pour obtenir le verdict.</div>}
+  </div>;
+}
+
 function PageFleche({projet}){
   const pression=calcPression(projet.zone_vent,projet.cat_terrain,projet.hauteur_bat);
   const facades=projet.elements.filter(e=>e.type==="facade");
@@ -4311,12 +4538,16 @@ function PageFleche({projet}){
   const [ixAutre,setIxAutre]=useEtatModule("fleche.ix_autre","");
   const [info,setInfo]=useEtatModule("fleche.info","");
   const [mat,setMat]=useEtatModule("fleche.materiau","alu");
+  const [mode,setMode]=useEtatModule("fleche.mode","meneau");
+  const [pNoteTxt,setPNoteTxt]=useEtatModule("fleche.p_note","");
+  // Pression ELS de la note de calcul (facultative) : remplace le tableau DTU 39 si elle est lisible
+  const pNote=lireNombreSaisi(pNoteTxt), pNoteErr=!!String(pNoteTxt||"").trim()&&!pNote;
   // Module d'élasticité : aluminium pour les listes fabricants ; acier possible seulement en saisie libre
   const E=systeme==="AUTRE"&&mat==="acier"?E_ACIER:E_ALU;
   const libCrit=critere==="en13116"?"NF EN 13116":critere==="200_15"?"L/200 ≤ 15 mm":"L/"+critere;
   const e=+entraxe||0, Lp=+portee||0;
   // Flèche = critère de service : pression du tableau DTU 39 (ELU) ÷ 1,5
-  const pELS=pression?pressionServiceELS(pression):null;
+  const pELS=pNoteErr?null:(pNote||(pression?pressionServiceELS(pression):null));
   const valide=!!pELS&&e>0&&Lp>0;
   const nomSys=SYSTEMES_FLECHE[systeme]||systeme;
   const ixTxt=String(ixAutre||"").trim().replace(",",".");
@@ -4351,11 +4582,24 @@ function PageFleche({projet}){
 
   return <div>
     <div style={{...S.card,background:"#eef2ff",border:"1px solid #c7d2fe",marginBottom:14}}>
-      <div style={{fontSize:14,fontWeight:700,color:"#3730a3",marginBottom:4}}>📐 Flèche meneau façade rideau — vérification structurelle</div>
-      <div style={{fontSize:12,color:"#3730a3"}}>Le meneau travaille comme une poutre sur 2 appuis (planchers) sous charge de vent. La flèche se vérifie sous vent de <strong>service (ELS) = pression du tableau NF DTU 39 ÷ 1,5</strong>. Flèche admissible par défaut <strong>NF EN 13116:2024</strong> : L/200 si L ≤ 3 m ; 5 mm + L/300 entre 3 et 7,5 m ; L/250 au-delà (à confirmer par le CCTP / DTA du système retenu). (La flèche des châssis fenêtres/portes relève du NF DTU 39 : L/150, max 15 mm sous 800 Pa.) Inerties : catalogue Schüco 2-1 Façade FWS (11/2025).</div>
+      <div style={{fontSize:14,fontWeight:700,color:"#3730a3",marginBottom:4}}>📐 Flèche — meneaux et traverses de façade, profilés de châssis</div>
+      <div style={{fontSize:12,color:"#3730a3"}}>Le meneau travaille comme une poutre sur 2 appuis (planchers) sous charge de vent. La flèche se vérifie sous vent de <strong>service (ELS) = pression du tableau NF DTU 39 ÷ 1,5</strong>. Flèche admissible par défaut <strong>NF EN 13116:2024</strong> : L/200 si L ≤ 3 m ; 5 mm + L/300 entre 3 et 7,5 m ; L/250 au-delà (à confirmer par le CCTP / DTA du système retenu). Traverses : même critère au vent, et min(L/500 ; 3 mm) sous le poids du vitrage. Profilés de châssis (fenêtres, portes) : flèche ≤ L/150, plafonnée à 15 mm, sous la pression P1 de la classe de vent (critère des DTA fenêtres). Inerties : catalogue Schüco 2-1 Façade FWS (11/2025).</div>
     </div>
 
-    {!pression&&<div style={{...S.card,background:"#fff1f2",border:"1px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13}}>⚠ Pression de vent non calculée — renseigne d'abord la zone, le terrain et la hauteur en étape 1 ou 2.</div>}
+    <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+      {[["meneau","Meneau de façade"],["traverse","Traverse de façade"],["chassis","Profilé de châssis"]].map(([k,l])=><button key={k} onClick={()=>setMode(k)} style={{padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",border:mode===k?"2px solid #3730a3":"1.5px solid #c7d2fe",background:mode===k?"#3730a3":"#fff",color:mode===k?"#fff":"#3730a3"}}>{l}</button>)}
+    </div>
+
+    {mode!=="chassis"&&<div style={{...S.card,marginBottom:14,display:"grid",gridTemplateColumns:"1fr 2fr",gap:12,alignItems:"start"}}>
+      <div><label style={S.label}>Pression ELS de la note de calcul (Pa)</label><input value={pNoteTxt} onChange={ev=>setPNoteTxt(ev.target.value)} placeholder="facultatif — ex. 1450" style={S.input}/>{pNoteErr&&<div style={{fontSize:11,color:"#b91c1c",marginTop:3}}>Valeur illisible — saisis un nombre en Pa (ex. 1450) ou vide le champ</div>}</div>
+      <div style={{fontSize:12,color:"#6b7280",lineHeight:1.5}}>{pNote?<><strong style={{color:"#3730a3"}}>Pression de la note de calcul utilisée : {pNote} Pa (ELS).</strong> Le tableau NF DTU 39 n'est plus utilisé. Saisis la pression <strong>de service, non majorée</strong>, de la zone étudiée (courante ou de rive).</>:<>Laisse vide pour utiliser le tableau NF DTU 39 ÷ 1,5. Si le bureau d'études a calculé le vent selon l'Eurocode (Cpe / Cpi), saisis ici la pression <strong>de service (ELS, sans le coefficient 1,5)</strong> de la zone étudiée : en zone de rive (angles), elle est nettement plus forte qu'en partie courante.</>}</div>
+    </div>}
+
+    {mode!=="chassis"&&!pELS&&!pNoteErr&&<div style={{...S.card,background:"#fff1f2",border:"1px solid #fca5a5",marginBottom:14,color:"#991b1b",fontSize:13}}>⚠ Pression de vent non calculée — renseigne d'abord la zone, le terrain et la hauteur en étape 1 ou 2, ou saisis la pression de la note de calcul.</div>}
+
+    {mode==="traverse"&&<BlocTraverse pELS={pELS} pNote={pNote} pression={pression} critere={critere} setCritere={setCritere} entraxe={entraxe} setEntraxe={setEntraxe}/>}
+    {mode==="chassis"&&<BlocChassis projet={projet} pression={pression}/>}
+    {mode==="meneau"&&<>
 
     {facades.length>0&&<div style={{marginBottom:14}}>
       <label style={S.label}>Charger une façade du projet</label>
@@ -4377,10 +4621,11 @@ function PageFleche({projet}){
       <div><label style={S.label}>Critère de flèche</label><select value={critere} onChange={ev=>setCritere(ev.target.value)} style={S.input}><option value="en13116">NF EN 13116 (L/200 ; 5 + L/300 ; L/250)</option><option value="200">L/200</option><option value="200_15">L/200 plafonné à 15 mm</option><option value="175">L/175</option></select></div>
     </div>
 
-    {!pression&&<BandeauPression diag={pDiag} style={{marginBottom:14}}/>}
+    {!pression&&!pNote&&<BandeauPression diag={pDiag} style={{marginBottom:14}}/>}
     {valide&&<div style={{padding:"10px 16px",background:"#1a1a2e",borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+      {pNote?<div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression ELS — note de calcul</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{Math.round(pELS)} Pa</div></div>:<>
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression tableau DTU 39 (ELU)</div><div style={{fontSize:16,fontWeight:700,color:"rgba(255,255,255,0.75)"}}>{pression} Pa</div></div>
-      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression de service (ELS) = ÷ 1,5</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{Math.round(pELS)} Pa</div></div>
+      <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Pression de service (ELS) = ÷ 1,5</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>{Math.round(pELS)} Pa</div></div></>}
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Charge linéique meneau (ELS)</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{(pELS*e/1000).toFixed(2)} N/mm</div></div>
       <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>Flèche admissible {libCrit}</div><div style={{fontSize:16,fontWeight:700,color:"#fff"}}>{flecheAdmissible(Lp*1000,critere).toFixed(1)} mm</div></div>
       <div style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(240,192,64,0.15)",border:"1px solid rgba(240,192,64,0.4)",borderRadius:8}}>
@@ -4430,9 +4675,10 @@ function PageFleche({projet}){
         </>;
       })()}
       <div style={{...S.card,background:"#f9fafb",marginTop:16,fontSize:12,color:"#6b7280",lineHeight:1.6}}>
-        <strong>Méthode :</strong> meneau modélisé en poutre simplement appuyée, charge vent uniformément répartie q = pression de service (tableau NF DTU 39 ÷ 1,5) × entraxe. Flèche f = 5qL⁴/(384·E·I) avec E<sub>alu</sub> = 70 000 N/mm² (E<sub>acier</sub> = 210 000 N/mm² pour un meneau acier saisi). Inertie Ix = flexion sous vent (perpendiculaire à la façade). Inerties : Schüco Catalogue général 2-1 « Façade FWS » (FDA23260, 11/2025) ; Cortizo « Fachadas y lucernarios » (04/2026) et « Fachadas stick 62 » (11/2025) ; seuls les meneaux courants sont comparés (pas les poteaux d'angle). Contrainte, poids propre et combinaisons ELU/ELS non vérifiés ici : pour un dimensionnement définitif, valider avec une note de calcul du fabricant ou du bureau d'études (SchüCal, logiciel Cortizo…).
+        <strong>Méthode :</strong> meneau modélisé en poutre simplement appuyée, charge vent uniformément répartie q = pression de service (tableau NF DTU 39 ÷ 1,5, ou pression ELS de la note de calcul si elle est saisie) × entraxe. Flèche f = 5qL⁴/(384·E·I) avec E<sub>alu</sub> = 70 000 N/mm² (E<sub>acier</sub> = 210 000 N/mm² pour un meneau acier saisi). Inertie Ix = flexion sous vent (perpendiculaire à la façade). Inerties : Schüco Catalogue général 2-1 « Façade FWS » (FDA23260, 11/2025) ; Cortizo « Fachadas y lucernarios » (04/2026) et « Fachadas stick 62 » (11/2025) ; seuls les meneaux courants sont comparés (pas les poteaux d'angle). Contrainte, poids propre et combinaisons ELU/ELS non vérifiés ici : pour un dimensionnement définitif, valider avec une note de calcul du fabricant ou du bureau d'études (SchüCal, logiciel Cortizo…).
       </div>
     </div>}
+    </>}
   </div>;
 }
 
@@ -5005,6 +5251,15 @@ function runAutotests(){
   ok("Flèche meneau : Cortizo série 52 → COR-9804 130 mm (300,62 cm⁴) ; meneau acier → Ix requise ÷ 3 (≈ 82,9 cm⁴)", rC&&rC.ref==="COR-9804"&&proche(iAc,82.9,0.1)&&!PROFILES_FACADE.some(p=>p.ref==="COR-9614"), `${rC?rC.ref+" · "+rC.calc.fleche+" mm":"aucun"} · acier ${iAc} cm⁴`);
   const rR50=profilesCompatibles("REY_CW50",pS,1.35,3.5,"en13116").find(x=>x.calc.ok), rR60=profilesCompatibles("REY_CW60",pS,1.35,3.5,"en13116").find(x=>x.calc.ok);
   ok("Flèche meneau : Reynaers CW 50 → 034.2506 163 mm (297,28 cm⁴) ; CW 60 → 034.2605 142 mm (259,43 cm⁴)", rR50&&rR50.ref==="034.2506"&&rR60&&rR60.ref==="034.2605"&&FLECHE_PAR_SYSID.rey_cw50==="REY_CW50"&&!FLECHE_PAR_SYSID.rey_cw50fv, `${rR50?rR50.ref+" · "+rR50.calc.fleche+" mm":"aucun"} · ${rR60?rR60.ref+" · "+rR60.calc.fleche+" mm":"aucun"}`);
+  // Traverses et châssis (ajout 25/11/2026)
+  const c44=analyseComposition("4/16/4"), rT=traversesCompatibles("REY_CW50",1100,1.35,1.75,1.75,c44?c44.poids_m2:0,100,"en13116"), recT=rT.find(x=>x.calc.ok);
+  const iXT=inertieRequise(1100,1.35,1.35,"en13116"), iYT=iyRequiseTraverse(1.35,1.75,20,100);
+  ok("Traverse : CW 50, trame 1,35 m, vitrages 1,75 m, 4/16/4 (20 kg/m²) → Ix ≥ 13,6 · Iy ≥ 2,8 cm⁴ → 034.3522", c44&&c44.poids_m2===20&&proche(iXT,13.6,0.1)&&proche(iYT,2.8,0.1)&&recT&&recT.ref==="034.3522", `${recT?recT.ref:"aucune"} · Ix ${iXT} · Iy ${iYT}`);
+  const fdc=flecheDeuxCales(2000,100,1500,10);
+  ok("Traverse : flèche sous 2 cales (P 2000 N, a 100 mm, L 1,5 m, Iy 10 cm⁴) ≈ 3,99 mm ; critère min(L/500 ; 3 mm)", proche(fdc,3.99,0.01)&&flecheAdmPoids(1350)===2.7&&flecheAdmPoids(2000)===3, fdc.toFixed(2)+" mm");
+  const iCh=inertieRequise(1200,0.6,2.2,"150_15");
+  ok("Châssis : P1 1200 Pa, largeur 0,6 m, portée 2,2 m → L/150 = 14,7 mm → Ix ≥ 21,4 cm⁴ ; plafond 15 mm à 3 m", proche(iCh,21.4,0.1)&&flecheAdmissible(3000,"150_15")===15, iCh+" cm⁴");
+  ok("Saisie de nombre : virgule acceptée, espace ou texte refusé (pas de correction silencieuse)", lireNombreSaisi("1450,5")===1450.5&&lireNombreSaisi("1 450")===null&&lireNombreSaisi("abc")===null&&lireNombreSaisi("0")===null, "");
   ok("Flèche meneau : FWS 50 → meneau 125 mm 536 840 (278,8 cm⁴, f ≈ 14,9 mm), aucun poteau d'angle proposé", recF&&recF.ref==="536 840"&&proche(recF.calc.fleche,14.9,0.05)&&rF.every(x=>x.type==="meneau"), recF?`${recF.nom} · ${recF.calc.fleche} mm / ${recF.calc.adm} mm`:"aucun");
   return T;
 }
@@ -5421,7 +5676,7 @@ const TITRES={
   vent:["Étude technique","Calcul du vent","NF DTU 39 P4 — pression de calcul et épaisseur minimale par élément."],
   comparateur:["Étude technique","Comparateur des systèmes","Acoustique, AEV, thermique, mécanique du vitrage, domaine d'emploi et DTA."],
   controle:["Étude technique","Contrôle solaire","Vitrages de contrôle solaire selon TL, facteur solaire et Ug."],
-  fleche:["Étude technique","Flèche façade","Vérification des meneaux de façade rideau sous la pression de calcul."],
+  fleche:["Étude technique","Flèche façade","Vérification des meneaux et traverses de façade et des profilés de châssis sous la pression de vent."],
   securite:["Étude technique","Pare-balle / Coupe-feu","Vitrages et systèmes à fonction spécifique."],
   prescription:["Livrables","Prescription","Note de choix vitrage par élément, prête à imprimer."],
   metre:["Livrables","Métré","Récapitulatif par typologie : surfaces, linéaires et poids."],
